@@ -76,6 +76,11 @@ public final class AgentController: AgentInvocationGate {
 
     public func start() throws {
         guard server == nil else { return }
+        // Pozostałości po sesjach z poprzedniego uruchomienia (np. po awarii) — tylko pliki bez sekretów.
+        let run = workspace.paths.run
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: run.path)) ?? [] where name.hasPrefix("session-") {
+            try? FileManager.default.removeItem(at: run.appending(path: name))
+        }
         let server = AgentServer(
             socketURL: socketURL, registry: registry,
             onAccept: { [weak self] fd, session in

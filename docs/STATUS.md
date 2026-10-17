@@ -1,0 +1,61 @@
+# Stan realizacji (2026-10-17)
+
+Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **143** w
+pakiecie `BifoldKit` (`make test`) + test wydajności w Release (`make test-release`) + opcjonalny test
+E2E z prawdziwymi CLI agentów. Zgodnie z poleceniem „w pełni autonomicznie” punkty „pokaż i poczekaj
+na akceptację” zastąpiłem wpisami w [DECISIONS.md](DECISIONS.md).
+
+Legenda: ✅ zweryfikowane testem automatycznym · 👁 sprawdzone ręcznie w działającej aplikacji
+(zrzuty ekranu) · ⚠️ zaimplementowane, bez weryfikacji na żywo (powód w kolumnie).
+
+## Etap 1 — rdzeń lokalny
+
+| Kryterium | Stan |
+|---|---|
+| Codzienna praca tylko z klawiatury (F-klawisze, Tab, Spacja, szybkie wyszukiwanie, paleta) | ✅ komendy + 👁 strzałki, Spacja, wpisywanie, Tab, F3, Ctrl+1…4, Cmd+L |
+| Katalog ze 100 000 plików < 1 s | ✅ Release: **0,23 s** (listowanie 0,09 s, sortowanie 0,08 s) |
+| Operacje w tle: pauza, wznowienie, limit, anulowanie bez częściowego pliku | ✅ (także wewnątrz `copyfile`) |
+| Cofanie przeniesienia, zmiany nazwy, Kosza (z wykrywaniem konfliktów) | ✅ |
+| Wszystkie czynności w rejestrze komend; menu z rejestru | ✅ (`docs/SKROTY.md` generowane z rejestru) |
+| Widoki: szczegóły, lista skrócona, miniatury, kolumny; drzewo; podgląd F3 (tekst/hex/obraz) | 👁 |
+| Terminal SwiftTerm, linia poleceń | 👁 |
+
+## Etap 2 — API agentów
+
+| Kryterium | Stan |
+|---|---|
+| Każdy z 4 agentów uruchomiony z aplikacji czyta zaznaczenie i nawiguje | ✅ E2E: Claude Code, Codex, Grok, Antigravity (`AgentE2ETests`) + 👁 Claude i Codex w panelu agenta |
+| Połączenie bez tokenu / z błędnym tokenem / spoza drzewa procesów odrzucane | ✅ |
+| Narzędzia z poziomem „Brak” niewidoczne | ✅ |
+| Zablokowane ścieżki niedostępne (też przez `..` i dowiązania) | ✅ |
+| Cofnięcie sesji agenta przywraca stan sprzed sesji | ✅ |
+| Okno zatwierdzania z podglądem | ✅ logika + 👁 (poprawione po teście: brak przycisku domyślnego, D23) |
+
+## Etapy 3–7
+
+| Funkcja | Stan |
+|---|---|
+| Wyszukiwanie: nazwa, regex, treść (ripgrep, windows-1250), filtry, zapisane, wyniki w panelu | ✅ |
+| Spotlight | ⚠️ zależy od indeksu Spotlight — kod bez testu automatycznego |
+| Duplikaty, sumy MD5/SHA-1/SHA-256, dzielenie/łączenie | ✅ |
+| Zmiana nazw wielu plików (maski, licznik, EXIF, multimedia, regex, wielkość liter, cofanie zamian) | ✅ (EXIF na wygenerowanym JPEG; tagi multimediów bez testu) |
+| Archiwa: ZIP/7z/TAR/TAR.GZ/BZ2/XZ, polskie nazwy, hasła, wieloczęściowe, archiwum jak katalog, szukanie w archiwach | ✅ (RAR — rozpakowywanie przez 7zz, bez pliku testowego) |
+| Serwery: SFTP, FTP, WebDAV przez rclone (gniazdo Unix, konfiguracja w pamięci), przesyłanie, cofanie pobrań | ✅ z lokalnymi serwerami `rclone serve` |
+| Zasada najmniejszego poziomu: SFTP tylko odczyt, FTP za zgodą, FTP→SFTP zabronione | ✅ |
+| SMB/NFS (NetFS), Google Drive / Dropbox / OneDrive (OAuth) | ⚠️ brak serwera SMB i kont chmurowych w środowisku testowym |
+| Edycja plików zdalnych (wysyłka po zapisie) | ⚠️ bez testu automatycznego |
+| Porównanie plików (tekst/binarne), katalogów, synchronizacja 3 tryby z podglądem i Koszem | ✅ |
+| Android (MTP), iPhone (AFC) | ⚠️ parsery przetestowane na przykładowych wyjściach; brak telefonu do testu na żywo |
+| Pomocnik administratora (SMAppService + XPC + autoryzacja) | ⚠️ logika i walidacja testowane; rejestracja demona wymaga podpisu z zespołem (D36) |
+
+## Znane ograniczenia
+
+- **Pomocnik administratora** nie zarejestruje się przy podpisie „Sign to Run Locally” — ustaw
+  `DEVELOPMENT_TEAM` w `Config/Brand.xcconfig` (darmowy zespół osobisty wystarczy) i wymaganie podpisu.
+- **Antigravity** nie ma serwera MCP na sesję — przy pierwszym uruchomieniu Bifold pyta o zgodę
+  na trwałe `agy mcp add bifold …` (bez tokenu most odrzuca połączenia).
+- **Grok** startuje w trybie bez interfejsu wolno (~4 min w teście E2E) — to czas samego CLI.
+- **Operacje na serwerach** (wysyłka, zmiana nazwy, usunięcie) nie są cofalne — serwery nie mają Kosza (D32).
+- **Wyszukiwanie w archiwach** dotyczy nazw, nie treści.
+- Tłumaczenia: katalog `Localizable.xcstrings` zawiera wszystkie klucze (język źródłowy polski);
+  inne języki trzeba dodać w Xcode.

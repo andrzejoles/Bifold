@@ -31,11 +31,14 @@ brew install libimobiledevice  # Etap 7: iPhone (AFC)
 git clone --recursive https://github.com/andrzejoles/Bifold.git
 cd Bifold
 make bootstrap   # buduje HexFiend.framework, generuje Bifold.xcodeproj
-make test        # testy pakietu BifoldKit
+make test        # testy pakietu BifoldKit (143)
+make test-release  # test wydajności 100 000 plików w Release (kryterium < 1 s)
 make run         # buduje i uruchamia Bifold.app
 ```
 
 albo `open Bifold.xcodeproj` i ⌘R. Podpis: „Sign to Run Locally” (bez zespołu, bez notaryzacji).
+Przy pierwszym budowaniu w Xcode zaakceptuj wtyczkę budowania SwiftTerm („Trust & Enable”).
+Pomocnik administratora wymaga podpisu z zespołem — patrz `Config/Brand.xcconfig`.
 
 Przy pierwszym uruchomieniu nadaj aplikacji **Pełny dostęp do dysku**
 (Ustawienia systemowe → Prywatność i ochrona → Pełny dostęp do dysku) — aplikacja sama to wykryje
@@ -55,8 +58,16 @@ Test z prawdziwymi CLI (zużywa limit subskrypcji):
 cd Packages/BifoldKit && BIFOLD_E2E_AGENTS=1 swift test --filter AgentE2ETests
 ```
 
+## Zakres
+
+Zaimplementowane wszystkie etapy 1–7: rdzeń lokalny, API agentów (MCP), wyszukiwanie i zmiana nazw,
+archiwa (7-Zip), serwery i chmury (rclone), porównywanie i synchronizacja, urządzenia (MTP/AFC)
+i pomocnik administratora. Co jest zweryfikowane testami, a co nie — [docs/STATUS.md](docs/STATUS.md).
+Lista skrótów: [docs/SKROTY.md](docs/SKROTY.md).
+
 ## Dokumentacja
 
+- [Stan realizacji i ograniczenia](docs/STATUS.md) · [Skróty](docs/SKROTY.md)
 - [Architektura](docs/ARCHITECTURE.md)
 - [Model zagrożeń API agentów](docs/SECURITY.md)
 - [Plan Etapu 1](docs/PLAN-ETAP-1.md)

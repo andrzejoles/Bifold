@@ -24,7 +24,9 @@ Bifold/
 │   │   ├── BifoldWorkspace/    # model stanu aplikacji, rejestr komend, komendy, skróty
 │   │   ├── BifoldAgent/        # (Etap 2) polityka uprawnień, sesje, serwer gniazda, narzędzia MCP
 │   │   ├── BifoldBridgeKit/    # (Etap 2) logika mostu: stdio MCP <-> gniazdo Unix
-│   │   └── bifold-mcp/         # (Etap 2) plik wykonywalny mostu (cienka powłoka na BifoldBridgeKit)
+│   │   ├── bifold-mcp/         # (Etap 2) plik wykonywalny mostu (cienka powłoka na BifoldBridgeKit)
+│   │   ├── BifoldHelperKit/    # (Etap 7) protokół i walidacja operacji pomocnika administratora
+│   │   └── bifold-helper/      # (Etap 7) demon XPC (LaunchDaemon przez SMAppService)
 │   └── Tests/
 ├── ThirdParty/HexFiend/        # submoduł git (HexFiend 2.18.1), budowany skryptem
 ├── scripts/                    # build-hexfiend.sh, gen-strings.py, perf-fixture.sh
@@ -86,9 +88,13 @@ public protocol FileSystemProvider: Sendable {
   (zapasowo `FileManager` z prefetchem kluczy), obserwowanie przez FSEvents, kopiowanie przez
   `copyfile(3)` z `COPYFILE_ALL | COPYFILE_CLONE` i callbackiem postępu (pauza, limit prędkości,
   anulowanie działają wewnątrz callbacku), Kosz przez `FileManager.trashItem(resultingItemURL:)`.
-- `ArchiveFS` (Etap 4): `7zz l -slt` → drzewo w pamięci, odczyt przez `7zz e -so`.
-- `RemoteFS` (Etap 5): `rclone rcd` na gnieździe Unix, `operations/list`, `operations/copyfile`…
-- `DeviceFS` (Etap 7): libmtp / libimobiledevice (AFC).
+- `ArchiveFS` (Etap 4): `7zz l -slt` → drzewo w pamięci (klucze NFC), odczyt `7zz e -so`,
+  kopiowanie przez rozpakowanie do katalogu tymczasowego (`ExtractingProvider`).
+- `RemoteFS` (Etap 5): `rclone rcd` na gnieździe Unix z konfiguracją w pamięci; `operations/*`,
+  przesyłanie `RcloneTransfer` (zadania `_async`, postęp `core/stats`, `job/stop`).
+- `AFCDeviceFS` / `MTPDeviceFS` (Etap 7): `afcclient` / narzędzia libmtp, tylko do odczytu.
+- `SearchResultsFS` (Etap 3): wyniki wyszukiwania jako „katalog” z prawdziwymi ścieżkami.
+- `LocalFS` odrzuca każdą ścieżkę innego dostawcy (`/a/b` z archiwum to nie `/a/b` na dysku).
 - `ProviderRegistry` rozwiązuje `ProviderID` → dostawcę. Panele, operacje, wyszukiwanie i API
   agenta używają wyłącznie protokołu.
 
@@ -285,7 +291,18 @@ Narzędzia to widok na rejestr komend (`ToolCatalog`). Nazwy narzędzi i odpowia
 | `set_attributes` / `set_tags` | `file.setAttributes` / `file.setTags` | za zgodą |
 | `undo` | `edit.undo` | za zgodą |
 | `run_command` | dowolna komenda z rejestru | za zgodą, ale nie wyżej niż poziom komendy |
-| (Etapy 3–6) `search`, `checksum`, `find_duplicates`, `multi_rename`, `split_file`, `join_files`, `archive_*`, `remote_*`, `compare_*`, `sync_*` | odpowiednie komendy | wg macierzy |
+| `search`, `spotlight_search`, `saved_search_run/list` | `search.*` | pełny |
+| `find_duplicates` | `search.duplicates` | odczyt |
+| `multi_rename`, `split_file`, `join_files` | `file.multiRename`, `file.split`, `file.join` | za zgodą |
+| `checksum`, `checksum_verify` | `file.checksumCreate`, `file.checksumVerify` | pełny |
+| `archive_create`, `archive_extract` / `archive_list`, `archive_test` | `archive.*` | za zgodą / odczyt |
+| `remote_connections`, `remote_open`, `remote_list`, `remote_read`, `remote_search` | `remote.*` | odczyt (tylko aliasy) |
+| `compare_files`, `compare_dirs`, `sync_preview` | `file.compare`, `dirs.compare`, `sync.preview` | odczyt |
+| `sync_run`, `sync_job_save`, `sync_job_run` / `sync_job_list` | `sync.*` | za zgodą / odczyt |
+| `device_list`, `device_open` | `device.*` | odczyt |
+
+Poziom wywołania = min(poziom komendy, nadpisania, poziomy wszystkich zasobów: SFTP/WebDAV/SMB/chmury
+i woluminy sieciowe — odczyt, FTP — za zgodą, archiwa/urządzenia — odczyt, zablokowane — brak).
 
 ## 9. Interfejs (cel Bifold.app)
 
