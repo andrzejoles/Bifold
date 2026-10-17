@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — Etap 6 (porównywanie i synchronizacja)
+- Porównanie plików: tekst (różnice wierszy obok siebie, Myers), binarne (pierwsza różnica, liczba bajtów).
+- Porównanie katalogów (Shift+F2): zaznacza w obu panelach pliki unikalne i nowsze (lub różne treścią).
+- Synchronizacja (Ctrl+Alt+S) lokalna i z serwerami: lustro, aktualizacja, dwukierunkowa; zawsze
+  podgląd „na sucho” z możliwością odznaczenia pozycji; zapisane zadania uruchamiane jednym kliknięciem.
+- Narzędzia MCP: compare_files, compare_dirs, sync_preview, sync_run, sync_job_save/list/run.
+
 ### Dodane — Etap 5 (sieć i serwery przez rclone)
 - rclone `rcd` na gnieździe Unix z konfiguracją w pamięci; połączenia SFTP (klucze, agent SSH), FTP/FTPS,
   WebDAV, SMB, Google Drive, Dropbox, OneDrive (OAuth przez `rclone authorize` w terminalu).

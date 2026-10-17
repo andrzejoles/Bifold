@@ -51,6 +51,9 @@ final class MockUI: UIServices {
     var passwordAnswer: String?
     func promptPassword(title: String) async -> String? { passwordAnswer }
     func showConnections() {}
+    var compared: (FileItem, FileItem)?
+    func showCompare(left: FileItem, right: FileItem) { compared = (left, right) }
+    func showSync(source: VFSPath, destination: VFSPath, job: SyncJob?) {}
 }
 
 /// `Workspace.ui` jest słabą referencją — atrapy muszą żyć do końca testu.

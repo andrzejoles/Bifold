@@ -331,6 +331,23 @@ final class AppUIServices: UIServices {
 
     private var connectionsWindow: ConnectionsWindowController?
 
+    func showCompare(left: FileItem, right: FileItem) {
+        let c = HostingWindowController(title: L10n.tr("Porównanie: \(left.name) ↔ \(right.name)"), size: NSSize(width: 1000, height: 640), autosave: "CompareWindow") { _ in
+            CompareView(left: left, right: right)
+        }
+        keep(c)
+        c.showWindow(nil)
+    }
+
+    func showSync(source: VFSPath, destination: VFSPath, job: SyncJob?) {
+        let model = SyncModel(workspace: workspace, source: source, destination: destination, job: job)
+        let c = HostingWindowController(title: L10n.tr("Synchronizacja katalogów"), size: NSSize(width: 900, height: 600), autosave: "SyncWindow") { close in
+            SyncView(model: model, close: close)
+        }
+        keep(c)
+        c.showWindow(nil)
+    }
+
     func showConnections() {
         if connectionsWindow == nil {
             connectionsWindow = ConnectionsWindowController(workspace: workspace) { [weak self] command in

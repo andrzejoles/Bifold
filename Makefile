@@ -24,7 +24,7 @@ test:
 
 # Testy wydajności w konfiguracji Release (kryterium 100 000 plików < 1 s).
 test-release:
-	cd Packages/BifoldKit && swift test -c release -Xswiftc -enable-testing --filter PerformanceTests
+	cd Packages/BifoldKit && BIFOLD_PERF_STRICT=1 swift test -c release -Xswiftc -enable-testing --filter PerformanceTests
 
 run: build
 	open $(APP)

@@ -174,3 +174,17 @@ Pobranie na dysk lokalny trafia do dziennika (cofnięcie = Kosz). Wysyłanie, zm
 i usuwanie na serwerze nie mają operacji odwrotnej (serwery nie mają Kosza) — dlatego usuwanie
 z serwera jest zawsze potwierdzane przez użytkownika, a dla agenta możliwe tylko na FTP po zgodzie.
 Pauza zadania rclone = globalny limit 1 B/s (rc nie ma pauzy zadań).
+
+### D33 · 2026-10-17 — Plan synchronizacji z listingów, sumy na żądanie
+Domyślnie plan powstaje z rekurencyjnych listingów obu stron (rozmiar + data, tolerancja 2 s —
+jak w TC), bo `operations/check` liczy sumy kontrolne wszystkich plików i na dużym drzewie trwa
+bardzo długo. Tryb „sumy kontrolne” używa `operations/check`. Tryby: lustro (z usuwaniem),
+aktualizacja, dwukierunkowa (nowszy wygrywa, bez usuwania — przewidywalna, z pełnym podglądem;
+świadomie bez `rclone bisync`, który wymaga stanu z poprzednich przebiegów). Wykonanie idzie
+pozycja po pozycji, więc odznaczone w podglądzie pozycje są pomijane; lokalne pliki nadpisywane
+i usuwane trafiają najpierw do Kosza (cofalne).
+
+### D34 · 2026-10-17 — Odświeżenie w tle nie nadpisuje nowszego kursora
+Wykryte w teście: odświeżenie po zdarzeniu FSEvents przywracało stary kursor po równoległej
+nawigacji z fokusem. Karta liczy nawigacje; odświeżenie przywraca kursor tylko, jeśli w międzyczasie
+nie było innej nawigacji.

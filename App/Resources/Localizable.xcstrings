@@ -67,6 +67,9 @@
     "Agent": {
       "extractionState": "manual"
     },
+    "Aktualizacja (źródło → cel)": {
+      "extractionState": "manual"
+    },
     "Aktywny panel, karty obu paneli (ścieżka, widok, sortowanie, filtr, kursor, liczba zaznaczonych).": {
       "extractionState": "manual"
     },
@@ -175,6 +178,9 @@
     "Błędy: %lld": {
       "extractionState": "manual"
     },
+    "Cel": {
+      "extractionState": "manual"
+    },
     "Ciemny": {
       "extractionState": "manual"
     },
@@ -275,6 +281,9 @@
       "extractionState": "manual"
     },
     "Drzewo katalogów w nowych panelach": {
+      "extractionState": "manual"
+    },
+    "Dwukierunkowa (nowszy wygrywa)": {
       "extractionState": "manual"
     },
     "Dyski i woluminy": {
@@ -451,6 +460,9 @@
     "Katalog startowy na serwerze": {
       "extractionState": "manual"
     },
+    "Katalog źródłowy (domyślnie aktywny panel; serwer: alias:/ścieżka)": {
+      "extractionState": "manual"
+    },
     "Katalogi przeszukiwania (domyślnie bieżący)": {
       "extractionState": "manual"
     },
@@ -583,6 +595,9 @@
     "Lista elementów katalogu na serwerze.": {
       "extractionState": "manual"
     },
+    "Lista operacji synchronizacji „na sucho” (nic nie zmienia).": {
+      "extractionState": "manual"
+    },
     "Lista plików w archiwum (bez rozpakowywania; archiwa z hasłem niedostępne dla agenta).": {
       "extractionState": "manual"
     },
@@ -601,7 +616,13 @@
     "Lista zapisanych wyszukiwań.": {
       "extractionState": "manual"
     },
+    "Lista zapisanych zadań synchronizacji.": {
+      "extractionState": "manual"
+    },
     "Logowanie OAuth wykonujesz sam: „Autoryzuj w terminalu” uruchamia rclone authorize; skopiuj wypisany token (JSON) do pola poniżej.": {
+      "extractionState": "manual"
+    },
+    "Lustro (źródło → cel, z usuwaniem)": {
       "extractionState": "manual"
     },
     "MB/s (0 = bez limitu):": {
@@ -719,6 +740,12 @@
       "extractionState": "manual"
     },
     "Nazwa wyszukiwania": {
+      "extractionState": "manual"
+    },
+    "Nazwa zadania": {
+      "extractionState": "manual"
+    },
+    "Nazwa zadania synchronizacji": {
       "extractionState": "manual"
     },
     "Nazwa zapisanego wyszukiwania": {
@@ -991,6 +1018,9 @@
     "Pierwsza część (.001)": {
       "extractionState": "manual"
     },
+    "Pierwsza różnica: bajt %@ (0x%@), różnych bajtów: %@": {
+      "extractionState": "manual"
+    },
     "Pierwsza wielka": {
       "extractionState": "manual"
     },
@@ -1006,10 +1036,22 @@
     "Plik klucza SSH (puste = agent SSH lub hasło)": {
       "extractionState": "manual"
     },
+    "Plik lewy (domyślnie kursor aktywnego panelu)": {
+      "extractionState": "manual"
+    },
+    "Plik prawy (domyślnie kursor drugiego panelu)": {
+      "extractionState": "manual"
+    },
     "Plik wynikowy (domyślnie w drugim panelu, nazwa bez .001)": {
       "extractionState": "manual"
     },
+    "Pliki różnią się": {
+      "extractionState": "manual"
+    },
     "Pliki starsze niż 3 miesiące": {
+      "extractionState": "manual"
+    },
+    "Pliki są identyczne": {
       "extractionState": "manual"
     },
     "Pliki ukryte": {
@@ -1025,6 +1067,9 @@
       "extractionState": "manual"
     },
     "Podgląd": {
+      "extractionState": "manual"
+    },
+    "Podgląd synchronizacji": {
       "extractionState": "manual"
     },
     "Podkatalogi": {
@@ -1117,7 +1162,37 @@
     "Port (puste = domyślny)": {
       "extractionState": "manual"
     },
+    "Porównaj (na sucho)": {
+      "extractionState": "manual"
+    },
+    "Porównaj katalogi": {
+      "extractionState": "manual"
+    },
+    "Porównaj pliki": {
+      "extractionState": "manual"
+    },
+    "Porównanie: %@ ↔ %@": {
+      "extractionState": "manual"
+    },
+    "Porównuj sumy kontrolne (czyta całe pliki) zamiast rozmiaru i daty": {
+      "extractionState": "manual"
+    },
+    "Porównuj sumy kontrolne zamiast rozmiaru i daty (wolniej)": {
+      "extractionState": "manual"
+    },
+    "Porównuj zawartość (wolniej) zamiast daty i rozmiaru": {
+      "extractionState": "manual"
+    },
+    "Porównuje zawartość dwóch plików: tekst (różnice wierszy) albo binarnie.": {
+      "extractionState": "manual"
+    },
+    "Porównywanie…": {
+      "extractionState": "manual"
+    },
     "Powiększ": {
+      "extractionState": "manual"
+    },
+    "Powód": {
       "extractionState": "manual"
     },
     "Pozostali": {
@@ -1285,6 +1360,9 @@
     "Rozmiar części, np. 100M, 4,7G, 1440K": {
       "extractionState": "manual"
     },
+    "Rozmiary: %@ / %@": {
+      "extractionState": "manual"
+    },
     "Rozpakowanie %lld archiwów do %@": {
       "extractionState": "manual"
     },
@@ -1310,6 +1388,9 @@
       "extractionState": "manual"
     },
     "Rozszerzenie": {
+      "extractionState": "manual"
+    },
+    "Różnice: %lld po lewej, %lld po prawej; identycznych: %@": {
       "extractionState": "manual"
     },
     "SUMA NIEZGODNA": {
@@ -1376,6 +1457,30 @@
       "extractionState": "manual"
     },
     "Stopień kompresji 0–9 (domyślnie 5)": {
+      "extractionState": "manual"
+    },
+    "Synchronizacja (%@)": {
+      "extractionState": "manual"
+    },
+    "Synchronizacja (%@): %lld operacji, w tym usunięć: %@; identycznych: %@": {
+      "extractionState": "manual"
+    },
+    "Synchronizacja działa dla katalogów lokalnych i serwerów": {
+      "extractionState": "manual"
+    },
+    "Synchronizacja jedno- lub dwukierunkowa (także z serwerem), zawsze z podglądem; lokalne nadpisywane i usuwane pliki idą do Kosza.": {
+      "extractionState": "manual"
+    },
+    "Synchronizacja katalogów": {
+      "extractionState": "manual"
+    },
+    "Synchronizacja „%@”": {
+      "extractionState": "manual"
+    },
+    "Synchronizuj": {
+      "extractionState": "manual"
+    },
+    "Synchronizuj katalogi…": {
       "extractionState": "manual"
     },
     "Systemowy": {
@@ -1504,6 +1609,9 @@
     "Trwają operacje na plikach": {
       "extractionState": "manual"
     },
+    "Tryb": {
+      "extractionState": "manual"
+    },
     "Tryb ścisły (CLI agenta bez własnej powłoki i edycji plików)": {
       "extractionState": "manual"
     },
@@ -1514,6 +1622,9 @@
       "extractionState": "manual"
     },
     "Tworzy pusty plik o podanej nazwie i otwiera go w domyślnym edytorze.": {
+      "extractionState": "manual"
+    },
+    "Tylko zmiany": {
       "extractionState": "manual"
     },
     "UID właściciela": {
@@ -1546,10 +1657,16 @@
     "Uruchamia zapisane wyszukiwanie; wyniki trafiają do panelu.": {
       "extractionState": "manual"
     },
+    "Uruchamia zapisane zadanie synchronizacji (z podglądem).": {
+      "extractionState": "manual"
+    },
     "Uruchom %@": {
       "extractionState": "manual"
     },
     "Uruchom polecenie": {
+      "extractionState": "manual"
+    },
+    "Uruchom zadanie synchronizacji…": {
       "extractionState": "manual"
     },
     "Uruchom zapisane wyszukiwanie…": {
@@ -1562,6 +1679,9 @@
       "extractionState": "manual"
     },
     "Ustaw kursor na pliku na serwerze": {
+      "extractionState": "manual"
+    },
+    "Ustaw kursory na plikach w obu panelach (albo zaznacz dwa pliki)": {
       "extractionState": "manual"
     },
     "Ustaw reguły kolorów": {
@@ -1595,6 +1715,9 @@
       "extractionState": "manual"
     },
     "Ustawienia…": {
+      "extractionState": "manual"
+    },
+    "Usunięte wiersze: %@, dodane: %@": {
       "extractionState": "manual"
     },
     "Usunięto z serwera: %lld": {
@@ -1765,6 +1888,9 @@
     "Zablokowany": {
       "extractionState": "manual"
     },
+    "Zadania": {
+      "extractionState": "manual"
+    },
     "Zakończ": {
       "extractionState": "manual"
     },
@@ -1816,7 +1942,13 @@
     "Zapisane wyszukiwanie": {
       "extractionState": "manual"
     },
+    "Zapisane zadania synchronizacji": {
+      "extractionState": "manual"
+    },
     "Zapisano": {
+      "extractionState": "manual"
+    },
+    "Zapisano zadanie „%@”": {
       "extractionState": "manual"
     },
     "Zapisano „%@”": {
@@ -1826,6 +1958,9 @@
       "extractionState": "manual"
     },
     "Zapisuje listę zaznaczonych nazw w katalogu aplikacji.": {
+      "extractionState": "manual"
+    },
+    "Zapisuje zadanie synchronizacji (źródło, cel, tryb).": {
       "extractionState": "manual"
     },
     "Zapisz": {
@@ -1838,6 +1973,12 @@
       "extractionState": "manual"
     },
     "Zapisz wyszukiwanie": {
+      "extractionState": "manual"
+    },
+    "Zapisz zadanie": {
+      "extractionState": "manual"
+    },
+    "Zapisz zadanie synchronizacji": {
       "extractionState": "manual"
     },
     "Zapisz zaznaczenie do pliku…": {
@@ -1916,6 +2057,9 @@
       "extractionState": "manual"
     },
     "Zaznacza pliki o rozszerzeniu takim jak element pod kursorem.": {
+      "extractionState": "manual"
+    },
+    "Zaznacza w obu panelach pliki unikalne i nowsze (lub różne) — jak w Total Commanderze.": {
       "extractionState": "manual"
     },
     "Zaznacza wszystkie elementy panelu.": {
@@ -2050,7 +2194,13 @@
     "brak karty": {
       "extractionState": "manual"
     },
+    "brak w celu": {
+      "extractionState": "manual"
+    },
     "brak w katalogu": {
+      "extractionState": "manual"
+    },
+    "brak w źródle": {
       "extractionState": "manual"
     },
     "błąd": {
@@ -2113,13 +2263,25 @@
     "min. rozmiar (10M)": {
       "extractionState": "manual"
     },
+    "mirror (lustro z usuwaniem), update (bez usuwania), twoWay (nowszy wygrywa)": {
+      "extractionState": "manual"
+    },
     "nazwa": {
+      "extractionState": "manual"
+    },
+    "nazwa zadania": {
       "extractionState": "manual"
     },
     "nieodwracalna": {
       "extractionState": "manual"
     },
     "nieprawidłowa nazwa": {
+      "extractionState": "manual"
+    },
+    "nowszy w celu": {
+      "extractionState": "manual"
+    },
+    "nowszy w źródle": {
       "extractionState": "manual"
     },
     "odblokowany": {
@@ -2141,6 +2303,9 @@
       "extractionState": "manual"
     },
     "regex": {
+      "extractionState": "manual"
+    },
+    "różni się": {
       "extractionState": "manual"
     },
     "serwery, chmury, synchronizacja": {
@@ -2180,6 +2345,9 @@
       "extractionState": "manual"
     },
     "ukryty": {
+      "extractionState": "manual"
+    },
+    "usunięcie: %@": {
       "extractionState": "manual"
     },
     "utw. %@": {
@@ -2233,6 +2401,9 @@
     "Łączy części .001, .002… w jeden plik i sprawdza sumę, jeśli jest plik .sha256.": {
       "extractionState": "manual"
     },
+    "Ścieżka": {
+      "extractionState": "manual"
+    },
     "Ścieżka archiwum (domyślnie w drugim panelu, nazwa wg zaznaczenia)": {
       "extractionState": "manual"
     },
@@ -2245,10 +2416,28 @@
     "Ścieżki elementów (domyślnie zaznaczenie lub element pod kursorem)": {
       "extractionState": "manual"
     },
+    "Ścieżki względne pominięte w synchronizacji": {
+      "extractionState": "manual"
+    },
+    "Źródło": {
+      "extractionState": "manual"
+    },
+    "Źródło i cel są tym samym katalogiem": {
+      "extractionState": "manual"
+    },
     "„%@” już istnieje": {
       "extractionState": "manual"
     },
+    "← kopiuj do źródła": {
+      "extractionState": "manual"
+    },
+    "→ kopiuj do celu": {
+      "extractionState": "manual"
+    },
     "✓ Połączono — elementów w katalogu startowym: %lld": {
+      "extractionState": "manual"
+    },
+    "✕ usuń z celu": {
       "extractionState": "manual"
     }
   },

@@ -54,4 +54,7 @@ public protocol UIServices: AnyObject {
     func promptPassword(title: String) async -> String?
     /// Etap 5
     func showConnections()
+    /// Etap 6
+    func showCompare(left: FileItem, right: FileItem)
+    func showSync(source: VFSPath, destination: VFSPath, job: SyncJob?)
 }

@@ -36,6 +36,9 @@ public final class Tab: Identifiable {
     @ObservationIgnored private var processGeneration = 0
     @ObservationIgnored private var sizeTasks: [VFSPath: Task<Void, Never>] = [:]
     @ObservationIgnored private var visibleIndex: [VFSPath: Int] = [:]
+    /// Rośnie przy każdej nawigacji — odświeżenie w tle nie nadpisze kursora ustawionego
+    /// przez nowszą nawigację (np. fokus na właśnie utworzonym katalogu).
+    @ObservationIgnored private var navigationGeneration = 0
 
     public init(path: VFSPath, viewMode: ViewMode = .details, sort: SortSpec = SortSpec(), showHidden: Bool = false, providers: ProviderRegistry) {
         self.path = path
@@ -63,6 +66,7 @@ public final class Tab: Identifiable {
 
     /// Wczytuje katalog. Przy błędzie karta zostaje w poprzednim katalogu, a błąd jest rzucany.
     public func navigate(to target: VFSPath, focus: String? = nil, recordHistory: Bool = true) async throws {
+        navigationGeneration += 1
         let provider = try providers.provider(for: target)
         isLoading = true
         defer { isLoading = false }
@@ -103,8 +107,10 @@ public final class Tab: Identifiable {
     public func reload() async {
         let keepCursor = cursor
         let keepIndex = cursorIndex
+        let generation = navigationGeneration + 1
         do {
             try await navigate(to: path, recordHistory: false)
+            guard navigationGeneration == generation else { return }
         } catch {
             // Katalog zniknął — przejdź w górę do pierwszego istniejącego.
             var candidate = path.parent

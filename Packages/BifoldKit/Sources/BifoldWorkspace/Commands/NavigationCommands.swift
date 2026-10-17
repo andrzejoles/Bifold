@@ -4,7 +4,7 @@ import Foundation
 extension CommandRegistry {
     /// Wszystkie komendy Etapu 1, w kolejności menu.
     @MainActor public static func standard() -> CommandRegistry {
-        CommandRegistry(navigationCommands + tabCommands + viewCommands + selectionCommands + fileCommands + searchCommands + archiveCommands + remoteCommands + clipboardCommands + editCommands + queueCommands + toolCommands)
+        CommandRegistry(navigationCommands + tabCommands + viewCommands + selectionCommands + fileCommands + searchCommands + archiveCommands + remoteCommands + syncCommands + clipboardCommands + editCommands + queueCommands + toolCommands)
     }
 }
 

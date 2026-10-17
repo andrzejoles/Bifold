@@ -32,6 +32,7 @@ import Testing
         ("search.find", .full), ("search.spotlight", .full), ("search.runSaved", .full), ("search.duplicates", .read),
         ("file.multiRename", .approval), ("file.checksumCreate", .full), ("file.checksumVerify", .full),
         ("file.split", .approval), ("file.join", .approval),
+        ("file.compare", .read), ("dirs.compare", .read), ("sync.run", .approval), ("sync.runSaved", .approval), ("sync.save", .approval),
         ("archive.create", .approval), ("archive.extract", .approval), ("archive.list", .read), ("archive.test", .read),
     ] as [(String, AgentAccess)])
     func accessMatrix(id: String, level: AgentAccess) {
