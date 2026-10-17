@@ -57,7 +57,7 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
         let journal = OperationJournal()
         let queue = await JobQueue(journal: journal)
         let dir = VFSPath(provider: fs.id, path: "/katalog/głęboko")
-        let job = await queue.enqueue(.extract(archive: fs, sources: [dir], destination: dest), title: "x")
+        let job = await queue.enqueue(.extract(source: fs, sources: [dir], destination: dest), title: "x")
         #expect(await queue.wait(for: job) == .completed)
         #expect(try tmp.read("dest/głęboko/c.txt") == "C")
         // Bez śladu katalogu tymczasowego; cofnięcie usuwa wypakowane.

@@ -15,6 +15,8 @@ let package = Package(
         .library(name: "BifoldAgent", targets: ["BifoldAgent"]),
         .library(name: "BifoldBridgeKit", targets: ["BifoldBridgeKit"]),
         .executable(name: "bifold-mcp", targets: ["bifold-mcp"]),
+        .library(name: "BifoldHelperKit", targets: ["BifoldHelperKit"]),
+        .executable(name: "bifold-helper", targets: ["bifold-helper"]),
     ],
     dependencies: [
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.12.1"),
@@ -32,6 +34,9 @@ let package = Package(
             ],
             swiftSettings: strict),
         .executableTarget(name: "bifold-mcp", dependencies: ["BifoldBridgeKit"], swiftSettings: strict),
+        .target(name: "BifoldHelperKit", swiftSettings: strict),
+        .executableTarget(name: "bifold-helper", dependencies: ["BifoldHelperKit"], swiftSettings: strict),
+        .testTarget(name: "BifoldHelperKitTests", dependencies: ["BifoldHelperKit"], swiftSettings: strict),
         .testTarget(name: "BifoldCoreTests", dependencies: ["BifoldCore"], swiftSettings: strict),
         .testTarget(name: "BifoldWorkspaceTests", dependencies: ["BifoldWorkspace"], swiftSettings: strict),
         .testTarget(name: "BifoldAgentTests", dependencies: ["BifoldAgent", "bifold-mcp"], swiftSettings: strict),

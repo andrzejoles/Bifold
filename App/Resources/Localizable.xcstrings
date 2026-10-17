@@ -82,6 +82,9 @@
     "Aliasy połączeń i rodzaj dostępu agenta (bez danych logowania).": {
       "extractionState": "manual"
     },
+    "Android wymaga libmtp (brew install libmtp)": {
+      "extractionState": "manual"
+    },
     "Antigravity nie pozwala podać serwera MCP tylko dla jednej sesji. Bifold doda na stałe serwer „bifold” (agy mcp add). Bez tokenu sesji most odrzuca każde połączenie, więc poza sesjami uruchomionymi z Bifolda serwer jest bezużyteczny.": {
       "extractionState": "manual"
     },
@@ -103,11 +106,14 @@
     "Archiwa wymagają 7-Zip (brew install sevenzip)": {
       "extractionState": "manual"
     },
+    "Archiwum i urządzenie są tylko do odczytu — użyj kopiowania (F5)": {
+      "extractionState": "manual"
+    },
     "Archiwum jest tylko do odczytu — skopiuj elementy na dysk (F5)": {
       "extractionState": "manual"
     },
     "Archiwum jest tylko do odczytu — użyj kopiowania (F5)": {
-      "extractionState": "manual"
+      "extractionState": "stale"
     },
     "Archiwum jest zaszyfrowane — wymagane hasło": {
       "extractionState": "manual"
@@ -403,6 +409,9 @@
     "Hasło szyfruje zawartość (7z — także nazwy plików).": {
       "extractionState": "manual"
     },
+    "Identyfikator urządzenia (domyślnie pierwsze)": {
+      "extractionState": "manual"
+    },
     "Identyfikator zadania (domyślnie wszystkie aktywne)": {
       "extractionState": "manual"
     },
@@ -410,6 +419,24 @@
       "extractionState": "manual"
     },
     "Istniejące elementy docelowe:": {
+      "extractionState": "manual"
+    },
+    "Jako administrator: kopiuj do drugiego panelu": {
+      "extractionState": "manual"
+    },
+    "Jako administrator: nowy katalog…": {
+      "extractionState": "manual"
+    },
+    "Jako administrator: przenieś do drugiego panelu": {
+      "extractionState": "manual"
+    },
+    "Jako administrator: usuń trwale…": {
+      "extractionState": "manual"
+    },
+    "Jako administrator: zmień uprawnienia…": {
+      "extractionState": "manual"
+    },
+    "Jako administrator: zmień właściciela…": {
       "extractionState": "manual"
     },
     "Jasny": {
@@ -521,6 +548,9 @@
       "extractionState": "manual"
     },
     "Kopiuj ścieżkę katalogu": {
+      "extractionState": "manual"
+    },
+    "Kopiuje element do katalogu drugiego panelu z uprawnieniami administratora.": {
       "extractionState": "manual"
     },
     "Kopiuje elementy w tle (z zachowaniem atrybutów, ACL i dat). Nadpisywane pliki trafiają do Kosza.": {
@@ -781,6 +811,9 @@
     "Nie udało się wysłać %@: %@": {
       "extractionState": "manual"
     },
+    "Nie wykryto telefonu. Podłącz go kablem, odblokuj i zaakceptuj „Ufaj temu komputerowi” (iPhone) albo wybierz tryb „Przesyłanie plików” (Android).": {
+      "extractionState": "manual"
+    },
     "Nie znaleziono edytora (%@). Zmień go w Ustawieniach → Ogólne.": {
       "extractionState": "manual"
     },
@@ -829,6 +862,9 @@
     "Nowy katalog %@": {
       "extractionState": "manual"
     },
+    "Nowy katalog (administrator)": {
+      "extractionState": "manual"
+    },
     "Nowy katalog…": {
       "extractionState": "manual"
     },
@@ -842,6 +878,9 @@
       "extractionState": "manual"
     },
     "Nowy pusty plik %@": {
+      "extractionState": "manual"
+    },
+    "Nowy właściciel %@": {
       "extractionState": "manual"
     },
     "Nowy: %@\nIstniejący: %@\n\nNadpisany plik trafi do Kosza.": {
@@ -958,6 +997,9 @@
     "Otwiera połączenie w aktywnym panelu (agent zna tylko aliasy).": {
       "extractionState": "manual"
     },
+    "Otwiera telefon w panelu (tylko odczyt). iPhone: tylko zdjęcia/nagrania (DCIM) i katalogi aplikacji z udostępnianiem plików.": {
+      "extractionState": "manual"
+    },
     "Otwiera w drugim panelu katalog aktywnego panelu.": {
       "extractionState": "manual"
     },
@@ -968,6 +1010,9 @@
       "extractionState": "manual"
     },
     "Otwórz połączenie…": {
+      "extractionState": "manual"
+    },
+    "Otwórz urządzenie (telefon)…": {
       "extractionState": "manual"
     },
     "Otwórz w drugim panelu": {
@@ -1087,6 +1132,9 @@
     "Podziel plik…": {
       "extractionState": "manual"
     },
+    "Podłączone urządzenia": {
+      "extractionState": "manual"
+    },
     "Pokazuj pliki ukryte": {
       "extractionState": "manual"
     },
@@ -1145,6 +1193,9 @@
       "extractionState": "manual"
     },
     "Pomoc": {
+      "extractionState": "manual"
+    },
+    "Pomocnik administratora: %@. Użyj „Zainstaluj pomocnika administratora”.": {
       "extractionState": "manual"
     },
     "Ponownie wczytuje zawartość katalogu.": {
@@ -1267,6 +1318,9 @@
     "Przenieś…": {
       "extractionState": "manual"
     },
+    "Przenosi element do katalogu drugiego panelu z uprawnieniami administratora.": {
+      "extractionState": "manual"
+    },
     "Przenosi elementy do Kosza (da się cofnąć).": {
       "extractionState": "manual"
     },
@@ -1337,6 +1391,12 @@
       "extractionState": "manual"
     },
     "Reguły kolorów (JSON)": {
+      "extractionState": "manual"
+    },
+    "Rejestracja pomocnika nie powiodła się: %@. Demony SMAppService wymagają podpisu z zespołem (DEVELOPMENT_TEAM w Config/Brand.xcconfig).": {
+      "extractionState": "manual"
+    },
+    "Rejestruje demona uprawnień administratora (SMAppService).": {
       "extractionState": "manual"
     },
     "Rodzaj": {
@@ -1573,6 +1633,9 @@
     "Tekst w treści plików (ripgrep)": {
       "extractionState": "manual"
     },
+    "Telefony z Androidem (MTP) i iPhone’y (AFC) podłączone kablem.": {
+      "extractionState": "manual"
+    },
     "Ten sam katalog w drugim panelu": {
       "extractionState": "manual"
     },
@@ -1609,6 +1672,9 @@
     "Trwają operacje na plikach": {
       "extractionState": "manual"
     },
+    "Trwale usuwa element, do którego nie masz uprawnień.": {
+      "extractionState": "manual"
+    },
     "Tryb": {
       "extractionState": "manual"
     },
@@ -1619,6 +1685,9 @@
       "extractionState": "manual"
     },
     "Tworzy katalog (także zagnieżdżony) w bieżącym katalogu.": {
+      "extractionState": "manual"
+    },
+    "Tworzy katalog w chronionym miejscu.": {
       "extractionState": "manual"
     },
     "Tworzy pusty plik o podanej nazwie i otwiera go w domyślnym edytorze.": {
@@ -1646,6 +1715,9 @@
       "extractionState": "manual"
     },
     "Ukryty": {
+      "extractionState": "manual"
+    },
+    "Uprawnienia %@": {
       "extractionState": "manual"
     },
     "Uruchamia %@ w panelu agenta; katalog roboczy = katalog aktywnego panelu.": {
@@ -1721,6 +1793,9 @@
       "extractionState": "manual"
     },
     "Usunięto z serwera: %lld": {
+      "extractionState": "manual"
+    },
+    "Usunąć trwale jako administrator?": {
       "extractionState": "manual"
     },
     "Usunąć trwale?": {
@@ -1889,6 +1964,9 @@
       "extractionState": "manual"
     },
     "Zadania": {
+      "extractionState": "manual"
+    },
+    "Zainstaluj pomocnika administratora": {
       "extractionState": "manual"
     },
     "Zakończ": {
@@ -2110,7 +2188,13 @@
     "Zmienia nazwę elementu.": {
       "extractionState": "manual"
     },
+    "Zmienia prawa dostępu (ósemkowo).": {
+      "extractionState": "manual"
+    },
     "Zmienia prawa, właściciela, daty i flagi elementów.": {
+      "extractionState": "manual"
+    },
+    "Zmienia właściciela elementu (uid:gid lub nazwa:grupa).": {
       "extractionState": "manual"
     },
     "Zmieniono nazwy: %lld, pominięto: %lld": {
@@ -2200,6 +2284,9 @@
     "brak w katalogu": {
       "extractionState": "manual"
     },
+    "brak w pakiecie aplikacji": {
+      "extractionState": "manual"
+    },
     "brak w źródle": {
       "extractionState": "manual"
     },
@@ -2228,6 +2315,12 @@
       "extractionState": "manual"
     },
     "iPhone": {
+      "extractionState": "manual"
+    },
+    "iPhone wymaga libimobiledevice (brew install libimobiledevice)": {
+      "extractionState": "manual"
+    },
+    "iPhone: bundle id aplikacji z udostępnianiem plików (Documents)": {
       "extractionState": "manual"
     },
     "katalog": {
@@ -2278,10 +2371,19 @@
     "nieprawidłowa nazwa": {
       "extractionState": "manual"
     },
+    "niezainstalowany": {
+      "extractionState": "manual"
+    },
+    "nieznany": {
+      "extractionState": "manual"
+    },
     "nowszy w celu": {
       "extractionState": "manual"
     },
     "nowszy w źródle": {
+      "extractionState": "manual"
+    },
+    "np. root:wheel albo 501:20": {
       "extractionState": "manual"
     },
     "odblokowany": {
@@ -2371,6 +2473,9 @@
     "wykonanie": {
       "extractionState": "manual"
     },
+    "wymaga zatwierdzenia w Ustawieniach systemowych → Elementy logowania": {
+      "extractionState": "manual"
+    },
     "wyniki": {
       "extractionState": "manual"
     },
@@ -2378,6 +2483,9 @@
       "extractionState": "manual"
     },
     "zablokowany": {
+      "extractionState": "manual"
+    },
+    "zainstalowany": {
       "extractionState": "manual"
     },
     "zakończona": {
@@ -2393,6 +2501,9 @@
       "extractionState": "manual"
     },
     "zmodyfikowane od": {
+      "extractionState": "manual"
+    },
+    "ósemkowo, np. 644": {
       "extractionState": "manual"
     },
     "Łączenie…": {

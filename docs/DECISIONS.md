@@ -188,3 +188,23 @@ i usuwane trafiają najpierw do Kosza (cofalne).
 Wykryte w teście: odświeżenie po zdarzeniu FSEvents przywracało stary kursor po równoległej
 nawigacji z fokusem. Karta liczy nawigacje; odświeżenie przywraca kursor tylko, jeśli w międzyczasie
 nie było innej nawigacji.
+
+### D35 · 2026-10-17 — Urządzenia przez narzędzia CLI libmtp i libimobiledevice
+Android: `mtp-folders` / `mtp-files` (drzewo z identyfikatorów, jedna sesja MTP naraz),
+`mtp-getfile` do kopiowania. iPhone: `afcclient` (`ls -l`, `get -rf`, `--documents <bundle id>`
+dla aplikacji z udostępnianiem plików), uruchamiany z `LC_ALL=C` (stały format dat).
+Narzędzia zamiast linkowania dylibów z /opt/homebrew — prostsze, bez kruchego mapowania struktur C.
+Urządzenia są tylko do odczytu (macierz: agent — odczyt); kopiowanie z telefonu idzie tym samym
+torem co kopiowanie z archiwum. Parsery przetestowane na przykładowych wyjściach — bez fizycznego
+telefonu nie było testu na żywo.
+
+### D36 · 2026-10-17 — Pomocnik administratora: SMAppService + XPC + Authorization Services
+`bifold-helper` (LaunchDaemon w `Contents/Library/LaunchDaemons`) przyjmuje połączenia XPC tylko od
+klienta spełniającego wymaganie podpisu (`BIFOLD_CLIENT_REQUIREMENT`) i wykonuje wyłącznie
+operacje `HelperOperation` (właściciel, prawa, nowy katalog, przeniesienie, kopia, usunięcie) na
+zweryfikowanych ścieżkach (realpath rodzica, katalogi systemowe zabronione). Każda operacja ma własne
+prawo w bazie autoryzacji z regułą „hasło administratora, bez pamiętania” i jest sprawdzana przez
+demona. **Ograniczenie:** demony SMAppService wymagają podpisu z zespołem — przy „Sign to Run Locally”
+rejestracja się nie powiedzie; ustaw `DEVELOPMENT_TEAM` i wymaganie z certyfikatem w
+`Config/Brand.xcconfig`. Instalacja i działanie demona nie były testowane end-to-end (wymaga
+zatwierdzenia przez użytkownika); logika operacji i walidacji ma testy jednostkowe.

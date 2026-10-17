@@ -54,6 +54,11 @@ extension CommandContext {
         return v
     }
 
+    /// Wersja publiczna (komendy rejestrowane przez aplikację).
+    public func textPublic(_ key: String, title: String, message: String?, default defaultValue: String) async throws -> String {
+        try await text(key, title: title, message: message, default: defaultValue)
+    }
+
     func conflictPolicy() throws -> ConflictResolution? {
         guard let raw = arguments.string("conflict") else { return nil }
         guard let r = ConflictResolution(rawValue: raw), r != .cancel else {

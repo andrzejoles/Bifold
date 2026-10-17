@@ -37,6 +37,11 @@ targets:
     sources:
       - path: App/Sources
       - path: App/Resources
+      - path: App/Helper/local.aoles.bifold.helper.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
     settings:
       base:
         INFOPLIST_FILE: App/Info.plist
@@ -59,6 +64,12 @@ targets:
         embed: true
         copy:
           destination: executables
+      - target: bifold-helper
+        embed: true
+        copy:
+          destination: executables
+      - package: BifoldKit
+        product: BifoldHelperKit
       - package: SwiftTerm
         product: SwiftTerm
       - framework: ThirdParty/build/HexFiend.framework
@@ -82,6 +93,20 @@ targets:
     dependencies:
       - package: BifoldKit
         product: BifoldBridgeKit
+  bifold-helper:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Packages/BifoldKit/Sources/bifold-helper
+    settings:
+      base:
+        PRODUCT_NAME: bifold-helper
+        INFOPLIST_FILE: App/Helper/Helper-Info.plist
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SWIFT_STRICT_CONCURRENCY: complete
+    dependencies:
+      - package: BifoldKit
+        product: BifoldHelperKit
 schemes:
   Bifold:
     build:

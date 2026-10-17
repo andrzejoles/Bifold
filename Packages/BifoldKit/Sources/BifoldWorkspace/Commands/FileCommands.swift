@@ -73,7 +73,7 @@ private func transferCommand(_ kind: TransferKind) -> Command {
                     operations: items.map { PlannedOperation(kind: kind.rawValue, source: $0.path, destination: destArg.appending($0.name), isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },
                     fileCount: items.count, totalBytes: items.reduce(0) { $0 + max(0, $1.size) })
             }
-            if ctx.tab.isInArchive {
+            if ctx.tab.isInArchive || ctx.tab.path.provider.rawValue.hasPrefix("device:") {
                 let dest = ctx.arguments.path("destination", relativeTo: ctx.otherTab.path) ?? ctx.otherTab.path
                 return EffectPreview(summary: L10n.tr("Kopiowanie z archiwum \(Format.describe(items)) → \(dest.path)"),
                                      operations: items.map { PlannedOperation(kind: "extract", source: $0.path, destination: dest, isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },
@@ -103,14 +103,14 @@ private func transferCommand(_ kind: TransferKind) -> Command {
             }
             return CommandResult(message: title, value: ["job": .string(job.id.uuidString)])
         }
-        if let archive = try? ctx.workspace.providers.provider(for: ctx.tab.path) as? ArchiveFS {
-            guard isCopy else { throw CommandError.notAvailable(L10n.tr("Archiwum jest tylko do odczytu — użyj kopiowania (F5)")) }
+        if let archive = try? ctx.workspace.providers.provider(for: ctx.tab.path) as? any ExtractingProvider {
+            guard isCopy else { throw CommandError.notAvailable(L10n.tr("Archiwum i urządzenie są tylko do odczytu — użyj kopiowania (F5)")) }
             let (request, policy, _) = try await ctx.transferRequest(kind, items: items)
             let delegate: any TransferDelegate = ctx.isAgent || ctx.ui == nil ? PolicyTransferDelegate(conflict: policy ?? .skip)
                 : (policy.map { PolicyTransferDelegate(conflict: $0) } ?? ctx.ui!.transferDelegate())
             let job = ctx.workspace.jobs.enqueue(
-                .extract(archive: archive, sources: items.map(\.path), destination: request.destinationDirectory),
-                title: L10n.tr("Kopiowanie z \(archive.archive.name)"), invoker: ctx.invoker, delegate: delegate)
+                .extract(source: archive, sources: items.map(\.path), destination: request.destinationDirectory),
+                title: L10n.tr("Kopiowanie z \(archive.displayName)"), invoker: ctx.invoker, delegate: delegate)
             ctx.tab.clearSelection()
             if ctx.arguments.bool("wait") == true { _ = await ctx.workspace.jobs.wait(for: job) }
             return CommandResult(message: job.title, value: ["job": .string(job.id.uuidString), "state": .string("\(job.state)")])

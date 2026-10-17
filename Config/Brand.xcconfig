@@ -6,3 +6,10 @@ PRODUCT_NAME = $(BIFOLD_APP_NAME)
 PRODUCT_BUNDLE_IDENTIFIER = local.aoles.bifold
 MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
+
+// Zespół do podpisu (pusty = „Sign to Run Locally”). Pomocnik administratora (SMAppService)
+// działa tylko z podpisem zespołu — wtedy wpisz identyfikator i odkomentuj wymaganie niżej.
+DEVELOPMENT_TEAM =
+// Wymaganie podpisu klienta XPC pomocnika (kto może się z nim łączyć).
+BIFOLD_CLIENT_REQUIREMENT = identifier "$(PRODUCT_BUNDLE_IDENTIFIER)"
+// Z zespołem: BIFOLD_CLIENT_REQUIREMENT = identifier "$(PRODUCT_BUNDLE_IDENTIFIER)" and anchor apple generic and certificate leaf[subject.OU] = "$(DEVELOPMENT_TEAM)"

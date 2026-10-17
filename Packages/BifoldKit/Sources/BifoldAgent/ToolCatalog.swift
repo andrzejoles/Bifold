@@ -77,6 +77,8 @@ public enum ToolCatalog {
         Entry("remote_list", "remote.list"),
         Entry("remote_read", "remote.read"),
         Entry("remote_search", "remote.search"),
+        Entry("device_list", "device.list"),
+        Entry("device_open", "device.open"),
         Entry("compare_files", "file.compare"),
         Entry("compare_dirs", "dirs.compare"),
         Entry("sync_preview", "sync.preview"),

@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — Etap 7 (urządzenia i uprawnienia administratora)
+- Telefony z Androidem (MTP, libmtp) i iPhone’y (AFC, libimobiledevice) w panelu (Ctrl+Alt+P), tylko do odczytu,
+  kopiowanie na dysk; opis ograniczeń iOS (DCIM i katalogi aplikacji z udostępnianiem plików).
+- Pomocnik administratora: demon XPC przez SMAppService, wąska lista operacji, autoryzacja każdej
+  operacji hasłem administratora; komendy „Jako administrator: …” (niedostępne dla agenta).
+- Narzędzia MCP: device_list, device_open.
+
 ### Dodane — Etap 6 (porównywanie i synchronizacja)
 - Porównanie plików: tekst (różnice wierszy obok siebie, Myers), binarne (pierwsza różnica, liczba bajtów).
 - Porównanie katalogów (Shift+F2): zaznacza w obu panelach pliki unikalne i nowsze (lub różne treścią).

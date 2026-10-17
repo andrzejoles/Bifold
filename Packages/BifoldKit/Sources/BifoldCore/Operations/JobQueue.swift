@@ -5,8 +5,8 @@ public enum JobSpec: Sendable {
     case transfer(TransferRequest)
     case trash([VFSPath])
     case deletePermanently([VFSPath])
-    /// Kopiowanie z archiwum do katalogu lokalnego.
-    case extract(archive: ArchiveFS, sources: [VFSPath], destination: VFSPath)
+    /// Kopiowanie z archiwum lub urządzenia do katalogu lokalnego.
+    case extract(source: any ExtractingProvider, sources: [VFSPath], destination: VFSPath)
     /// Rozpakowanie całych archiwów (do katalogu docelowego lub podkatalogów nazwanych jak archiwa).
     case extractArchives([VFSPath], destination: VFSPath, tool: SevenZip, overwrite: SevenZip.Overwrite, subfolders: Bool)
     /// Przesyłanie przez rclone (serwery, chmury).
@@ -162,7 +162,7 @@ public final class JobQueue {
                 case let .extract(archive, sources, destination):
                     let isCancelled: @Sendable () -> Bool = { control.isCancelled }
                     var p = TransferProgress()
-                    p.currentItem = archive.archive.name
+                    p.currentItem = archive.displayName
                     progressSink.update(p)
                     let (temp, items) = try archive.extract(sources, toTemporaryIn: destination, isCancelled: isCancelled)
                     defer { try? FileManager.default.removeItem(atPath: temp.path) }
