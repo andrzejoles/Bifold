@@ -316,6 +316,19 @@ final class AppUIServices: UIServices {
         controller.showWindow(nil)
     }
 
+    func promptPassword(title: String) async -> String? {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = L10n.tr("Hasło nie jest nigdzie zapisywane i nie trafia do agentów.")
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        alert.accessoryView = field
+        alert.addButton(withTitle: L10n.tr("OK"))
+        alert.addButton(withTitle: L10n.tr("Anuluj"))
+        alert.window.initialFirstResponder = field
+        guard await present(alert) == .alertFirstButtonReturn, !field.stringValue.isEmpty else { return nil }
+        return field.stringValue
+    }
+
     func showReport(title: String, text: String) {
         let alert = NSAlert()
         alert.messageText = title

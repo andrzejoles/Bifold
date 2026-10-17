@@ -48,6 +48,8 @@ final class MockUI: UIServices {
     func showSearch(directory: VFSPath, criteria: SearchCriteria?) {}
     func showMultiRename(items: [FileItem]) { multiRenameItems = items }
     func showReport(title: String, text: String) { reports.append(text) }
+    var passwordAnswer: String?
+    func promptPassword(title: String) async -> String? { passwordAnswer }
 }
 
 /// `Workspace.ui` jest słabą referencją — atrapy muszą żyć do końca testu.

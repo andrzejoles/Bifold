@@ -144,3 +144,13 @@ Składnia jak w TC (`[N]`, `[E]`, `[N2-5]`, `[C]`, `[P]`, `[Y][M][D]`…) plus `
 `[Exif:DateTimeOriginal:format]` (ImageIO) i `[Media:artist|title|album|year]` (AVFoundation).
 Zamiany nazw w obrębie zbioru (a↔b) idą przez nazwy tymczasowe i każdy krok trafia do dziennika,
 więc cofanie jest dokładne.
+
+### D29 · 2026-10-17 — Archiwa: jeden backend 7zz, hasło przez stdin
+Listowanie `7zz l -slt`, odczyt `e -so`, rozpakowanie `x` z plikiem listy (`@lista`, UTF-8 —
+omija zamianę argumentów na NFD), hasło przez standardowe wejście (nie w argumentach widocznych
+w `ps`), nigdy zapisywane. Klucze ścieżek w `ArchiveFS` normalizowane do NFC. tar.gz/bz2/xz:
+najpierw tar, potem kompresja (7zz nie robi tego jednym poleceniem). Kopiowanie z archiwum:
+rozpakowanie do katalogu tymczasowego na woluminie docelowym i przeniesienie silnikiem kopiowania
+(konflikty, dziennik jako kopie — cofnięcie = Kosz). Archiwa są tylko do odczytu; `LocalFS`
+odrzuca każdą ścieżkę innego dostawcy, a komendy zmieniające pliki odrzucają elementy archiwum.
+Wyszukiwanie w archiwach dotyczy nazw (bez treści).

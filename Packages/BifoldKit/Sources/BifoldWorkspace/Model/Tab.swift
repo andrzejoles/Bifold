@@ -57,6 +57,7 @@ public final class Tab: Identifiable {
     public var title: String { customTitle ?? (path.isRoot ? "/" : path.name) }
     /// Karta pokazuje wyniki wyszukiwania (elementy z różnych katalogów).
     public var isSearchResults: Bool { SearchResultsFS.isSearchResults(path) }
+    public var isInArchive: Bool { ArchiveFS.isArchivePath(path) }
 
     // MARK: Nawigacja
 
@@ -122,7 +123,15 @@ public final class Tab: Identifiable {
         selection = selection.intersection(existing)
     }
 
+    /// Plik archiwum, jeśli karta jest wewnątrz archiwum.
+    public var hostLocation: VFSPath? { (try? providers.provider(for: path))?.hostLocation }
+
     public func goUp() async throws {
+        if path.isRoot, let host = hostLocation, let parent = host.parent {
+            customTitle = nil
+            try await navigate(to: parent, focus: host.name)
+            return
+        }
         guard let parent = path.parent else { return }
         try await navigate(to: parent, focus: path.name)
     }
@@ -164,7 +173,8 @@ public final class Tab: Identifiable {
     var processingOptions: ListingProcessor.Options {
         ListingProcessor.Options(
             sort: sort, showHidden: showHidden, filter: quickFilter,
-            directorySizes: directorySizes.mapValues(\.bytes))
+            directorySizes: directorySizes.mapValues(\.bytes),
+            parentOverride: path.isRoot ? hostLocation?.parent : nil)
     }
 
     /// Sortowanie i filtrowanie w tle; wynik podmienia `visibleItems` w całości.

@@ -50,4 +50,6 @@ public protocol UIServices: AnyObject {
     func showSearch(directory: VFSPath, criteria: SearchCriteria?)
     func showMultiRename(items: [FileItem])
     func showReport(title: String, text: String)
+    /// Etap 4: hasło (pole maskowane) — tylko dla użytkownika.
+    func promptPassword(title: String) async -> String?
 }

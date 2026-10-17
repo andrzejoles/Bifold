@@ -4,7 +4,7 @@ import Foundation
 extension CommandRegistry {
     /// Wszystkie komendy Etapu 1, w kolejności menu.
     @MainActor public static func standard() -> CommandRegistry {
-        CommandRegistry(navigationCommands + tabCommands + viewCommands + selectionCommands + fileCommands + searchCommands + clipboardCommands + editCommands + queueCommands + toolCommands)
+        CommandRegistry(navigationCommands + tabCommands + viewCommands + selectionCommands + fileCommands + searchCommands + archiveCommands + clipboardCommands + editCommands + queueCommands + toolCommands)
     }
 }
 
@@ -49,6 +49,11 @@ var navigationCommands: [Command] { [
             ctx.tab.customTitle = nil
         } else if item.isNavigable && !(isPackage(item)) {
             try await ctx.tab.navigate(to: item.path)
+        } else if item.path.isLocal, item.kind == .file, ArchiveFS.isArchive(item.name), ctx.workspace.settings.toolPath("7zz") != nil {
+            try await ctx.workspace.enterArchive(item.path, in: ctx.tab)
+        } else if !item.path.isLocal {
+            let local = try await ctx.workspace.materialize(item)
+            if let url = local.path.url { try ctx.requireUI().openWithDefaultApp([url]) }
         } else if let url = item.path.url {
             try ctx.requireUI().openWithDefaultApp([url])
         }

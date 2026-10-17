@@ -59,12 +59,15 @@ public enum ListingProcessor {
         public var showHidden: Bool
         public var filter: String
         public var directorySizes: [VFSPath: Int64]
+        /// Wiersz „..” w korzeniu archiwum prowadzi do katalogu z plikiem archiwum.
+        public var parentOverride: VFSPath?
 
-        public init(sort: SortSpec = SortSpec(), showHidden: Bool = false, filter: String = "", directorySizes: [VFSPath: Int64] = [:]) {
+        public init(sort: SortSpec = SortSpec(), showHidden: Bool = false, filter: String = "", directorySizes: [VFSPath: Int64] = [:], parentOverride: VFSPath? = nil) {
             self.sort = sort
             self.showHidden = showHidden
             self.filter = filter
             self.directorySizes = directorySizes
+            self.parentOverride = parentOverride
         }
     }
 
@@ -73,7 +76,11 @@ public enum ListingProcessor {
         if !options.showHidden { result.removeAll { $0.isHidden } }
         if !options.filter.isEmpty { result = filter(result, options.filter) }
         result = sort(result, options)
-        if let parent = FileItem.parentLink(for: directory) { result.insert(parent, at: 0) }
+        if let parent = FileItem.parentLink(for: directory) {
+            result.insert(parent, at: 0)
+        } else if let host = options.parentOverride {
+            result.insert(FileItem(path: host, name: "..", kind: .directory, flags: [.parentLink]), at: 0)
+        }
         return result
     }
 

@@ -1,10 +1,16 @@
 import Foundation
 import Observation
 
-public enum JobSpec: Sendable, Hashable {
+public enum JobSpec: Sendable {
     case transfer(TransferRequest)
     case trash([VFSPath])
     case deletePermanently([VFSPath])
+    /// Kopiowanie z archiwum do katalogu lokalnego.
+    case extract(archive: ArchiveFS, sources: [VFSPath], destination: VFSPath)
+    /// Rozpakowanie całych archiwów (do katalogu docelowego lub podkatalogów nazwanych jak archiwa).
+    case extractArchives([VFSPath], destination: VFSPath, tool: SevenZip, overwrite: SevenZip.Overwrite, subfolders: Bool)
+    /// Tworzenie archiwum.
+    case createArchive(VFSPath, format: ArchiveFormat, base: VFSPath, names: [String], tool: SevenZip, level: Int, password: String?, volumeSize: String?)
 
     public var isTransfer: Bool { if case .transfer = self { true } else { false } }
 }
@@ -149,6 +155,58 @@ public final class JobQueue {
                     errors = try JobQueue.runTrash(paths, control: control, journal: journal, batchID: batchID, sink: progressSink)
                 case .deletePermanently(let paths):
                     errors = try JobQueue.runDelete(paths, control: control, journal: journal, batchID: batchID, sink: progressSink)
+                case let .extract(archive, sources, destination):
+                    let isCancelled: @Sendable () -> Bool = { control.isCancelled }
+                    var p = TransferProgress()
+                    p.currentItem = archive.archive.name
+                    progressSink.update(p)
+                    let (temp, items) = try archive.extract(sources, toTemporaryIn: destination, isCancelled: isCancelled)
+                    defer { try? FileManager.default.removeItem(atPath: temp.path) }
+                    let engine = TransferEngine(
+                        request: TransferRequest(kind: .move, sources: items, destinationDirectory: destination),
+                        control: control, delegate: delegate, journal: journal, batchID: batchID,
+                        onProgress: { progressSink.update($0) })
+                    engine.recordMovesAsCopies = true
+                    try engine.run()
+                    errors = engine.errors.map { "\($0.0.name): \($0.1.localizedDescription)" }
+                case let .extractArchives(archives, destination, tool, overwrite, subfolders):
+                    var p = TransferProgress()
+                    p.filesTotal = archives.count
+                    for a in archives {
+                        guard control.checkpoint() else { throw VFSError.cancelled }
+                        p.currentItem = a.name
+                        progressSink.update(p)
+                        var target = destination
+                        if subfolders {
+                            var stem = a.name
+                            while ArchiveFS.isArchive(stem) || stem.fileExtension == "001" { stem = stem.fileStem }
+                            target = TransferEngine.uniqueOrSame(destination.appending(stem))
+                            try FileManager.default.createDirectory(atPath: target.path, withIntermediateDirectories: true)
+                            // Nowe poddrzewo jako całość — cofnięcie przenosi je do Kosza.
+                            journal.record(.copied(from: a, to: target), in: batchID)
+                        }
+                        let before = Set((try? FileManager.default.contentsOfDirectory(atPath: target.path)) ?? [])
+                        do {
+                            try tool.extract(a, to: target, overwrite: overwrite, password: nil, isCancelled: { control.isCancelled })
+                        } catch {
+                            errors.append("\(a.name): \(error.localizedDescription)")
+                        }
+                        if !subfolders {
+                            let after = Set((try? FileManager.default.contentsOfDirectory(atPath: target.path)) ?? [])
+                            for name in after.subtracting(before).sorted() {
+                                journal.record(.copied(from: a, to: target.appending(name)), in: batchID)
+                            }
+                        }
+                        p.filesDone += 1
+                        progressSink.update(p)
+                    }
+                case let .createArchive(archive, format, base, names, tool, level, password, volumeSize):
+                    var p = TransferProgress()
+                    p.currentItem = archive.name
+                    progressSink.update(p)
+                    try tool.create(archive, format: format, base: base, names: names, level: level, password: password, volumeSize: volumeSize, isCancelled: { control.isCancelled })
+                    let created = volumeSize.map { $0.isEmpty ? [archive] : FileSplitter.parts(startingWith: archive.parent!.appending(archive.name + ".001")) } ?? [archive]
+                    for c in created { journal.record(.created(path: c, isDirectory: false), fingerprint: try? LocalFS().itemSync(at: c).fingerprint, in: batchID) }
                 }
                 outcome = errors.isEmpty ? .completed : .failed(L10n.tr("Błędy: \(errors.count)"))
             } catch VFSError.cancelled {

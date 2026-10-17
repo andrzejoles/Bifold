@@ -7,7 +7,7 @@ var clipboardCommands: [Command] { [
         id: "clipboard.copyPaths", title: L10n.tr("Kopiuj ścieżki"), category: .clipboard, tc: ["cmd+alt+c"], cmd: ["cmd+alt+c"],
         parameters: [pathsParam], agent: .full, effect: .uiState, summary: L10n.tr("Kopiuje pełne ścieżki elementów do schowka (jedna w wierszu)."))
     ) { ctx in
-        let paths = try ctx.targets().map(\.path.path)
+        let paths = try ctx.targets(allowNonLocal: true).map(\.path.path)
         try ctx.requireUI().copyToPasteboard(paths)
         return CommandResult(message: Format.items(paths.count))
     },
@@ -16,7 +16,7 @@ var clipboardCommands: [Command] { [
         id: "clipboard.copyNames", title: L10n.tr("Kopiuj nazwy"), category: .clipboard, tc: ["ctrl+alt+c"], cmd: ["ctrl+alt+c"],
         parameters: [pathsParam], agent: .full, effect: .uiState, summary: L10n.tr("Kopiuje nazwy elementów do schowka (jedna w wierszu)."))
     ) { ctx in
-        let names = try ctx.targets().map(\.name)
+        let names = try ctx.targets(allowNonLocal: true).map(\.name)
         try ctx.requireUI().copyToPasteboard(names)
         return CommandResult(message: Format.items(names.count))
     },

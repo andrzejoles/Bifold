@@ -80,6 +80,9 @@ public final class TransferEngine: @unchecked Sendable {
     public private(set) var errors: [(VFSPath, VFSError)] = []
     /// Klonowanie APFS (natychmiastowa kopia). Wyłączane w testach, żeby sprawdzić postęp.
     var allowClone = true
+    /// Rozpakowanie z archiwum: przeniesienie z katalogu tymczasowego zapisujemy jako kopię
+    /// (cofnięcie = do Kosza), bo katalog tymczasowy znika.
+    public var recordMovesAsCopies = false
 
     public init(
         request: TransferRequest, control: JobControl = JobControl(), delegate: (any TransferDelegate)? = nil,
@@ -406,6 +409,13 @@ public final class TransferEngine: @unchecked Sendable {
 
     private func journal(_ action: JournalAction, fingerprint: Fingerprint?) {
         guard let journal, let batchID else { return }
+        if recordMovesAsCopies {
+            switch action {
+            case let .moved(from, to): journal.record(.copied(from: from, to: to), fingerprint: fingerprint, in: batchID); return
+            case .removedEmptyDirectory, .created(_, true): return
+            default: break
+            }
+        }
         journal.record(action, fingerprint: fingerprint, in: batchID)
     }
 
@@ -447,6 +457,11 @@ public final class TransferEngine: @unchecked Sendable {
         var sa = stat(), sb = stat()
         guard lstat(a.path, &sa) == 0, stat(b.path, &sb) == 0 else { return false }
         return sa.st_dev == sb.st_dev
+    }
+
+    /// Ścieżka bez zmian, jeśli wolna; inaczej „nazwa (2)”…
+    public static func uniqueOrSame(_ path: VFSPath) -> VFSPath {
+        FileManager.default.fileExists(atPath: path.path) ? uniqueName(for: path) : path
     }
 
     /// „nazwa (2).ext”, „nazwa (3).ext”, …

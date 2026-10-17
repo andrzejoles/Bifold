@@ -108,9 +108,13 @@ public protocol FileSystemProvider: Sendable {
     func setAttributes(_ path: VFSPath, _ change: AttributeChange) async throws
     func tags(of path: VFSPath) async throws -> [String]
     func setTags(_ tags: [String], on path: VFSPath) async throws
+    /// Plik, w którym żyje wirtualny system plików (archiwum) — „w górę” z korzenia wraca do niego.
+    var hostLocation: VFSPath? { get }
 }
 
 extension FileSystemProvider {
+    public var hostLocation: VFSPath? { nil }
+
     public func exists(_ path: VFSPath) async -> Bool {
         (try? await item(at: path)) != nil
     }

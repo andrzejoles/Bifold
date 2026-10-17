@@ -39,6 +39,7 @@ let searchParams: [CommandParameter] = [
     CommandParameter("kind", .string, L10n.tr("any | files | directories"), allowed: ["any", "files", "directories"]),
     CommandParameter("maxResults", .integer, L10n.tr("Limit wyników (domyślnie 1000 dla agenta)")),
     CommandParameter("toPanel", .boolean, L10n.tr("Pokaż wyniki w nowej karcie panelu")),
+    CommandParameter("searchArchives", .boolean, L10n.tr("Szukaj nazw także wewnątrz archiwów (bez rozpakowywania)")),
 ]
 
 extension CommandContext {
@@ -67,6 +68,7 @@ extension CommandContext {
             maxSize: a.int("maxSize"),
             kind: a.string("kind").flatMap(SearchCriteria.KindFilter.init(rawValue:)) ?? .any,
             maxResults: Int(a.int("maxResults") ?? (isAgent ? 1000 : 50_000)))
+            .with { if a.bool("searchArchives") == true { $0.archiveTool = workspace.settings.toolPath("7zz") } }
     }
 
     /// Wyniki do JSON (dla agenta) albo do panelu.
@@ -368,4 +370,12 @@ private func joinPlan(_ ctx: CommandContext) throws -> ([VFSPath], VFSPath) {
     let defaultDir = ctx.otherTab.path.isLocal ? ctx.otherTab.path : first.parent!
     let target = ctx.arguments.path("target", relativeTo: ctx.tab.path) ?? defaultDir.appending(first.name.fileStem)
     return (parts, target)
+}
+
+extension SearchCriteria {
+    func with(_ change: (inout SearchCriteria) -> Void) -> SearchCriteria {
+        var copy = self
+        change(&copy)
+        return copy
+    }
 }

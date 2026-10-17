@@ -4,6 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — Etap 4 (archiwa)
+- Archiwum jak katalog (Enter): ZIP, 7z, RAR, TAR, GZ, BZ2, XZ, ISO i inne obsługiwane przez 7zz;
+  „..” wraca do katalogu z archiwum; F3/Quick Look/F4 na plikach z archiwum; kopiowanie z archiwum (F5).
+- Pakowanie (Alt+F5): ZIP, 7z, TAR, TAR.GZ/BZ2/XZ, GZ/BZ2/XZ, poziom kompresji, archiwa wieloczęściowe,
+  hasło (ZIP/7z, 7z z szyfrowaniem nazw) — hasło podaje tylko użytkownik.
+- Rozpakowywanie (Alt+F9) do podkatalogów, test archiwów, wyszukiwanie nazw w archiwach.
+- Narzędzia MCP: archive_create, archive_extract, archive_list, archive_test (bez haseł).
+
 ### Dodane — Etap 3 (wyszukiwanie, zmiana nazw, narzędzia plikowe)
 - Wyszukiwanie (Alt+F7): maska/regex nazwy, treść przez ripgrep (kodowania, w tym windows-1250),
   daty, rozmiary, typ, ukryte; wyniki na żywo, „Do panelu”, „Przejdź do pliku”, zapisane wyszukiwania.

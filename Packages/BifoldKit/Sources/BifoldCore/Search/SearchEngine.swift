@@ -21,6 +21,8 @@ public struct SearchCriteria: Codable, Sendable, Hashable {
     public var maxSize: Int64?
     public var kind: KindFilter
     public var maxResults: Int
+    /// Szukaj nazw także wewnątrz archiwów (ścieżka 7zz); trafienie = plik archiwum + ścieżki wpisów.
+    public var archiveTool: String?
 
     public enum KindFilter: String, Codable, Sendable, CaseIterable { case any, files, directories }
 
@@ -46,6 +48,8 @@ public struct SearchCriteria: Codable, Sendable, Hashable {
         self.kind = kind
         self.maxResults = maxResults
     }
+
+    public var searchesArchives: Bool { archiveTool != nil }
 
     var hasContentSearch: Bool { !contentText.isEmpty }
 
@@ -149,6 +153,18 @@ public enum SearchEngine {
             scanned += 1
             if scanned % 50 == 0 { continuation.yield(.progress(scannedDirectories: scanned, current: dir.path)) }
             for item in items {
+                if let tool = c.archiveTool, item.kind == .file, ArchiveFS.isArchive(item.name),
+                   let entries = try? SevenZip(executable: tool).list(item.path, password: nil) {
+                    let matching = entries.filter { e in
+                        let name = (e.path as NSString).lastPathComponent
+                        let probe = FileItem(path: .local("/" + e.path), name: name, kind: e.isDirectory ? .directory : .file, size: e.size, modified: e.modified)
+                        return c.matchesMetadata(probe)
+                    }
+                    if !matching.isEmpty {
+                        continuation.yield(.hit(SearchHit(item: item, matches: matching.prefix(20).map { .init(line: 0, text: "📦 " + $0.path) })))
+                        count += 1
+                    }
+                }
                 if c.matchesMetadata(item) {
                     continuation.yield(.hit(SearchHit(item: item, matches: [])))
                     count += 1

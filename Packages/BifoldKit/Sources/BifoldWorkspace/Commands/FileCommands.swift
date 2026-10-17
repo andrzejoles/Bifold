@@ -65,7 +65,13 @@ private func transferCommand(_ kind: TransferKind) -> Command {
                 ? L10n.tr("Kopiuje elementy w tle (z zachowaniem atrybutów, ACL i dat). Nadpisywane pliki trafiają do Kosza.")
                 : L10n.tr("Przenosi elementy w tle. Nadpisywane pliki trafiają do Kosza.")),
         preview: { @MainActor ctx in
-            let items = try ctx.targets()
+            let items = try ctx.targets(allowNonLocal: true)
+            if ctx.tab.isInArchive {
+                let dest = ctx.arguments.path("destination", relativeTo: ctx.otherTab.path) ?? ctx.otherTab.path
+                return EffectPreview(summary: L10n.tr("Kopiowanie z archiwum \(Format.describe(items)) → \(dest.path)"),
+                                     operations: items.map { PlannedOperation(kind: "extract", source: $0.path, destination: dest, isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },
+                                     fileCount: items.count, totalBytes: items.reduce(0) { $0 + max(0, $1.size) })
+            }
             let (request, policy, _) = try await ctx.transferRequest(kind, items: items, createMissing: false)
             let destinationExists = await LocalFS().exists(request.destinationDirectory)
             let plan = destinationExists
@@ -78,7 +84,19 @@ private func transferCommand(_ kind: TransferKind) -> Command {
                 conflicts: plan.conflicts.map(\.path))
         }
     ) { ctx in
-        let items = try ctx.targets()
+        let items = try ctx.targets(allowNonLocal: true)
+        if let archive = try? ctx.workspace.providers.provider(for: ctx.tab.path) as? ArchiveFS {
+            guard isCopy else { throw CommandError.notAvailable(L10n.tr("Archiwum jest tylko do odczytu — użyj kopiowania (F5)")) }
+            let (request, policy, _) = try await ctx.transferRequest(kind, items: items)
+            let delegate: any TransferDelegate = ctx.isAgent || ctx.ui == nil ? PolicyTransferDelegate(conflict: policy ?? .skip)
+                : (policy.map { PolicyTransferDelegate(conflict: $0) } ?? ctx.ui!.transferDelegate())
+            let job = ctx.workspace.jobs.enqueue(
+                .extract(archive: archive, sources: items.map(\.path), destination: request.destinationDirectory),
+                title: L10n.tr("Kopiowanie z \(archive.archive.name)"), invoker: ctx.invoker, delegate: delegate)
+            ctx.tab.clearSelection()
+            if ctx.arguments.bool("wait") == true { _ = await ctx.workspace.jobs.wait(for: job) }
+            return CommandResult(message: job.title, value: ["job": .string(job.id.uuidString), "state": .string("\(job.state)")])
+        }
         let (request, policy, speedLimit) = try await ctx.transferRequest(kind, items: items)
         let delegate: any TransferDelegate
         if ctx.isAgent || ctx.ui == nil {
@@ -107,9 +125,9 @@ var fileCommands: [Command] { [
     ) { ctx in
         guard let item = ctx.tab.cursorItem, !item.isParentLink else { return .ok }
         if item.isDirectory {
-            ctx.tab.calculateSize(of: item)
+            if item.path.isLocal { ctx.tab.calculateSize(of: item) }
         } else {
-            try ctx.requireUI().showViewer(item)
+            try ctx.requireUI().showViewer(try await ctx.workspace.materialize(item))
         }
         return .ok
     },
@@ -118,7 +136,10 @@ var fileCommands: [Command] { [
         id: "file.edit", title: L10n.tr("Edytuj"), category: .file, tc: ["f4"], cmd: ["cmd+4", "cmd+e"],
         agent: .none, effect: .external, summary: L10n.tr("Otwiera plik w edytorze (domyślnie Nextpad++)."))
     ) { ctx in
-        let files = try ctx.targets().filter { !$0.isNavigable }.compactMap(\.path.url)
+        var files: [URL] = []
+        for item in try ctx.targets(allowNonLocal: true) where !item.isNavigable {
+            if let url = try await ctx.workspace.materialize(item).path.url { files.append(url) }
+        }
         guard !files.isEmpty else { throw CommandError.nothingSelected }
         try ctx.requireUI().openInEditor(files)
         return .ok

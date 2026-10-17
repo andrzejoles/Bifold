@@ -68,6 +68,10 @@ public enum ToolCatalog {
         Entry("checksum_verify", "file.checksumVerify"),
         Entry("split_file", "file.split"),
         Entry("join_files", "file.join"),
+        Entry("archive_create", "archive.create"),
+        Entry("archive_extract", "archive.extract"),
+        Entry("archive_list", "archive.list"),
+        Entry("archive_test", "archive.test"),
     ]
 
     public static func entry(named name: String) -> Entry? { entries.first { $0.tool == name } }

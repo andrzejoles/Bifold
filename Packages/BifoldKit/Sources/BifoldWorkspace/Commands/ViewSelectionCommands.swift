@@ -81,7 +81,9 @@ var viewCommands: [Command] { [
         id: "view.quickLook", title: L10n.tr("Quick Look"), category: .view, tc: ["cmd+y"], cmd: ["cmd+y"],
         agent: .read, effect: .uiState, summary: L10n.tr("Otwiera Quick Look dla zaznaczonych elementów."))
     ) { ctx in
-        try ctx.requireUI().toggleQuickLook(try ctx.targets())
+        var items: [FileItem] = []
+        for item in try ctx.targets(allowNonLocal: true) { items.append(try await ctx.workspace.materialize(item)) }
+        try ctx.requireUI().toggleQuickLook(items)
         return .ok
     },
 

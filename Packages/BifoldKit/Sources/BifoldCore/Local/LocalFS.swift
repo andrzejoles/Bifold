@@ -8,6 +8,13 @@ public struct LocalFS: FileSystemProvider {
 
     public init() {}
 
+    /// Ścieżka innego dostawcy (archiwum, wyniki wyszukiwania) nigdy nie może dotknąć dysku —
+    /// `/a/b` z archiwum to nie jest `/a/b` w systemie plików.
+    @inline(__always)
+    func requireLocal(_ path: VFSPath) throws {
+        guard path.isLocal else { throw VFSError.unsupported("\(path.provider): \(L10n.tr("tylko do odczytu"))") }
+    }
+
     // MARK: Odczyt
 
     public func list(_ directory: VFSPath, options: ListOptions = ListOptions()) async throws -> [FileItem] {
@@ -15,6 +22,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func listSync(_ directory: VFSPath, options: ListOptions = ListOptions()) throws -> [FileItem] {
+        try requireLocal(directory)
+
         var items: [FileItem]
         do {
             items = try BulkLister.list(directory)
@@ -50,6 +59,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func itemSync(at path: VFSPath) throws -> FileItem {
+        try requireLocal(path)
+
         var st = stat()
         guard lstat(path.path, &st) == 0 else { throw VFSError.from(errno: errno, path: path) }
         var item = FileItem(stat: st, path: path)
@@ -63,6 +74,7 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func exists(_ path: VFSPath) async -> Bool {
+        guard path.isLocal else { return false }
         var st = stat()
         return lstat(path.path, &st) == 0
     }
@@ -72,6 +84,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func readSync(_ path: VFSPath, range: Range<Int64>? = nil) throws -> Data {
+        try requireLocal(path)
+
         let fd = open(path.path, O_RDONLY | O_CLOEXEC)
         guard fd >= 0 else { throw VFSError.from(errno: errno, path: path) }
         defer { close(fd) }
@@ -109,6 +123,7 @@ public struct LocalFS: FileSystemProvider {
     // MARK: Zapis
 
     public func createDirectory(_ path: VFSPath) async throws {
+        try requireLocal(path)
         try validateFileName(path.name)
         guard mkdir(path.path, 0o755) == 0 else { throw VFSError.from(errno: errno, path: path) }
     }
@@ -118,6 +133,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func createFileSync(_ path: VFSPath, contents: Data = Data()) throws {
+        try requireLocal(path)
+
         try validateFileName(path.name)
         let fd = open(path.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o644)
         guard fd >= 0 else { throw VFSError.from(errno: errno, path: path) }
@@ -140,6 +157,9 @@ public struct LocalFS: FileSystemProvider {
     /// Przeniesienie w obrębie woluminu (`rename(2)`). Nie nadpisuje istniejących elementów,
     /// z wyjątkiem zmiany wielkości liter tego samego pliku na systemie bez rozróżniania.
     public func moveSync(_ source: VFSPath, to target: VFSPath) throws {
+        try requireLocal(source)
+        try requireLocal(target)
+
         var srcStat = stat(), dstStat = stat()
         guard lstat(source.path, &srcStat) == 0 else { throw VFSError.from(errno: errno, path: source) }
         if lstat(target.path, &dstStat) == 0 {
@@ -158,6 +178,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func trashSync(_ path: VFSPath) throws -> VFSPath? {
+        try requireLocal(path)
+
         guard let url = path.url else { throw VFSError.unsupported("trash") }
         var resulting: NSURL?
         do {
@@ -173,6 +195,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func deleteSync(_ path: VFSPath) throws {
+        try requireLocal(path)
+
         guard let url = path.url else { throw VFSError.unsupported("delete") }
         do {
             try FileManager.default.removeItem(at: url)
@@ -186,6 +210,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func setAttributesSync(_ path: VFSPath, _ change: AttributeChange) throws {
+        try requireLocal(path)
+
         var st = stat()
         guard lstat(path.path, &st) == 0 else { throw VFSError.from(errno: errno, path: path) }
         let wasLocked = st.st_flags & UInt32(UF_IMMUTABLE) != 0
@@ -225,6 +251,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func tagsSync(of path: VFSPath) throws -> [String] {
+        try requireLocal(path)
+
         guard let url = path.url else { return [] }
         do {
             return try url.resourceValues(forKeys: [.tagNamesKey]).tagNames ?? []
@@ -238,6 +266,8 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func setTagsSync(_ tags: [String], on path: VFSPath) throws {
+        try requireLocal(path)
+
         guard let url = path.url else { throw VFSError.unsupported("tags") }
         do {
             try (url as NSURL).setResourceValue(tags, forKey: .tagNamesKey)

@@ -7,7 +7,17 @@ extension CommandContext {
 
     /// Elementy, na których działa komenda: argument `paths` (agent, paleta) albo zaznaczenie /
     /// element pod kursorem aktywnej karty.
-    public func targets(allowEmpty: Bool = false) throws -> [FileItem] {
+    /// - Parameter allowNonLocal: elementy z archiwum/wyników innego dostawcy (kopiowanie, podgląd).
+    ///   Domyślnie odrzucane — komendy zmieniające pliki działają tylko na plikach lokalnych.
+    public func targets(allowEmpty: Bool = false, allowNonLocal: Bool = false) throws -> [FileItem] {
+        let items = try rawTargets(allowEmpty: allowEmpty)
+        if !allowNonLocal, items.contains(where: { !$0.path.isLocal }) {
+            throw CommandError.notAvailable(L10n.tr("Archiwum jest tylko do odczytu — skopiuj elementy na dysk (F5)"))
+        }
+        return items
+    }
+
+    private func rawTargets(allowEmpty: Bool) throws -> [FileItem] {
         if let paths = arguments.paths("paths", relativeTo: tab.path) {
             let fs = LocalFS()
             let items = try paths.map { try fs.itemSync(at: $0) }
