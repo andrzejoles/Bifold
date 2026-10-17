@@ -4,6 +4,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — Etap 2 (API agentów)
+- Most `bifold-mcp` (stdio ⇄ gniazdo Unix `0600` w katalogu `0700`, bez portów TCP) w pakiecie aplikacji.
+- Uwierzytelnianie połączenia: UID rozmówcy, ramka `hello` z 256-bitowym tokenem (porównanie w stałym
+  czasie, limit 5 s), most musi być potomkiem procesu CLI sesji; token unieważniany po końcu sesji.
+- Serwer MCP (swift-sdk) z ~37 narzędziami odwzorowanymi na rejestr komend + `run_command`; narzędzia
+  z poziomem „Brak” niewidoczne; zasada najmniejszego poziomu; lista zablokowanych ścieżek (z `..`,
+  dowiązaniami, wielkością liter); limit rozmiaru odczytu, binaria jako metadane/hex; limit wywołań.
+- Okno zatwierdzania z podglądem skutków (lista operacji, liczba plików, rozmiar, konflikty).
+- Panel agenta: CLI w terminalu SwiftTerm + panel aktywności; uruchamianie Claude Code, Codex, Grok,
+  Antigravity (Ctrl+Alt+1…4) w katalogu aktywnego panelu; tryb ścisły domyślnie.
+- Dziennik JSONL wywołań (`agent-logs/`), przeglądarka dziennika, „Cofnij sesję agenta”.
+- Testy: 19 testów bezpieczeństwa/polityki + opcjonalny test E2E z prawdziwymi CLI (`BIFOLD_E2E_AGENTS=1`).
+
 ### Dodane — Etap 1 (rdzeń lokalny)
 - Dokumentacja startowa: architektura, model zagrożeń, plan Etapu 1, decyzje, biblioteki.
 - `BifoldCore`: `FileSystemProvider`, `LocalFS` (getattrlistbulk, FSEvents), kopiowanie i przenoszenie

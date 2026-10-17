@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindow: MainWindowController!
     private var services: AppUIServices!
     private var menuBuilder: MenuBuilder!
+    private var agents: AgentUIController!
     private let observations = ObservationBag()
 
     static func main() {
@@ -27,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         mainWindow = MainWindowController(workspace: workspace, services: services)
         services.mainWindow = mainWindow
+        agents = AgentUIController(workspace: workspace)
+        agents.mainWindow = mainWindow
+        mainWindow.agentPane = agents.pane
         menuBuilder = MenuBuilder(workspace: workspace)
         NSApp.mainMenu = menuBuilder.build()
 
@@ -72,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        agents?.controller.stop()
         workspace.saveSession()
     }
 

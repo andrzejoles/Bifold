@@ -7,6 +7,9 @@
     "%@ (domyślna)": {
       "extractionState": "manual"
     },
+    "%@ chce wykonać: %@": {
+      "extractionState": "manual"
+    },
     "%@ potrzebuje pełnego dostępu do dysku": {
       "extractionState": "manual"
     },
@@ -40,6 +43,15 @@
     "Agenci AI": {
       "extractionState": "manual"
     },
+    "Agent": {
+      "extractionState": "manual"
+    },
+    "Aktywny panel, karty obu paneli (ścieżka, widok, sortowanie, filtr, kursor, liczba zaznaczonych).": {
+      "extractionState": "manual"
+    },
+    "Antigravity nie pozwala podać serwera MCP tylko dla jednej sesji. Bifold doda na stałe serwer „bifold” (agy mcp add). Bez tokenu sesji most odrzuca każde połączenie, więc poza sesjami uruchomionymi z Bifolda serwer jest bezużyteczny.": {
+      "extractionState": "manual"
+    },
     "Anulowano": {
       "extractionState": "manual"
     },
@@ -53,6 +65,9 @@
       "extractionState": "manual"
     },
     "Aplikacja": {
+      "extractionState": "manual"
+    },
+    "Argumenty: %@": {
       "extractionState": "manual"
     },
     "Atrybuty": {
@@ -77,6 +92,12 @@
       "extractionState": "manual"
     },
     "Brak argumentu: %lld": {
+      "extractionState": "manual"
+    },
+    "Brak mostu bifold-mcp w pakiecie aplikacji (%@).": {
+      "extractionState": "manual"
+    },
+    "Brak sesji agenta": {
       "extractionState": "manual"
     },
     "Brak uprawnień: %@": {
@@ -109,10 +130,25 @@
     "Cofa ostatnią operację na plikach (przeniesienie, zmianę nazwy, Kosz, utworzenie, kopię, atrybuty, tagi). Agent cofa tylko własne operacje.": {
       "extractionState": "manual"
     },
+    "Cofa wszystkie operacje na plikach wykonane przez wybraną sesję agenta, w odwrotnej kolejności.": {
+      "extractionState": "manual"
+    },
+    "Cofnij": {
+      "extractionState": "manual"
+    },
     "Cofnij operację": {
       "extractionState": "manual"
     },
     "Cofnij pozostałe": {
+      "extractionState": "manual"
+    },
+    "Cofnij sesję agenta…": {
+      "extractionState": "manual"
+    },
+    "Cofnij sesję…": {
+      "extractionState": "manual"
+    },
+    "Cofnij z wymuszeniem": {
       "extractionState": "manual"
     },
     "Cofnij zaznaczoną operację": {
@@ -125,6 +161,9 @@
       "extractionState": "manual"
     },
     "Cofnięto: %lld, pominięto: %lld, błędy: %lld": {
+      "extractionState": "manual"
+    },
+    "Cofnąć sesję agenta (%lld kroków)?": {
       "extractionState": "manual"
     },
     "Czas": {
@@ -184,6 +223,15 @@
     "Dyski i woluminy…": {
       "extractionState": "manual"
     },
+    "Dziennik": {
+      "extractionState": "manual"
+    },
+    "Dziennik agentów": {
+      "extractionState": "manual"
+    },
+    "Dziennik agentów…": {
+      "extractionState": "manual"
+    },
     "Dziennik operacji": {
       "extractionState": "manual"
     },
@@ -196,6 +244,9 @@
     "Edytuj": {
       "extractionState": "manual"
     },
+    "Element": {
+      "extractionState": "manual"
+    },
     "Element (domyślnie pod kursorem)": {
       "extractionState": "manual"
     },
@@ -206,6 +257,9 @@
       "extractionState": "manual"
     },
     "Element zmienił się od czasu operacji: %@": {
+      "extractionState": "manual"
+    },
+    "Elementy: %lld, rozmiar: %@": {
       "extractionState": "manual"
     },
     "F1–F12 na MacBooku wymagają klawisza fn (albo włącz „Używaj klawiszy F1, F2 itd. jako standardowych klawiszy funkcyjnych”). Profil macOS dodaje zamienniki z Cmd.": {
@@ -241,10 +295,19 @@
     "Identyfikator zadania (domyślnie wszystkie aktywne)": {
       "extractionState": "manual"
     },
+    "Informacje o pliku (agent)": {
+      "extractionState": "manual"
+    },
+    "Istniejące elementy docelowe:": {
+      "extractionState": "manual"
+    },
     "Jasny": {
       "extractionState": "manual"
     },
     "Karty": {
+      "extractionState": "manual"
+    },
+    "Katalog": {
       "extractionState": "manual"
     },
     "Katalog docelowy albo nowa ścieżka (jeden element); domyślnie katalog drugiego panelu": {
@@ -265,6 +328,9 @@
     "Katalog nowej karty (domyślnie bieżący)": {
       "extractionState": "manual"
     },
+    "Kodowanie tekstu (domyślnie wykrywane)": {
+      "extractionState": "manual"
+    },
     "Kolejka": {
       "extractionState": "manual"
     },
@@ -275,6 +341,9 @@
       "extractionState": "manual"
     },
     "Komendy": {
+      "extractionState": "manual"
+    },
+    "Konflikty: %lld": {
       "extractionState": "manual"
     },
     "Kopiowanie": {
@@ -310,10 +379,16 @@
     "Kopiuj…": {
       "extractionState": "manual"
     },
+    "Kończy proces CLI i unieważnia token sesji.": {
+      "extractionState": "manual"
+    },
     "Kroki bez konfliktów zostaną wykonane. „Wymuś” cofa też elementy zmienione od czasu operacji.": {
       "extractionState": "manual"
     },
     "Kto": {
+      "extractionState": "manual"
+    },
+    "Liczba bajtów (domyślnie do limitu)": {
       "extractionState": "manual"
     },
     "Liczy rozmiary zaznaczonych katalogów (bez zaznaczenia — wszystkich w panelu).": {
@@ -334,6 +409,9 @@
     "Linia poleceń": {
       "extractionState": "manual"
     },
+    "Lista elementów katalogu (bez zmiany panelu).": {
+      "extractionState": "manual"
+    },
     "Lista skrócona": {
       "extractionState": "manual"
     },
@@ -344,6 +422,9 @@
       "extractionState": "manual"
     },
     "MB/s (0 = bez limitu):": {
+      "extractionState": "manual"
+    },
+    "Maks. liczba elementów (domyślnie 1000)": {
       "extractionState": "manual"
     },
     "Maks. rozmiar odczytu pliku: %@": {
@@ -359,6 +440,9 @@
       "extractionState": "manual"
     },
     "Menu Udostępnij macOS dla zaznaczonych elementów.": {
+      "extractionState": "manual"
+    },
+    "Metadane elementu: typ, rozmiar, daty, prawa, tagi.": {
       "extractionState": "manual"
     },
     "Miejsce docelowe jest zajęte: %@": {
@@ -389,6 +473,9 @@
       "extractionState": "manual"
     },
     "Narzędzia (Homebrew)": {
+      "extractionState": "manual"
+    },
+    "Narzędzie": {
       "extractionState": "manual"
     },
     "Następna karta": {
@@ -437,6 +524,9 @@
       "extractionState": "manual"
     },
     "Nie znaleziono edytora (%@). Zmień go w Ustawieniach → Ogólne.": {
+      "extractionState": "manual"
+    },
+    "Nie znaleziono polecenia „%@” w PATH powłoki logowania.": {
       "extractionState": "manual"
     },
     "Nie znaleziono: %@": {
@@ -517,7 +607,13 @@
     "Odczyt": {
       "extractionState": "manual"
     },
+    "Odczyt pliku (agent)": {
+      "extractionState": "manual"
+    },
     "Odmontowuje i wysuwa wolumin.": {
+      "extractionState": "manual"
+    },
+    "Odrzuć": {
       "extractionState": "manual"
     },
     "Odwraca zaznaczenie plików w panelu.": {
@@ -557,6 +653,9 @@
       "extractionState": "manual"
     },
     "Operacja nieobsługiwana: %@": {
+      "extractionState": "manual"
+    },
+    "Operacje odwrotne w odwrotnej kolejności. Konflikty: %lld.": {
       "extractionState": "manual"
     },
     "Operacji nie da się cofnąć: %@": {
@@ -604,10 +703,16 @@
     "Panel": {
       "extractionState": "manual"
     },
+    "Panel agenta": {
+      "extractionState": "manual"
+    },
     "Panel podglądu": {
       "extractionState": "manual"
     },
     "Panel: left lub right (domyślnie aktywny)": {
+      "extractionState": "manual"
+    },
+    "Parametry / wynik": {
       "extractionState": "manual"
     },
     "Pełny": {
@@ -628,6 +733,9 @@
     "Pliki ukryte": {
       "extractionState": "manual"
     },
+    "Początek (bajty)": {
+      "extractionState": "manual"
+    },
     "Początek nazwy": {
       "extractionState": "manual"
     },
@@ -644,6 +752,9 @@
       "extractionState": "manual"
     },
     "Pokazuje lub ukrywa drzewo katalogów obok listy plików.": {
+      "extractionState": "manual"
+    },
+    "Pokazuje lub ukrywa panel agenta z aktywnością.": {
       "extractionState": "manual"
     },
     "Pokazuje lub ukrywa pliki ukryte.": {
@@ -716,6 +827,9 @@
       "extractionState": "manual"
     },
     "Przechodzi do katalogu nadrzędnego.": {
+      "extractionState": "manual"
+    },
+    "Przeglądarka dziennika wywołań API agentów.": {
       "extractionState": "manual"
     },
     "Przejdź do katalogu": {
@@ -835,6 +949,9 @@
     "Schowek": {
       "extractionState": "manual"
     },
+    "Sesja nie zmieniła żadnych plików": {
+      "extractionState": "manual"
+    },
     "Skopiowano do schowka: %@": {
       "extractionState": "manual"
     },
@@ -854,6 +971,9 @@
       "extractionState": "manual"
     },
     "Stan": {
+      "extractionState": "manual"
+    },
+    "Stan aplikacji (agent)": {
       "extractionState": "manual"
     },
     "Systemowy": {
@@ -889,6 +1009,9 @@
     "Także katalogi": {
       "extractionState": "manual"
     },
+    "Także pliki ukryte": {
+      "extractionState": "manual"
+    },
     "Tego woluminu nie można wysunąć": {
       "extractionState": "manual"
     },
@@ -905,6 +1028,9 @@
       "extractionState": "manual"
     },
     "Total Commander (F1–F12)": {
+      "extractionState": "manual"
+    },
+    "Treść pliku tekstowego (z limitem rozmiaru). Pliki binarne: tylko metadane, chyba że hex=true.": {
       "extractionState": "manual"
     },
     "Trwają operacje na plikach": {
@@ -934,7 +1060,13 @@
     "Ukryty": {
       "extractionState": "manual"
     },
+    "Uruchamia %@ w panelu agenta; katalog roboczy = katalog aktywnego panelu.": {
+      "extractionState": "manual"
+    },
     "Uruchamia polecenie w powłoce użytkownika w bieżącym katalogu (wynik w terminalu).": {
+      "extractionState": "manual"
+    },
+    "Uruchom %@": {
       "extractionState": "manual"
     },
     "Uruchom polecenie": {
@@ -1084,7 +1216,13 @@
     "Zablokowany": {
       "extractionState": "manual"
     },
+    "Zakończ": {
+      "extractionState": "manual"
+    },
     "Zakończ %@": {
+      "extractionState": "manual"
+    },
+    "Zakończ sesję agenta": {
       "extractionState": "manual"
     },
     "Zakończenie przerwie %lld zadań. Częściowo skopiowane pliki zostaną usunięte.": {
@@ -1120,6 +1258,12 @@
     "Zapisz zaznaczenie do pliku…": {
       "extractionState": "manual"
     },
+    "Zarejestrować serwer MCP w Antigravity?": {
+      "extractionState": "manual"
+    },
+    "Zarejestruj": {
+      "extractionState": "manual"
+    },
     "Zastosuj": {
       "extractionState": "manual"
     },
@@ -1130,6 +1274,12 @@
       "extractionState": "manual"
     },
     "Zastępuje zaznaczenie podanymi elementami bieżącego katalogu.": {
+      "extractionState": "manual"
+    },
+    "Zatwierdź": {
+      "extractionState": "manual"
+    },
+    "Zawartość katalogu (agent)": {
       "extractionState": "manual"
     },
     "Zawijaj wiersze": {
@@ -1174,6 +1324,12 @@
     "Zaznaczanie": {
       "extractionState": "manual"
     },
+    "Zaznaczone elementy panelu (ścieżki, rozmiary, typy); bez zaznaczenia — element pod kursorem.": {
+      "extractionState": "manual"
+    },
+    "Zaznaczone pliki (agent)": {
+      "extractionState": "manual"
+    },
     "Zaznaczono %lld z %@, %@ z %@": {
       "extractionState": "manual"
     },
@@ -1210,6 +1366,9 @@
     "Zmień prawa dostępu": {
       "extractionState": "manual"
     },
+    "Zrzut szesnastkowy (dla plików binarnych, maks. 64 KB)": {
+      "extractionState": "manual"
+    },
     "Zwraca reguły kolorowania plików w formacie JSON.": {
       "extractionState": "manual"
     },
@@ -1220,6 +1379,9 @@
       "extractionState": "manual"
     },
     "agent": {
+      "extractionState": "manual"
+    },
+    "agy mcp add zakończył się błędem (%@)": {
       "extractionState": "manual"
     },
     "anulowane": {
@@ -1234,7 +1396,13 @@
     "brak w katalogu": {
       "extractionState": "manual"
     },
+    "błąd": {
+      "extractionState": "manual"
+    },
     "cofnięta": {
+      "extractionState": "manual"
+    },
+    "czeka na zgodę": {
       "extractionState": "manual"
     },
     "iPhone": {
@@ -1270,6 +1438,9 @@
     "telefony z Androidem": {
       "extractionState": "manual"
     },
+    "to nie jest zwykły plik": {
+      "extractionState": "manual"
+    },
     "ukryty": {
       "extractionState": "manual"
     },
@@ -1280,6 +1451,9 @@
       "extractionState": "manual"
     },
     "w kolejce": {
+      "extractionState": "manual"
+    },
+    "w toku": {
       "extractionState": "manual"
     },
     "widoczny": {
@@ -1295,6 +1469,9 @@
       "extractionState": "manual"
     },
     "zablokowany": {
+      "extractionState": "manual"
+    },
+    "zakończona": {
       "extractionState": "manual"
     },
     "zakończone": {

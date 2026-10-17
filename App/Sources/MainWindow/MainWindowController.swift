@@ -11,9 +11,18 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
     let right: PanelViewController
     private let panelsSplit = NSSplitView()
     private let verticalSplit = NSSplitView()
+    /// Dolna część okna: terminal i panel agenta (każde może być ukryte).
+    private let bottomSplit = NSSplitView()
     let terminal: TerminalPane
     let commandLine: CommandLineBar
     let jobsBar: JobsBar
+    var agentPane: AgentPane? {
+        didSet {
+            guard let agentPane, oldValue == nil else { return }
+            agentPane.isHidden = true
+            bottomSplit.addArrangedSubview(agentPane)
+        }
+    }
     private let functionBar: FunctionKeyBar
     private let observations = ObservationBag()
 
@@ -58,8 +67,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
         verticalSplit.isVertical = false
         verticalSplit.dividerStyle = .thin
         verticalSplit.delegate = self
+        bottomSplit.isVertical = false
+        bottomSplit.dividerStyle = .thin
+        bottomSplit.addArrangedSubview(terminal)
+        bottomSplit.isHidden = true
         verticalSplit.addArrangedSubview(panelsSplit)
-        verticalSplit.addArrangedSubview(terminal)
+        verticalSplit.addArrangedSubview(bottomSplit)
         verticalSplit.setHoldingPriority(.defaultLow - 1, forSubviewAt: 0)
         verticalSplit.setHoldingPriority(.defaultHigh, forSubviewAt: 1)
         terminal.isHidden = true
@@ -121,6 +134,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
             terminal.focus()
         } else if window?.firstResponder === terminal.terminalView {
             terminal.isHidden = true
+            updateBottom()
             focusActivePanel()
         } else {
             terminal.focus()
@@ -131,9 +145,32 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
         terminal.startIfNeeded(directory: directory)
         if terminal.isHidden {
             terminal.isHidden = false
-            verticalSplit.adjustSubviews()
-            let h = verticalSplit.bounds.height
-            verticalSplit.setPosition(h * 0.62, ofDividerAt: 0)
+            updateBottom()
+        }
+    }
+
+    func setAgentPane(visible: Bool) {
+        guard let agentPane else { return }
+        if visible == !agentPane.isHidden { return }
+        agentPane.isHidden = !visible
+        updateBottom()
+        if visible { agentPane.focusTerminal() } else { focusActivePanel() }
+    }
+
+    func terminalClosed() { updateBottom() }
+
+    /// Pokazuje dolną część okna, gdy widoczny jest terminal lub panel agenta.
+    private func updateBottom() {
+        let anyVisible = !terminal.isHidden || !(agentPane?.isHidden ?? true)
+        let wasHidden = bottomSplit.isHidden
+        bottomSplit.isHidden = !anyVisible
+        bottomSplit.adjustSubviews()
+        verticalSplit.adjustSubviews()
+        if anyVisible && wasHidden {
+            verticalSplit.setPosition(verticalSplit.bounds.height * 0.55, ofDividerAt: 0)
+        }
+        if !terminal.isHidden, let agentPane, !agentPane.isHidden {
+            bottomSplit.setPosition(bottomSplit.bounds.height * 0.4, ofDividerAt: 0)
         }
     }
 

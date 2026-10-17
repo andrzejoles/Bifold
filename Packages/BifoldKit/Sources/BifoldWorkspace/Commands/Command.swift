@@ -42,7 +42,7 @@ public struct CommandID: Hashable, Sendable, Codable, RawRepresentable, Expressi
 }
 
 public enum CommandCategory: String, Sendable, Codable, CaseIterable {
-    case panel, tabs, view, selection, file, clipboard, edit, queue, tools, help
+    case panel, tabs, view, selection, file, clipboard, edit, queue, tools, agent, help
 
     public var displayName: String {
         switch self {
@@ -55,6 +55,7 @@ public enum CommandCategory: String, Sendable, Codable, CaseIterable {
         case .edit: L10n.tr("Edycja")
         case .queue: L10n.tr("Kolejka")
         case .tools: L10n.tr("Narzędzia")
+        case .agent: L10n.tr("Agent")
         case .help: L10n.tr("Pomoc")
         }
     }

@@ -7,13 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0727DD55713E1549E3E9FB44 /* AgentPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E49E1DE49E280B7D389E2A64 /* AgentPane.swift */; };
 		0FD666503EB0E24987D66E2D /* HexFiend.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2603FC086786D7D7FBE7ADE3 /* HexFiend.framework */; };
 		1116E89CAA0F84AA450BD1BC /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5FA15C9237BD0D5CCD2D9F2 /* Theme.swift */; };
-		14DD14E17BB5A8FB98F6C618 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 020D8F26F33B7813D1FE3360 /* SwiftTerm */; };
+		14DD14E17BB5A8FB98F6C618 /* BifoldAgent in Frameworks */ = {isa = PBXBuildFile; productRef = 14C4EAF34643E9662961215E /* BifoldAgent */; };
 		203113BB789AE150F78C70E8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F627BE2FCFDE1EAE3F030427 /* SettingsView.swift */; };
+		24F6F373A76BFB5DCC5B07BD /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BA1ED275D245D8F3D7E0213E /* Localizable.xcstrings */; };
+		26989D62F76DF349345F5186 /* BifoldBridgeKit in Frameworks */ = {isa = PBXBuildFile; productRef = B760EFAB67E4C2939313D878 /* BifoldBridgeKit */; };
 		26A844D1855E5AD7E351318C /* JournalWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BC932422FFDBA0C36E9A0F4 /* JournalWindowController.swift */; };
 		300765AD292F3784E8D9AB86 /* FullDiskAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36BBC7D375CB52AFFDFB0B10 /* FullDiskAccess.swift */; };
 		385600393B04B55CBF4622D6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0880797A5A61F530C55920 /* AppDelegate.swift */; };
+		3E4F930E110A822086E2C52D /* BifoldBridgeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 79391360B81E0E8776B435B8 /* BifoldBridgeKit */; };
+		3F81E2758BF02F7B42E0A1E8 /* AgentUIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F1CF899DC7E621AAF8A458A /* AgentUIController.swift */; };
 		42D9ED7E4C2E3D22017229C4 /* PanelBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D9F57CDB5D57A14204BEB1 /* PanelBars.swift */; };
 		446A5D5718B440193E71D5B4 /* TerminalPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8666EA3361722B64A277E45 /* TerminalPane.swift */; };
 		45F9582AE7D4EB6B035898AC /* KeyChord+NSEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC24079A107B447CDFCD440 /* KeyChord+NSEvent.swift */; };
@@ -24,6 +29,8 @@
 		6BEA616D6A1D4DCF6EB50421 /* JobsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96D34A2F1BA907345E6BBD20 /* JobsBar.swift */; };
 		700F872F515553F3F4CE31C6 /* ViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27ECF99D333B2873C43BE4E /* ViewerWindowController.swift */; };
 		789F6474B019DFA5214AD498 /* CommandPaletteController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AEF1F68B23C6C1946EB1AF7 /* CommandPaletteController.swift */; };
+		7A06665F94711A8D0D5752F5 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABD05211A430CB6EA0D86E31 /* main.swift */; };
+		9306DDA37626CB57CC35A1A0 /* bifold-mcp in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 82470DF1E310E6F21EF3EFFE /* bifold-mcp */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A4FBDF513DDBE32FC3249FBF /* BifoldWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 579F3D1388B56082940BBC02 /* BifoldWorkspace */; };
 		A67F6B604B123F60570E0384 /* BifoldCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4CC90F7E29DD2F171CB9E812 /* BifoldCore */; };
 		A77C7E34F28113AD1CFE031F /* DirectoryTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D61D5F6D18E125A9D49110F /* DirectoryTreeView.swift */; };
@@ -32,13 +39,35 @@
 		CBFAC2C52D0F3302C2C3EBCC /* PanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D246500F6F01002047D49D3 /* PanelViewController.swift */; };
 		D2EB9CD81B5D8F046DCD8F2A /* Observe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD02CC4ED89FD034F12C201B /* Observe.swift */; };
 		D3E381A8B4F4E9BAD0F6C4FA /* CommandLineBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A965284FB8898DEED1F6DBB1 /* CommandLineBar.swift */; };
+		E5647A5E26AF166E666D0804 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 020D8F26F33B7813D1FE3360 /* SwiftTerm */; };
 		E74263AEF86B1F30B5C30BC5 /* ColumnListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ACFDBB9F909F9FECBAB84F4 /* ColumnListView.swift */; };
 		E7D80F286F2BCB8EAFA83C30 /* HexFiend.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2603FC086786D7D7FBE7ADE3 /* HexFiend.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F57F3DB573560DE1641C152D /* AppUIServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020926F0EF46C78FC131B60C /* AppUIServices.swift */; };
 		FD838B4FFBD70ED4E5584384 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 606B26C74D764E268FD6D7D8 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		B3F2144B4CD9238305B529C2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EAF126274DCDE7701557AE36 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3E5FDA60A3C282DA8755004F;
+			remoteInfo = "bifold-mcp";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
+		1B791F5FCCF282D5FAA808C0 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				9306DDA37626CB57CC35A1A0 /* bifold-mcp in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4864755688993698B1EFD1BF /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -61,21 +90,26 @@
 		4D61D5F6D18E125A9D49110F /* DirectoryTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryTreeView.swift; sourceTree = "<group>"; };
 		534DBF9C882210F65150F30D /* MenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBuilder.swift; sourceTree = "<group>"; };
 		5721F87D33E298BCB5021933 /* QuickViewPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickViewPane.swift; sourceTree = "<group>"; };
+		5F1CF899DC7E621AAF8A458A /* AgentUIController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUIController.swift; sourceTree = "<group>"; };
 		606B26C74D764E268FD6D7D8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6ACFDBB9F909F9FECBAB84F4 /* ColumnListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColumnListView.swift; sourceTree = "<group>"; };
 		6BC932422FFDBA0C36E9A0F4 /* JournalWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalWindowController.swift; sourceTree = "<group>"; };
 		7577258957A8726095CAAE02 /* QuickLookController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookController.swift; sourceTree = "<group>"; };
 		7D246500F6F01002047D49D3 /* PanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewController.swift; sourceTree = "<group>"; };
+		82470DF1E310E6F21EF3EFFE /* bifold-mcp */ = {isa = PBXFileReference; includeInIndex = 0; path = "bifold-mcp"; sourceTree = BUILT_PRODUCTS_DIR; };
 		88ABDCB99093D29357D17D10 /* DetailsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsListView.swift; sourceTree = "<group>"; };
 		96D34A2F1BA907345E6BBD20 /* JobsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobsBar.swift; sourceTree = "<group>"; };
 		A965284FB8898DEED1F6DBB1 /* CommandLineBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineBar.swift; sourceTree = "<group>"; };
+		ABD05211A430CB6EA0D86E31 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		B8666EA3361722B64A277E45 /* TerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPane.swift; sourceTree = "<group>"; };
+		BA1ED275D245D8F3D7E0213E /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		BDD28F6FF60A637FECF21718 /* BifoldKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BifoldKit; path = Packages/BifoldKit; sourceTree = SOURCE_ROOT; };
 		C0D9F57CDB5D57A14204BEB1 /* PanelBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelBars.swift; sourceTree = "<group>"; };
 		CD02CC4ED89FD034F12C201B /* Observe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Observe.swift; sourceTree = "<group>"; };
 		CE72F960ECE1D54DB93340F5 /* Bifold.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bifold.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D55DF27BCB5B4FB2B145F433 /* MainWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		D5FA15C9237BD0D5CCD2D9F2 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		E49E1DE49E280B7D389E2A64 /* AgentPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPane.swift; sourceTree = "<group>"; };
 		EE0880797A5A61F530C55920 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		F1E73F4F7492DA6533F57EBF /* GridListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridListView.swift; sourceTree = "<group>"; };
 		F27ECF99D333B2873C43BE4E /* ViewerWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerWindowController.swift; sourceTree = "<group>"; };
@@ -90,8 +124,18 @@
 			files = (
 				A67F6B604B123F60570E0384 /* BifoldCore in Frameworks */,
 				A4FBDF513DDBE32FC3249FBF /* BifoldWorkspace in Frameworks */,
-				14DD14E17BB5A8FB98F6C618 /* SwiftTerm in Frameworks */,
+				14DD14E17BB5A8FB98F6C618 /* BifoldAgent in Frameworks */,
+				3E4F930E110A822086E2C52D /* BifoldBridgeKit in Frameworks */,
+				E5647A5E26AF166E666D0804 /* SwiftTerm in Frameworks */,
 				0FD666503EB0E24987D66E2D /* HexFiend.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A888F0BE21CB13FBA36AA1CD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				26989D62F76DF349345F5186 /* BifoldBridgeKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -108,6 +152,14 @@
 			path = Windows;
 			sourceTree = "<group>";
 		};
+		2B0106D68B2C6B588A42116F /* BifoldKit */ = {
+			isa = PBXGroup;
+			children = (
+				5BCDE53F2DDA795D9004DB64 /* Sources */,
+			);
+			path = BifoldKit;
+			sourceTree = "<group>";
+		};
 		3029B021871EF023E74FABF7 /* Panel */ = {
 			isa = PBXGroup;
 			children = (
@@ -122,12 +174,29 @@
 			path = Panel;
 			sourceTree = "<group>";
 		};
+		3265C8A1A88DFE603F4EBA50 /* Agent */ = {
+			isa = PBXGroup;
+			children = (
+				E49E1DE49E280B7D389E2A64 /* AgentPane.swift */,
+				5F1CF899DC7E621AAF8A458A /* AgentUIController.swift */,
+			);
+			path = Agent;
+			sourceTree = "<group>";
+		};
 		4EC12D81AAA4C70AA82A355B /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				2603FC086786D7D7FBE7ADE3 /* HexFiend.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5BCDE53F2DDA795D9004DB64 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				83E873CC55CDAD26EB9C4AB8 /* bifold-mcp */,
+			);
+			path = Sources;
 			sourceTree = "<group>";
 		};
 		5C3E0445A5FECDA3B7315661 /* Services */ = {
@@ -160,6 +229,7 @@
 		6D37DFC134A693044EE24432 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
+				2B0106D68B2C6B588A42116F /* BifoldKit */,
 				BDD28F6FF60A637FECF21718 /* BifoldKit */,
 			);
 			path = Packages;
@@ -168,6 +238,7 @@
 		79046EFF5C8246F4D2C24EEB /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				3265C8A1A88DFE603F4EBA50 /* Agent */,
 				A4756BC45836CD25762CFA48 /* App */,
 				B471AB21F91580C73EAFB940 /* MainWindow */,
 				3029B021871EF023E74FABF7 /* Panel */,
@@ -183,8 +254,17 @@
 			isa = PBXGroup;
 			children = (
 				606B26C74D764E268FD6D7D8 /* Assets.xcassets */,
+				BA1ED275D245D8F3D7E0213E /* Localizable.xcstrings */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		83E873CC55CDAD26EB9C4AB8 /* bifold-mcp */ = {
+			isa = PBXGroup;
+			children = (
+				ABD05211A430CB6EA0D86E31 /* main.swift */,
+			);
+			path = "bifold-mcp";
 			sourceTree = "<group>";
 		};
 		A2454E6B14A2BC95A101760E /* App */ = {
@@ -230,6 +310,7 @@
 		D1EF61EB8FDAB6D9DEC3A595 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				82470DF1E310E6F21EF3EFFE /* bifold-mcp */,
 				CE72F960ECE1D54DB93340F5 /* Bifold.app */,
 			);
 			name = Products;
@@ -247,6 +328,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		3E5FDA60A3C282DA8755004F /* bifold-mcp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B13B3793A60F1C6A55146D50 /* Build configuration list for PBXNativeTarget "bifold-mcp" */;
+			buildPhases = (
+				315E9807B6FB83CAA512B3BD /* Sources */,
+				A888F0BE21CB13FBA36AA1CD /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "bifold-mcp";
+			packageProductDependencies = (
+				B760EFAB67E4C2939313D878 /* BifoldBridgeKit */,
+			);
+			productName = "bifold-mcp";
+			productReference = 82470DF1E310E6F21EF3EFFE /* bifold-mcp */;
+			productType = "com.apple.product-type.tool";
+		};
 		611F7C8C087CF7250683D39D /* Bifold */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4A34072C5245B321DE28DF9A /* Build configuration list for PBXNativeTarget "Bifold" */;
@@ -256,15 +356,19 @@
 				E471D1D9C62E22A8663C78FD /* Resources */,
 				240A0832D34AA705A8108A48 /* Frameworks */,
 				4864755688993698B1EFD1BF /* Embed Frameworks */,
+				1B791F5FCCF282D5FAA808C0 /* Embed Dependencies */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				670D2EF4FAD5FB2892B46CB0 /* PBXTargetDependency */,
 			);
 			name = Bifold;
 			packageProductDependencies = (
 				4CC90F7E29DD2F171CB9E812 /* BifoldCore */,
 				579F3D1388B56082940BBC02 /* BifoldWorkspace */,
+				14C4EAF34643E9662961215E /* BifoldAgent */,
+				79391360B81E0E8776B435B8 /* BifoldBridgeKit */,
 				020D8F26F33B7813D1FE3360 /* SwiftTerm */,
 			);
 			productName = Bifold;
@@ -280,6 +384,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					3E5FDA60A3C282DA8755004F = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
 					611F7C8C087CF7250683D39D = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Manual;
@@ -305,6 +413,7 @@
 			projectRoot = "";
 			targets = (
 				611F7C8C087CF7250683D39D /* Bifold */,
+				3E5FDA60A3C282DA8755004F /* bifold-mcp */,
 			);
 		};
 /* End PBXProject section */
@@ -315,6 +424,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD838B4FFBD70ED4E5584384 /* Assets.xcassets in Resources */,
+				24F6F373A76BFB5DCC5B07BD /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -344,10 +454,20 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		315E9807B6FB83CAA512B3BD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A06665F94711A8D0D5752F5 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		86FE6F1AFD80F9FD79711E18 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0727DD55713E1549E3E9FB44 /* AgentPane.swift in Sources */,
+				3F81E2758BF02F7B42E0A1E8 /* AgentUIController.swift in Sources */,
 				385600393B04B55CBF4622D6 /* AppDelegate.swift in Sources */,
 				F57F3DB573560DE1641C152D /* AppUIServices.swift in Sources */,
 				E74263AEF86B1F30B5C30BC5 /* ColumnListView.swift in Sources */,
@@ -376,6 +496,14 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		670D2EF4FAD5FB2892B46CB0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3E5FDA60A3C282DA8755004F /* bifold-mcp */;
+			targetProxy = B3F2144B4CD9238305B529C2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		07512B931F50C0673ACF6FA9 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -392,6 +520,20 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				SDKROOT = macosx;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+			};
+			name = Debug;
+		};
+		16AEA25796D92C8C0F09BE38 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = "bifold-mcp";
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
 			};
 			name = Debug;
 		};
@@ -467,6 +609,20 @@
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
+		};
+		70446D649335E7AE0F8CF11D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = "bifold-mcp";
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Release;
 		};
 		77451DB1233B46FC05AFAD87 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -574,6 +730,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		B13B3793A60F1C6A55146D50 /* Build configuration list for PBXNativeTarget "bifold-mcp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				16AEA25796D92C8C0F09BE38 /* Debug */,
+				70446D649335E7AE0F8CF11D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -600,6 +765,10 @@
 			package = 81A75F4894C3DB04A4F36513 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
 		};
+		14C4EAF34643E9662961215E /* BifoldAgent */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BifoldAgent;
+		};
 		4CC90F7E29DD2F171CB9E812 /* BifoldCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BifoldCore;
@@ -607,6 +776,14 @@
 		579F3D1388B56082940BBC02 /* BifoldWorkspace */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BifoldWorkspace;
+		};
+		79391360B81E0E8776B435B8 /* BifoldBridgeKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BifoldBridgeKit;
+		};
+		B760EFAB67E4C2939313D878 /* BifoldBridgeKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BifoldBridgeKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

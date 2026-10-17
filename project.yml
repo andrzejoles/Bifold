@@ -51,6 +51,14 @@ targets:
         product: BifoldCore
       - package: BifoldKit
         product: BifoldWorkspace
+      - package: BifoldKit
+        product: BifoldAgent
+      - package: BifoldKit
+        product: BifoldBridgeKit
+      - target: bifold-mcp
+        embed: true
+        copy:
+          destination: executables
       - package: SwiftTerm
         product: SwiftTerm
       - framework: ThirdParty/build/HexFiend.framework
@@ -62,6 +70,18 @@ targets:
         basedOnDependencyAnalysis: false
         outputFiles:
           - $(SRCROOT)/ThirdParty/build/HexFiend.framework/HexFiend
+  bifold-mcp:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Packages/BifoldKit/Sources/bifold-mcp
+    settings:
+      base:
+        PRODUCT_NAME: bifold-mcp
+        SWIFT_STRICT_CONCURRENCY: complete
+    dependencies:
+      - package: BifoldKit
+        product: BifoldBridgeKit
 schemes:
   Bifold:
     build:

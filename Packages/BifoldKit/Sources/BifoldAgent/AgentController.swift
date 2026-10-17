@@ -186,7 +186,8 @@ public final class AgentController: AgentInvocationGate {
         var activity = AgentActivity(sessionID: sessionID, tool: name, arguments: Self.summarize(args), started: started, status: .running)
         activities.append(activity)
         if activities.count > 500 { activities.removeFirst(activities.count - 500) }
-        let index = { [weak self] in self?.activities.lastIndex { $0.id == activity.id } }
+        let activityID = activity.id
+        let index: () -> Int? = { [weak self] in self?.activities.lastIndex { $0.id == activityID } }
 
         guard let session = registry.session(sessionID) else { return error("session_closed") }
         do {

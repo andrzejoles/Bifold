@@ -73,6 +73,7 @@ final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
             self.terminalView = nil
             self.started = false
             self.isHidden = true
+            (self.window?.windowController as? MainWindowController)?.terminalClosed()
         }
     }
 }

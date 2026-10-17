@@ -37,7 +37,7 @@ public enum AgentLauncher {
     public static func spec(
         kind: AgentKind, bridge: String, socket: String, token: String, directory: String,
         strict: Bool, sessionDirectory: String, shell: String = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh",
-        executable: String? = nil
+        executable: String? = nil, prompt: String? = nil
     ) -> AgentLaunchSpec {
         let exe = executable ?? kind.executable
         var env: [String: String] = [Bridge.tokenVariable: token, Bridge.socketVariable: socket]
@@ -103,6 +103,15 @@ public enum AgentLauncher {
             }
         }
 
+        // Tryb bez interfejsu (testy E2E, przyszły natywny czat).
+        if let prompt {
+            switch kind {
+            case .claude: args = ["-p", prompt] + args
+            case .codex: args = ["exec", "--skip-git-repo-check"] + args + [prompt]
+            case .grok: args = ["-p", prompt] + args + ["--always-approve"]
+            case .antigravity: args = ["-p", prompt] + args
+            }
+        }
         let commandLine = (["exec", shellQuote(exe)] + args.map(shellQuote)).joined(separator: " ")
         return AgentLaunchSpec(
             shell: shell, shellArguments: ["-l", "-c", commandLine], environment: env, directory: directory,

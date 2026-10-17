@@ -80,3 +80,37 @@ poleceń zmienia katalog panelu (jak w TC). Zmienna `BIFOLD_AGENT_TOKEN` jest us
 
 ### D16 · 2026-10-17 — Repozytorium prywatne
 Repozytorium GitHub `andrzejoles/Bifold` jest prywatne (narzędzie do użytku własnego).
+
+### D17 · 2026-10-17 — Most bez SDK MCP, serwer MCP w aplikacji
+`bifold-mcp` (BifoldBridgeKit, sama Foundation) tylko przekazuje linie JSON-RPC ze stdio do ramek
+gniazda i z powrotem. Serwer MCP (swift-sdk 0.12.1) działa w aplikacji z własnym transportem
+`SocketTransport`. Most nie ma żadnej logiki uprawnień, więc jego podmiana niczego nie daje.
+
+### D18 · 2026-10-17 — Token: środowisko procesu, zapasowo środowisko przodka
+Token jest tylko w środowisku procesu CLI. Część CLI nie przekazuje zmiennych środowiskowych
+serwerom MCP (Codex domyślnie filtruje środowisko). Most szuka wtedy `BIFOLD_AGENT_TOKEN`
+w środowisku swoich przodków (`sysctl KERN_PROCARGS2`, ten sam UID). Nie osłabia to modelu
+zagrożeń: proces tego samego użytkownika i tak mógłby odczytać środowisko (SECURITY.md §3), a
+serwer dodatkowo wymaga, żeby most był potomkiem procesu CLI sesji.
+
+### D19 · 2026-10-17 — Normalizacja `initialize`
+Codex, Claude Code i Antigravity deklarują `capabilities.elicitation: {form, url}` z nowszej
+specyfikacji MCP, czego swift-sdk 0.12.1 nie dekoduje (błąd -32603). Serwer Bifolda nie korzysta
+z możliwości klienta, więc transport zastępuje je pustym obiektem w żądaniu `initialize`.
+
+### D20 · 2026-10-17 — `run_command` najwyżej „Za zgodą”
+`run_command` daje dostęp do całego rejestru, więc poziom wywołania przez to narzędzie to
+min(poziom komendy, „Za zgodą”). Komendy „Pełny” wywołane przez `run_command` wymagają zgody,
+komendy „Brak” są niedostępne.
+
+### D21 · 2026-10-17 — Konfiguracja MCP na sesję — zweryfikowana testem E2E
+| Agent | Sposób | Wynik testu `AgentE2ETests` |
+|---|---|---|
+| Claude Code 2.1.302 | `--mcp-config <json> --strict-mcp-config`, tryb ścisły `--tools "" --allowedTools mcp__bifold__*` | ✔ |
+| Codex 0.162.1 | `-c mcp_servers.bifold.*`, `env_vars`, tryb ścisły `--sandbox read-only` | ✔ |
+| Grok | `GROK_CONFIG=<plik sesji>` (nakładka), `--sandbox read-only` | ✔ (start ~4 min) |
+| Antigravity | trwałe `agy mcp add bifold …` za zgodą, `--sandbox` | ✔ |
+
+### D22 · 2026-10-17 — Znaczniki sesji CLI usuwane ze środowiska agenta
+Jeśli Bifold uruchomiono z terminala, w którym działało CLI agenta, zmienne `CLAUDECODE`,
+`CLAUDE_CODE_*`, `CODEX_*` nie przechodzą do CLI uruchamianego w panelu agenta.

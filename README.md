@@ -41,6 +41,20 @@ Przy pierwszym uruchomieniu nadaj aplikacji **Pełny dostęp do dysku**
 (Ustawienia systemowe → Prywatność i ochrona → Pełny dostęp do dysku) — aplikacja sama to wykryje
 i pokaże instrukcję.
 
+## Agenci AI
+
+Menu **Agent** (albo Ctrl+Alt+1…4) uruchamia Claude Code, Codex CLI, Grok CLI lub Antigravity w panelu
+agenta, z katalogiem roboczym aktywnego panelu. CLI dostaje serwer MCP „bifold” tylko na tę sesję
+(Antigravity — jednorazowa rejestracja za zgodą). Operacje na plikach agent tylko zgłasza — Bifold
+pokazuje podgląd i czeka na „Zatwierdź”. Wszystko jest w dzienniku (Agent → Dziennik agentów) i da się
+cofnąć (Agent → Cofnij sesję agenta). Szczegóły: [SECURITY.md](docs/SECURITY.md).
+
+Test z prawdziwymi CLI (zużywa limit subskrypcji):
+
+```sh
+cd Packages/BifoldKit && BIFOLD_E2E_AGENTS=1 swift test --filter AgentE2ETests
+```
+
 ## Dokumentacja
 
 - [Architektura](docs/ARCHITECTURE.md)
