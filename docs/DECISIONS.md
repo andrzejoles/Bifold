@@ -80,6 +80,7 @@ poleceń zmienia katalog panelu (jak w TC). Zmienna `BIFOLD_AGENT_TOKEN` jest us
 
 ### D16 · 2026-10-17 — Repozytorium prywatne
 Repozytorium GitHub `andrzejoles/Bifold` jest prywatne (narzędzie do użytku własnego).
+**Zmienione 2026-10-17 (decyzja właściciela):** repozytorium publiczne, licencja MIT — kod i aplikację można udostępniać; wymagają tego też automatyczne aktualizacje (D40).
 
 ### D17 · 2026-10-17 — Most bez SDK MCP, serwer MCP w aplikacji
 `bifold-mcp` (BifoldBridgeKit, sama Foundation) tylko przekazuje linie JSON-RPC ze stdio do ramek
