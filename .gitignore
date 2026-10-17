@@ -1,0 +1,10 @@
+.DS_Store
+build/
+DerivedData/
+.build/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+ThirdParty/build/
+Packages/BifoldKit/.build/
+Packages/BifoldKit/Package.resolved
