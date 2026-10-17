@@ -10,9 +10,44 @@ extension VFSPath {
 }
 
 extension CommandContext {
-    func remoteFS(_ path: VFSPath) async throws -> RemoteFS? {
+    func remoteFS(_ path: VFSPath) async throws -> (any RemoteFileProvider)? {
         guard let alias = RemoteFS.alias(of: path) else { return nil }
         return try await workspace.remotes.provider(alias)
+    }
+
+    func rcloneFS(_ path: VFSPath) async throws -> RemoteFS? {
+        guard let alias = RemoteFS.alias(of: path) else { return nil }
+        return try await workspace.remotes.rcloneProvider(alias)
+    }
+
+    /// Kopiowanie z udziałem serwera SCP: pobieranie przez katalog tymczasowy (konflikty i cofanie
+    /// jak przy archiwach), wysyłanie jako zadanie w tle. `nil` — SCP nie bierze udziału.
+    func scpTransfer(_ kind: TransferKind, items: [FileItem]) async throws -> (JobSpec, String, (any TransferDelegate)?)? {
+        let sourcePath = items.first?.path ?? tab.path
+        var destination = arguments.string("destination").map { workspace.parsePath($0, relativeTo: otherTab.path) } ?? otherTab.path
+        let source = try await remoteFS(sourcePath) as? ScpFS
+        var target = try await remoteFS(destination) as? ScpFS
+        guard source != nil || target != nil else { return nil }
+        guard kind == .copy else {
+            throw CommandError.notAvailable(L10n.tr("Serwer SCP: przenoszenie nie jest obsługiwane — skopiuj (F5), potem usuń (F8)"))
+        }
+        if !isAgent && arguments["destination"] == nil, let ui {
+            guard let result = await ui.promptTransfer(kind: kind, items: items, defaultDestination: destination.displayPath + "/") else { throw CommandError.cancelledByUser }
+            destination = workspace.parsePath(result.destination.trimmingCharacters(in: .whitespaces), relativeTo: otherTab.path)
+            target = try await remoteFS(destination) as? ScpFS
+        }
+        let policy = try conflictPolicy()
+        if let source, destination.isLocal {
+            let delegate: any TransferDelegate = isAgent || ui == nil ? PolicyTransferDelegate(conflict: policy ?? .skip)
+                : (policy.map { PolicyTransferDelegate(conflict: $0) } ?? ui!.transferDelegate())
+            return (.extract(source: source, sources: items.map(\.path), destination: destination),
+                    L10n.tr("Kopiowanie \(Format.describe(items)) z \(source.connection.alias)"), delegate)
+        }
+        if let target, sourcePath.isLocal {
+            return (.scpUpload(ScpUpload(fs: target, sources: items.map(\.path), destination: destination, skipExisting: policy != .overwrite)),
+                    L10n.tr("Wysyłanie \(Format.describe(items)) → \(destination.displayPath)"), nil)
+        }
+        throw CommandError.notAvailable(L10n.tr("Serwer SCP ⇄ inny serwer lub archiwum: najpierw skopiuj na dysk"))
     }
 
     /// Kopiowanie/przenoszenie z udziałem serwera (źródło lub cel zdalny). `nil` — zwykła operacja lokalna.
@@ -31,8 +66,8 @@ extension CommandContext {
         }
         if !destination.isLocal, RemoteFS.alias(of: destination) == nil { throw CommandError.notAvailable(L10n.tr("Nie można kopiować do archiwum ani listy wyników")) }
         guard sourcePath.isLocal || sourceRemote else { throw CommandError.notAvailable(L10n.tr("Kopiowanie z archiwum na serwer: najpierw rozpakuj na dysk")) }
-        let src = try await remoteFS(sourcePath)
-        let dst = try await remoteFS(destination)
+        let src = try await rcloneFS(sourcePath)
+        let dst = try await rcloneFS(destination)
         var transferItems: [RcloneTransfer.Item] = []
         for listed in items {
             if let src {
@@ -56,7 +91,7 @@ extension CommandContext {
 var remoteCommands: [Command] { [
     Command(CommandDescriptor(
         id: "remote.connections", title: L10n.tr("Menedżer połączeń…"), category: .network, tc: ["ctrl+f"], cmd: ["cmd+k"],
-        agent: .none, effect: .settings, summary: L10n.tr("Połączenia SFTP, FTP/FTPS, WebDAV, SMB i chmur (hasła w Keychain)."))
+        agent: .none, effect: .settings, summary: L10n.tr("Połączenia SFTP, SCP, FTP/FTPS, WebDAV, SMB i chmur (hasła w Keychain)."))
     ) { ctx in
         try ctx.requireUI().showConnections()
         return .ok
@@ -138,7 +173,7 @@ var remoteCommands: [Command] { [
     ) { ctx in
         let alias = try await ctx.text("alias", title: L10n.tr("Połączenie"), default: RemoteFS.alias(of: ctx.tab.path) ?? "")
         let mask = try await ctx.text("nameMask", title: L10n.tr("Maska nazw"), default: "*")
-        let fs = try await ctx.workspace.remotes.provider(alias)
+        let fs = try await ctx.workspace.remotes.rcloneProvider(alias)
         let start = VFSPath(provider: fs.id, path: ctx.arguments.string("path") ?? (RemoteFS.alias(of: ctx.tab.path) == alias ? ctx.tab.path.path : "/"))
         let entries = try await fs.rclone.list(fs: fs.fs, remote: fs.remotePath(start), recursive: true)
         let m = NameMask(mask)

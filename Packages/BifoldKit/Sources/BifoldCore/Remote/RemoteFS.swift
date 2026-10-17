@@ -15,10 +15,10 @@ public final class RemoteFS: FileSystemProvider {
 
     /// Tworzy zasób w pamięci procesu rclone (`config/create`, hasło zaciemniane przez rclone)
     /// — nic nie trafia do pliku konfiguracji.
-    public static func connect(_ c: RemoteConnection, secret: String?, rclone: Rclone) async throws -> RemoteFS {
+    public static func connect(_ c: RemoteConnection, secret: String?, rclone: Rclone, knownHostsFile: String? = nil, hostKeyAlgorithms: [String] = []) async throws -> RemoteFS {
         try validateAlias(c.alias)
         _ = try await rclone.call("config/create", [
-            "name": c.alias, "type": c.kind.backend, "parameters": c.rcloneParameters(secret: secret),
+            "name": c.alias, "type": c.kind.backend, "parameters": c.rcloneParameters(secret: secret, knownHostsFile: knownHostsFile, hostKeyAlgorithms: hostKeyAlgorithms),
             "opt": ["obscure": true, "nonInteractive": true],
         ])
         return RemoteFS(connection: c, rclone: rclone)
@@ -38,15 +38,15 @@ public final class RemoteFS: FileSystemProvider {
     }
 
     public var root: VFSPath { VFSPath(provider: id, path: "/") }
-    /// Nazwa systemu plików rclone (`alias:`).
-    public var fs: String { connection.alias + ":" }
+    /// Nazwa systemu plików rclone (`alias:`). SFTP z katalogiem startowym „/var/log” liczy ścieżki
+    /// od korzenia serwera (`alias:/`), inaczej rclone liczyłby je od katalogu domowego.
+    public var fs: String { connection.alias + (connection.kind == .sftp && connection.path.hasPrefix("/") ? ":/" : ":") }
 
     /// Ścieżka po stronie rclone (względem korzenia połączenia).
     public func remotePath(_ path: VFSPath) -> String {
         let base = connection.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let inner = String(path.path.dropFirst())
-        if base.isEmpty { return inner }
-        return inner.isEmpty ? base : base + "/" + inner
+        return base.isEmpty ? inner : (inner.isEmpty ? base : base + "/" + inner)
     }
 
     func item(_ e: Rclone.ListEntry, in dir: VFSPath) -> FileItem {

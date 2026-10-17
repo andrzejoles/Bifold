@@ -102,6 +102,14 @@ public final class Workspace {
         registry = CommandRegistry.standard()
         rebuildKeymap()
         remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "local.aoles.bifold") + (persists ? ".remote" : ".tests"))
+        if !persists {
+            // Testy nie dotykają ~/.ssh (known_hosts i konfiguracja w katalogu testu).
+            remotes.sshKnownHostsFile = paths.root.appending(path: "known_hosts").path
+            let config = paths.root.appending(path: "ssh_config")
+            try? FileManager.default.createDirectory(at: paths.root, withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: config.path, contents: Data())
+            remotes.sshConfigFile = config.path
+        }
     }
 
     /// Poziom zasobu dla agenta (zasada najmniejszego poziomu, PROMPT.md 5.4–5.5):

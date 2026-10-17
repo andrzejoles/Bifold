@@ -32,27 +32,42 @@ public final class RemoteManager {
         if let secret { try keychain.set(secret, for: c.alias) }
         try JSONStore.save(connections, to: url)
         connected.remove(c.alias)
+        scpSessions.removeValue(forKey: c.alias)?.disconnect()
     }
 
     public func remove(_ alias: String) throws {
         connections.removeAll { $0.alias == alias }
         keychain.delete(alias)
+        scpSessions.removeValue(forKey: alias)?.disconnect()
         try JSONStore.save(connections, to: url)
         workspace.providers.unregister(RemoteFS.providerID(alias))
         connected.remove(alias)
     }
 
+    /// Katalog na gniazda (rclone, połączenia główne SSH). Limit sun_path to 104 B, a `ssh` dokleja
+    /// do ścieżki 17 znaków — przy długiej ścieżce prywatny katalog 0700 w /tmp (gniazda bez
+    /// uwierzytelnienia muszą być niedostępne dla innych użytkowników).
+    func socketDirectory() throws -> URL {
+        if let socketDir { return socketDir }
+        var dir = workspace.paths.run
+        if dir.path.utf8.count + 40 > 100 {
+            dir = URL(filePath: "/tmp/bifold-\(getuid())-\(UUID().uuidString.prefix(6))", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        }
+        socketDir = dir
+        return dir
+    }
+
+    @ObservationIgnored private var socketDir: URL?
+    @ObservationIgnored private var scpSessions: [String: ScpFS] = [:]
+    /// Testy: własna konfiguracja SSH zamiast ~/.ssh/config i ~/.ssh/known_hosts.
+    @ObservationIgnored public var sshConfigFile: String?
+    @ObservationIgnored public var sshKnownHostsFile: String?
+
     public func runningRclone() throws -> Rclone {
         if let rclone, rclone.isRunning { return rclone }
         guard let exe = workspace.settings.toolPath("rclone") else { throw RemoteError.toolMissing }
-        var socket = workspace.paths.run.appending(path: "rclone.sock")
-        if socket.path.utf8.count > 100 {
-            // Limit sun_path (104 B): prywatny katalog 0700 w /tmp (gniazdo bez uwierzytelnienia
-            // musi być niedostępne dla innych użytkowników).
-            let dir = URL(filePath: "/tmp/bifold-\(getuid())-\(UUID().uuidString.prefix(6))", directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
-            socket = dir.appending(path: "rclone.sock")
-        }
+        let socket = try socketDirectory().appending(path: "rclone.sock")
         let r = Rclone(executable: exe, socket: socket)
         try r.start()
         rclone = r
@@ -61,17 +76,50 @@ public final class RemoteManager {
     }
 
     /// Zasób gotowy do użycia (połączenie tworzone przy pierwszym dostępie).
-    public func provider(_ alias: String) async throws -> RemoteFS {
+    public func provider(_ alias: String) async throws -> any RemoteFileProvider {
         guard let c = connection(alias) else { throw RemoteError.unknownRemote(alias) }
-        if connected.contains(alias), let p = try? workspace.providers.provider(for: RemoteFS.providerID(alias)) as? RemoteFS { return p }
+        if connected.contains(alias), let p = try? workspace.providers.provider(for: RemoteFS.providerID(alias)) as? any RemoteFileProvider { return p }
+        if c.kind == .scp {
+            let keychain = keychain
+            let fs = try await ScpFS.connect(c, runDirectory: try socketDirectory(), sshConfigFile: sshConfigFile, knownHostsFile: sshKnownHostsFile) {
+                keychain.get(alias)
+            }
+            scpSessions[alias]?.disconnect()
+            scpSessions[alias] = fs
+            workspace.providers.register(fs)
+            connected.insert(alias)
+            return fs
+        }
         let rc = try runningRclone()
-        let fs = try await RemoteFS.connect(c, secret: keychain.get(alias), rclone: rc)
+        var knownHosts: String?
+        var hostKeyAlgorithms: [String] = []
+        if c.kind == .sftp {
+            let session = try SSHSession(config: .init(host: c.host, port: c.port, user: c.user, keyFile: c.keyFile, legacyAlgorithms: c.legacyAlgorithms ?? false,
+                                                       configFile: sshConfigFile, knownHostsFile: sshKnownHostsFile),
+                                         runDirectory: try socketDirectory(), secret: { nil })
+            hostKeyAlgorithms = try await runBlocking(qos: .userInitiated) {
+                try session.recordHostKey()
+                return session.knownHostKeyAlgorithms()
+            }
+            knownHosts = session.knownHostsPath
+        }
+        let fs = try await RemoteFS.connect(c, secret: keychain.get(alias), rclone: rc, knownHostsFile: knownHosts, hostKeyAlgorithms: hostKeyAlgorithms)
         workspace.providers.register(fs)
         connected.insert(alias)
         return fs
     }
 
+    /// Zasób przez rclone (synchronizacja, wyszukiwanie, przesyłanie między serwerami).
+    public func rcloneProvider(_ alias: String) async throws -> RemoteFS {
+        guard let fs = try await provider(alias) as? RemoteFS else {
+            throw RemoteError.ssh(L10n.tr("Ta operacja nie działa dla połączeń SCP — skopiuj pliki na dysk"))
+        }
+        return fs
+    }
+
     public func stop() {
+        for fs in scpSessions.values { fs.disconnect() }
+        scpSessions = [:]
         rclone?.stop()
         rclone = nil
         connected = []
@@ -117,12 +165,12 @@ public final class RemoteManager {
 final class RemoteEditSession {
     let local: URL
     let remote: VFSPath
-    let fs: RemoteFS
+    let fs: any RemoteFileProvider
     let report: (String) -> Void
     private var source: (any DispatchSourceFileSystemObject)?
     private var lastUpload = Date.distantPast
 
-    init(local: URL, remote: VFSPath, fs: RemoteFS, report: @escaping (String) -> Void) {
+    init(local: URL, remote: VFSPath, fs: any RemoteFileProvider, report: @escaping (String) -> Void) {
         self.local = local
         self.remote = remote
         self.fs = fs
