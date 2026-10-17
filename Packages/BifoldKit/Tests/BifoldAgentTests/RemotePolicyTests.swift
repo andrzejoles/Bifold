@@ -28,7 +28,7 @@ import Testing
 
         // Odczyt z SFTP — dozwolony, tylko po aliasie.
         let (list, listErr) = await call(env, session, "remote_list", ["alias": "prod-logi", "path": "/logi"])
-        #expect(!listErr && list.contains("app.log"))
+        #expect(!listErr && list.contains("app.log"), "\(list)")
         #expect(!list.contains("127.0.0.1"))
         let (read, _) = await call(env, session, "remote_read", ["alias": "prod-logi", "path": "/logi/app.log"])
         #expect(read.contains("linia z serwera"))

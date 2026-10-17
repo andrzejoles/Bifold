@@ -6,7 +6,7 @@
 |---|---|
 | Pliki użytkownika | Agent nie może ich zmienić bez zgody (poziom „Za zgodą”) ani w sposób nieodwracalny |
 | Sekrety na dysku: `~/.ssh`, `~/Library/Keychains`, profile przeglądarek, konfiguracja rclone, `~/Library/Application Support/Bifold` | Agent nie może ich czytać ani zobaczyć w listingach |
-| Dane logowania do serwerów | Agent zna tylko aliasy; hasła są w Keychain, rclone dostaje je w pamięci |
+| Dane logowania do serwerów | Agent zna tylko aliasy; hasła są w Keychain, rclone dostaje je w pamięci, `ssh` przez jednorazową kolejkę FIFO |
 | Kanał sterowania aplikacją | Tylko proces CLI uruchomiony przez aplikację (i jego potomkowie) może nim sterować |
 | Integralność decyzji | Uprawnień nie da się podnieść treścią promptu, nazwą pliku ani odpowiedzią serwera |
 
@@ -69,6 +69,11 @@
   hasła i tokeny z Keychain przekazywane w treści żądania do `config/create` (z `obscure`) — nigdy
   w argumentach procesu ani w plikach. Agent zna wyłącznie aliasy; listing połączeń dla agenta nie
   zawiera hosta ani użytkownika (test `leastPrivilegeAcrossServers`).
+- **SSH (SFTP i SCP)**: klucz serwera zapisywany w `~/.ssh/known_hosts` przy pierwszym połączeniu i
+  sprawdzany przy kolejnych (także przez rclone); zmieniony klucz blokuje połączenie. Hasło dla `ssh`
+  przez jednorazową kolejkę FIFO (D38) — nigdy w argumentach ani środowisku. Gniazda połączeń głównych
+  (ControlMaster) w katalogu 0700. Host i użytkownik sprawdzane, żeby nie dało się wstrzyknąć opcji
+  `ssh`. SCP dla agenta — odczyt, jak SFTP.
 - **Archiwa z hasłem**: hasło podaje tylko użytkownik (pole maskowane), trafia do `7zz` przez stdin,
   nie jest zapisywane. Agent dostaje `password_required`.
 - **Urządzenia**: tylko odczyt; dla agenta poziom „Odczyt”.

@@ -92,6 +92,15 @@ private func transferCommand(_ kind: TransferKind) -> Command {
         }
     ) { ctx in
         let items = try ctx.targets(allowNonLocal: true)
+        if let (spec, title, delegate) = try await ctx.scpTransfer(kind, items: items) {
+            let job = ctx.workspace.jobs.enqueue(spec, title: title, invoker: ctx.invoker, delegate: delegate)
+            ctx.tab.clearSelection()
+            if ctx.arguments.bool("wait") == true {
+                let state = await ctx.workspace.jobs.wait(for: job)
+                return CommandResult(message: "\(state)", value: ["job": .string(job.id.uuidString), "state": .string("\(state)"), "errors": .array(job.errors.map { .string($0) })])
+            }
+            return CommandResult(message: title, value: ["job": .string(job.id.uuidString)])
+        }
         if let (transfer, destination) = try await ctx.remoteTransfer(kind, items: items) {
             let rc = try ctx.workspace.remotes.runningRclone()
             let title = (isCopy ? L10n.tr("Kopiowanie") : L10n.tr("Przenoszenie")) + " \(Format.describe(items)) → \(destination.displayPath)"

@@ -98,5 +98,7 @@ public enum JSONStore {
         let data = try encoder.encode(value)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: url, options: [.atomic])
+        // Tylko właściciel (adresy serwerów i nazwy użytkowników w connections.json; hasła są w Keychain).
+        chmod(url.path, 0o600)
     }
 }

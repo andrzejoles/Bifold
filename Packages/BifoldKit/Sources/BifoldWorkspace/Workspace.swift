@@ -102,6 +102,15 @@ public final class Workspace {
         registry = CommandRegistry.standard()
         rebuildKeymap()
         remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "local.aoles.bifold") + (persists ? ".remote" : ".tests"))
+        if !persists {
+            // Testy nie dotykają ~/.ssh (known_hosts i konfiguracja w katalogu testu).
+            // Osobny katalog tymczasowy — nie w katalogu danych (testy listują katalogi z nim w środku).
+            let sshDir = FileManager.default.temporaryDirectory.appending(path: "bifold-tests-ssh-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
+            try? FileManager.default.createDirectory(at: sshDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            FileManager.default.createFile(atPath: sshDir.appending(path: "ssh_config").path, contents: Data())
+            remotes.sshKnownHostsFile = sshDir.appending(path: "known_hosts").path
+            remotes.sshConfigFile = sshDir.appending(path: "ssh_config").path
+        }
     }
 
     /// Poziom zasobu dla agenta (zasada najmniejszego poziomu, PROMPT.md 5.4–5.5):

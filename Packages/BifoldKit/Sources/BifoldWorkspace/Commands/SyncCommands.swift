@@ -29,7 +29,7 @@ extension Workspace {
     /// Nazwa systemu plików rclone dla ścieżki (lokalna ścieżka albo `alias:podkatalog`).
     public func rcloneFs(_ path: VFSPath) async throws -> String {
         if let alias = RemoteFS.alias(of: path) {
-            let fs = try await remotes.provider(alias)
+            let fs = try await remotes.rcloneProvider(alias)
             return fs.fs + fs.remotePath(path)
         }
         guard path.isLocal else { throw CommandError.notAvailable(L10n.tr("Synchronizacja działa dla katalogów lokalnych i serwerów")) }

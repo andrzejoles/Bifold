@@ -11,6 +11,8 @@ public enum JobSpec: Sendable {
     case extractArchives([VFSPath], destination: VFSPath, tool: SevenZip, overwrite: SevenZip.Overwrite, subfolders: Bool)
     /// Przesyłanie przez rclone (serwery, chmury).
     case rclone(RcloneTransfer, Rclone)
+    /// Wysyłanie na serwer SCP.
+    case scpUpload(ScpUpload)
     /// Synchronizacja katalogów (plan policzony wcześniej „na sucho”).
     case sync(SyncPlan, Rclone)
     /// Tworzenie archiwum.
@@ -208,6 +210,8 @@ public final class JobQueue {
                     errors = try SyncPlanner.execute(plan, rclone: rclone, control: control, journal: journal, batchID: batchID) { progressSink.update($0) }
                 case let .rclone(transfer, rclone):
                     errors = try transfer.run(rclone: rclone, control: control, journal: journal, batchID: batchID) { progressSink.update($0) }
+                case .scpUpload(let upload):
+                    errors = try upload.run(control: control) { progressSink.update($0) }
                 case let .createArchive(archive, format, base, names, tool, level, password, volumeSize):
                     var p = TransferProgress()
                     p.currentItem = archive.name

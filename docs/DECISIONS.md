@@ -208,3 +208,43 @@ demona. **Ograniczenie:** demony SMAppService wymagają podpisu z zespołem — 
 rejestracja się nie powiedzie; ustaw `DEVELOPMENT_TEAM` i wymaganie z certyfikatem w
 `Config/Brand.xcconfig`. Instalacja i działanie demona nie były testowane end-to-end (wymaga
 zatwierdzenia przez użytkownika); logika operacji i walidacji ma testy jednostkowe.
+
+### D37 · 2026-10-17 — SCP przez systemowe `ssh`/`scp -O`, nie przez rclone
+rclone nie ma klasycznego SCP, a serwery bez SFTP (np. AIX 6.1, na którym właściciel go potrzebuje)
+obsługują tylko SCP. `ScpFS`: listing z `ls -la` (lokalizacja C), operacje przez SSH, kopiowanie plik
+po pliku z jawną nazwą docelową (działa też dla nazw w ISO-8859-2). Jedno połączenie główne
+(ControlMaster, ControlPersist 15 min) na serwer — kolejne polecenia nie logują się ponownie.
+Procesy przez `posix_spawn` z dokładnymi bajtami argumentów (`Process` zamienia je na NFD, co psuje
+polskie nazwy na serwerach porównujących bajty). Ścieżki dla `scp -O` z odwrotnym ukośnikiem przed
+znakami specjalnymi — apostrofy nie przechodzą kontroli nazw nowego klienta. Przenoszenie (F6) z/na SCP
+celowo nieobsługiwane (komunikat: skopiuj, potem usuń). Synchronizacja i wyszukiwanie na serwerze SCP —
+nieobsługiwane (wymagają rclone).
+
+### D38 · 2026-10-17 — Hasło dla `ssh` przez jednorazową kolejkę FIFO
+`SSH_ASKPASS` wskazuje skrypt `cat "$BIFOLD_ASKPASS_FIFO"` (bez sekretu). Aplikacja zapisuje hasło do
+kolejki FIFO (0600, katalog 0700) raz, gdy `ssh` ją otworzy, potem kolejka znika. Hasło nie trafia do
+argumentów, zmiennych środowiskowych (te są czytelne dla innych procesów użytkownika przez
+`KERN_PROCARGS2`) ani plików. Bez hasła: `BatchMode=yes` (klucz lub agent SSH).
+
+### D39 · 2026-10-17 — Weryfikacja klucza serwera dla SFTP
+Do tej pory rclone łączył się z SFTP bez `known_hosts_file`, czyli przyjmował każdy klucz serwera
+(podstawiony serwer mógł przechwycić hasło). Teraz przed połączeniem `ssh` z `accept-new` zapisuje
+klucz nowego serwera w `~/.ssh/known_hosts` (zaufanie przy pierwszym połączeniu, jak w `ssh`), a rclone
+dostaje ten plik i algorytmy klucza zgodne z zapisanym typem. Zmieniony klucz blokuje połączenie (test).
+
+### D40 · 2026-10-17 — Wersjonowanie, autor, aktualizacje jak w CantatePresenter (decyzja właściciela)
+Wersja z historii gita (`scripts/version.sh`, ta sama reguła co w CantatePresenter), numer kompilacji =
+liczba commitów; zmiany na `main` przez PR scalane zwykłym „Merge pull request”. Wersja trafia do
+budowania przez `build/Version.xcconfig` (akcja wstępna schematu) — modyfikacja Info.plist po
+przetworzeniu ścigała się z Xcode. Autor: „Andrzej Oleś w kooperacji z Claude AI” (Info.plist, okno
+„O programie”, LICENSE, README). Aktualizacje: Sparkle 2.9.6, kanał `releases/latest/download/appcast.xml`,
+klucz EdDSA w Pęku kluczy (konto `bifold`), automatyczne pobieranie i instalacja przy zamknięciu.
+Licencja MIT (wybór domyślny przy udostępnianiu; zmiana = podmiana pliku LICENSE).
+
+### D41 · 2026-10-17 — Stały podpis certyfikatem z własnym podpisem
+Podpis ad-hoc zmienia się przy każdej kompilacji, a macOS wiąże z nim Pełny dostęp do dysku i dostęp
+do haseł w Pęku kluczy (CantatePresenter opisuje ponowne pytania po aktualizacji). `scripts/signing.sh`
+tworzy certyfikat „Bifold Self-Signed” w osobnym pęku kluczy (hasło losowe w pęku logowania), a
+wymaganie podpisu to „identyfikator + certyfikat” — stałe między wersjami (sprawdzone na aktualizacji
+1.0.14 → 1.0.15). Nie zastępuje Developer ID: Gatekeeper ostrzega przy pierwszym uruchomieniu, a
+pomocnik administratora nadal wymaga zespołu (D36).

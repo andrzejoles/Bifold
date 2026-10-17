@@ -4,6 +4,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — wydania i serwery
+- **SCP** (klasyczny protokół, `scp -O`) dla serwerów bez SFTP: listing, kopiowanie w obie strony,
+  nowy katalog, zmiana nazwy, usuwanie, podgląd i edycja; kodowanie nazw UTF-8 lub ISO-8859-2.
+- **Zgodność ze starymi serwerami SSH** (AIX 6.1 i podobne) dla SCP i SFTP.
+- **Automatyczne aktualizacje** (Sparkle, podpis EdDSA), menu „Sprawdź uaktualnienia…”.
+- **Instalatory** DMG i PKG (`make installer`), skrypt wydania na GitHubie (`scripts/release.sh`).
+- Wersja z historii gita jak w CantatePresenter; autor w oknie „O programie”; licencja MIT.
+- Stały podpis aplikacji (zgody macOS zostają po aktualizacji).
+
+### Poprawione
+- SFTP: klucz serwera jest sprawdzany (wcześniej rclone przyjmował każdy).
+- SFTP: absolutny katalog startowy (np. `/var/log`) był liczony od katalogu domowego.
+- `connections.json` i pozostałe pliki ustawień z uprawnieniami 0600.
+
 ### Dodane — Etap 7 (urządzenia i uprawnienia administratora)
 - Telefony z Androidem (MTP, libmtp) i iPhone’y (AFC, libimobiledevice) w panelu (Ctrl+Alt+P), tylko do odczytu,
   kopiowanie na dysk; opis ograniczeń iOS (DCIM i katalogi aplikacji z udostępnianiem plików).

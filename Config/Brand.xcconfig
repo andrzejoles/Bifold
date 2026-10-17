@@ -4,8 +4,16 @@
 BIFOLD_APP_NAME = Bifold
 PRODUCT_NAME = $(BIFOLD_APP_NAME)
 PRODUCT_BUNDLE_IDENTIFIER = local.aoles.bifold
-MARKETING_VERSION = 0.1.0
+// Wersja i numer kompilacji z historii gita (scripts/version.sh → build/Version.xcconfig, dołączany
+// na końcu tego pliku) — tu tylko wartości zastępcze.
+MARKETING_VERSION = 0.0.0
 CURRENT_PROJECT_VERSION = 1
+BIFOLD_COPYRIGHT = © 2026 Andrzej Oleś w kooperacji z Claude AI
+// Repozytorium wydań i kanał aktualizacji Sparkle (`//` w xcconfig to komentarz, stąd `/$()/`).
+BIFOLD_REPOSITORY = andrzejoles/Bifold
+BIFOLD_UPDATE_FEED_URL = https:/$()/github.com/$(BIFOLD_REPOSITORY)/releases/latest/download/appcast.xml
+// Klucz publiczny EdDSA (klucz prywatny w Pęku kluczy, konto „bifold”: scripts/sparkle-tools.sh).
+BIFOLD_SPARKLE_PUBLIC_KEY = VC/dQ5mziGMUAvkAb33i+CEpDDO9KtRe65MKRDeoKLs=
 
 // Zespół do podpisu (pusty = „Sign to Run Locally”). Pomocnik administratora (SMAppService)
 // działa tylko z podpisem zespołu — wtedy wpisz identyfikator i odkomentuj wymaganie niżej.
@@ -13,3 +21,6 @@ DEVELOPMENT_TEAM =
 // Wymaganie podpisu klienta XPC pomocnika (kto może się z nim łączyć).
 BIFOLD_CLIENT_REQUIREMENT = identifier "$(PRODUCT_BUNDLE_IDENTIFIER)"
 // Z zespołem: BIFOLD_CLIENT_REQUIREMENT = identifier "$(PRODUCT_BUNDLE_IDENTIFIER)" and anchor apple generic and certificate leaf[subject.OU] = "$(DEVELOPMENT_TEAM)"
+
+// Wygenerowane przed budowaniem przez scripts/set-version.sh (poza repozytorium).
+#include? "../build/Version.xcconfig"

@@ -3,7 +3,7 @@ import BifoldCore
 import BifoldWorkspace
 import SwiftUI
 
-/// Menedżer połączeń: SFTP, FTP/FTPS, WebDAV, SMB, Google Drive, Dropbox, OneDrive.
+/// Menedżer połączeń: SFTP, SCP, FTP/FTPS, WebDAV, SMB, Google Drive, Dropbox, OneDrive.
 /// Hasła i tokeny w Keychain; agent widzi wyłącznie aliasy.
 struct ConnectionsView: View {
     let workspace: Workspace
@@ -49,14 +49,26 @@ struct ConnectionsView: View {
                 }
                 if !draft.kind.usesOAuth {
                     TextField(draft.kind == .webdav ? L10n.tr("Adres URL") : L10n.tr("Serwer"), text: $draft.host, prompt: Text(draft.kind == .webdav ? "https://dav.example.com/remote.php/dav" : "serwer.example.com"))
-                    if draft.kind != .webdav { TextField(L10n.tr("Port (puste = domyślny)"), text: $portText, prompt: Text(draft.kind == .sftp ? "22" : (draft.kind == .smb ? "445" : "21"))) }
+                    if draft.kind != .webdav { TextField(L10n.tr("Port (puste = domyślny)"), text: $portText, prompt: Text(draft.kind.usesSSH ? "22" : (draft.kind == .smb ? "445" : "21"))) }
                     TextField(L10n.tr("Użytkownik"), text: $draft.user, prompt: Text("login"))
-                    SecureField(draft.kind == .sftp && !draft.keyFile.isEmpty ? L10n.tr("Hasło klucza (opcjonalnie)") : L10n.tr("Hasło (zapis w Keychain)"), text: $secret, prompt: Text(L10n.tr("bez zmian")))
-                    if draft.kind == .sftp {
+                    SecureField(draft.kind.usesSSH && !draft.keyFile.isEmpty ? L10n.tr("Hasło klucza (opcjonalnie)") : L10n.tr("Hasło (zapis w Keychain)"), text: $secret, prompt: Text(L10n.tr("bez zmian")))
+                    if draft.kind.usesSSH {
                         HStack {
                             TextField(L10n.tr("Plik klucza SSH (puste = agent SSH lub hasło)"), text: $draft.keyFile, prompt: Text("~/.ssh/id_ed25519"))
                             Button(L10n.tr("Wybierz…")) { chooseKey() }
                         }
+                        Toggle(L10n.tr("Zgodność ze starymi serwerami (AIX, stary OpenSSH)"), isOn: Binding(
+                            get: { draft.legacyAlgorithms ?? false }, set: { draft.legacyAlgorithms = $0 ? true : nil }))
+                        Text(L10n.tr("Włącza algorytmy diffie-hellman-group1/14-sha1, ssh-rsa i szyfry CBC — tylko dla serwerów, które nie znają nowszych."))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if draft.kind == .scp {
+                        Picker(L10n.tr("Kodowanie nazw na serwerze"), selection: Binding(
+                            get: { draft.nameEncoding ?? .utf8 }, set: { draft.nameEncoding = $0 == .utf8 ? nil : $0 })) {
+                            ForEach(NameEncoding.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                        }
+                        Text(L10n.tr("Klasyczny protokół SCP (scp -O) i polecenia powłoki przez SSH — dla serwerów bez SFTP. Klucz serwera zapamiętywany w ~/.ssh/known_hosts przy pierwszym połączeniu."))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
                     Text(L10n.tr("Logowanie OAuth wykonujesz sam: „Autoryzuj w terminalu” uruchamia rclone authorize; skopiuj wypisany token (JSON) do pola poniżej."))

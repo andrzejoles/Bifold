@@ -8,6 +8,7 @@ public enum RemoteError: Error, LocalizedError, Equatable, Sendable {
     case rc(String, status: Int)
     case protocolError(String)
     case unknownRemote(String)
+    case ssh(String)
 
     public var errorDescription: String? {
         switch self {
@@ -15,6 +16,7 @@ public enum RemoteError: Error, LocalizedError, Equatable, Sendable {
         case .notRunning: L10n.tr("rclone nie działa")
         case let .rc(m, status): L10n.tr("rclone (\(status)): \(m)")
         case .protocolError(let m): L10n.tr("rclone: błąd protokołu (\(m))")
+        case .ssh(let m): "SSH: \(m)"
         case .unknownRemote(let a): L10n.tr("Nieznane połączenie: \(a)")
         }
     }
