@@ -50,6 +50,7 @@ final class MockUI: UIServices {
     func showReport(title: String, text: String) { reports.append(text) }
     var passwordAnswer: String?
     func promptPassword(title: String) async -> String? { passwordAnswer }
+    func showConnections() {}
 }
 
 /// `Workspace.ui` jest słabą referencją — atrapy muszą żyć do końca testu.

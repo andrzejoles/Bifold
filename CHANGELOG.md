@@ -4,6 +4,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — Etap 5 (sieć i serwery przez rclone)
+- rclone `rcd` na gnieździe Unix z konfiguracją w pamięci; połączenia SFTP (klucze, agent SSH), FTP/FTPS,
+  WebDAV, SMB, Google Drive, Dropbox, OneDrive (OAuth przez `rclone authorize` w terminalu).
+- Menedżer połączeń (Ctrl+F / Cmd+K): aliasy, hasła i tokeny w Keychain, test połączenia.
+- Serwery w panelach (`alias:/ścieżka`): przeglądanie, kopiowanie i przenoszenie lokalny⇄zdalny
+  i zdalny⇄zdalny z postępem, limitem i anulowaniem, katalogi, zmiana nazw, usuwanie z potwierdzeniem.
+- Edycja plików zdalnych (pobranie, edytor, wysyłka po zapisie), wyszukiwanie na serwerach,
+  montowanie SMB/NFS przez NetFS.
+- Agent: remote_connections/open/list/read/search tylko po aliasie; zasada najmniejszego poziomu
+  między zasobami (testy z prawdziwymi serwerami `rclone serve sftp/ftp/webdav`).
+
 ### Dodane — Etap 4 (archiwa)
 - Archiwum jak katalog (Enter): ZIP, 7z, RAR, TAR, GZ, BZ2, XZ, ISO i inne obsługiwane przez 7zz;
   „..” wraca do katalogu z archiwum; F3/Quick Look/F4 na plikach z archiwum; kopiowanie z archiwum (F5).

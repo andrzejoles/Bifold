@@ -154,3 +154,23 @@ rozpakowanie do katalogu tymczasowego na woluminie docelowym i przeniesienie sil
 (konflikty, dziennik jako kopie — cofnięcie = Kosz). Archiwa są tylko do odczytu; `LocalFS`
 odrzuca każdą ścieżkę innego dostawcy, a komendy zmieniające pliki odrzucają elementy archiwum.
 Wyszukiwanie w archiwach dotyczy nazw (bez treści).
+
+### D30 · 2026-10-17 — rclone: gniazdo Unix, konfiguracja w pamięci, hasła w Keychain
+`rclone rcd --rc-addr unix://…/run/rclone.sock --rc-no-auth --config ""` — bez portów TCP,
+bez pliku konfiguracji (sprawdzone testem: `config/paths` nie wskazuje istniejącego pliku, a
+`config/dump` nie zawiera jawnego hasła). Zasoby tworzy `config/create` z `obscure`, hasła
+i tokeny są w Keychain (usługa `<bundle id>.remote`), definicje połączeń bez sekretów
+w `connections.json`. Klient HTTP/1.1 po gnieździe Unix napisany ręcznie (URLSession nie
+obsługuje gniazd Unix). Przy zbyt długiej ścieżce gniazda — prywatny katalog 0700 w /tmp.
+
+### D31 · 2026-10-17 — Poziomy zasobów dla agenta (PROMPT.md 5.5)
+`Workspace.resourceAccess`: SFTP/WebDAV/SMB/chmury — odczyt, FTP/FTPS — za zgodą, woluminy
+sieciowe (statfs bez MNT_LOCAL) — odczyt, archiwa i wyniki — odczyt, lokalne — pełny. Bramka
+agenta bierze minimum ze wszystkich zasobów wywołania (także celu i źródeł w `alias:/ścieżka`).
+Testem potwierdzone: zapis na SFTP zabroniony mimo zgody, FTP za zgodą, FTP→SFTP zabronione.
+
+### D32 · 2026-10-17 — Operacje na serwerach nie są cofalne (poza pobraniem)
+Pobranie na dysk lokalny trafia do dziennika (cofnięcie = Kosz). Wysyłanie, zmiana nazwy
+i usuwanie na serwerze nie mają operacji odwrotnej (serwery nie mają Kosza) — dlatego usuwanie
+z serwera jest zawsze potwierdzane przez użytkownika, a dla agenta możliwe tylko na FTP po zgodzie.
+Pauza zadania rclone = globalny limit 1 B/s (rc nie ma pauzy zadań).

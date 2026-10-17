@@ -72,6 +72,11 @@ public enum ToolCatalog {
         Entry("archive_extract", "archive.extract"),
         Entry("archive_list", "archive.list"),
         Entry("archive_test", "archive.test"),
+        Entry("remote_connections", "remote.listConnections"),
+        Entry("remote_open", "remote.open"),
+        Entry("remote_list", "remote.list"),
+        Entry("remote_read", "remote.read"),
+        Entry("remote_search", "remote.search"),
     ]
 
     public static func entry(named name: String) -> Entry? { entries.first { $0.tool == name } }

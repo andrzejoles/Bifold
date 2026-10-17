@@ -17,10 +17,25 @@ extension CommandContext {
         return items
     }
 
+    /// Minimalny opis elementu innego dostawcy; komendy zdalne uzupełniają typ i rozmiar z serwera.
+    private func remoteItemSync(_ p: VFSPath) throws -> FileItem {
+        FileItem(path: p, kind: .file, size: 0)
+    }
+
     private func rawTargets(allowEmpty: Bool) throws -> [FileItem] {
-        if let paths = arguments.paths("paths", relativeTo: tab.path) {
+        if let raw = arguments.strings("paths") {
             let fs = LocalFS()
-            let items = try paths.map { try fs.itemSync(at: $0) }
+            var items: [FileItem] = []
+            for p in raw.map({ workspace.parsePath($0, relativeTo: tab.path) }) {
+                if p.isLocal {
+                    items.append(try fs.itemSync(at: p))
+                } else if let item = tab.visibleItems.first(where: { $0.path == p }) {
+                    items.append(item)
+                } else {
+                    // Element zdalny lub z archiwum spoza bieżącego listingu — z dostawcy.
+                    items.append(try remoteItemSync(p))
+                }
+            }
             if items.isEmpty && !allowEmpty { throw CommandError.nothingSelected }
             return items
         }

@@ -50,6 +50,8 @@ public final class Workspace {
     /// Obserwatorzy wywołań komend (np. panel aktywności agenta).
     @ObservationIgnored public var invocationObservers: [@MainActor (CommandInvocationRecord) -> Void] = []
     @ObservationIgnored private let persists: Bool
+    /// Serwery i chmury (Etap 5).
+    @ObservationIgnored public private(set) var remotes: RemoteManager!
 
     /// - Parameter persists: `false` w testach — nic nie jest zapisywane na dysk.
     public init(paths: AppPaths, persists: Bool = true, home: VFSPath = .local(NSHomeDirectory())) {
@@ -99,6 +101,33 @@ public final class Workspace {
 
         registry = CommandRegistry.standard()
         rebuildKeymap()
+        remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "local.aoles.bifold") + (persists ? ".remote" : ".tests"))
+    }
+
+    /// Poziom zasobu dla agenta (zasada najmniejszego poziomu, PROMPT.md 5.4–5.5):
+    /// SFTP/WebDAV/SMB/chmury — odczyt, FTP/FTPS — za zgodą, woluminy sieciowe — odczyt,
+    /// archiwa i wyniki wyszukiwania — odczyt, lokalne — pełny.
+    public func resourceAccess(_ path: VFSPath) -> AgentAccess {
+        if let alias = RemoteFS.alias(of: path) {
+            guard let c = remotes.connection(alias) else { return .none }
+            return c.kind.agentLevelIsApproval ? .approval : .read
+        }
+        if !path.isLocal { return .read }
+        var st = statfs()
+        var probe = path.path
+        while statfs(probe, &st) != 0, probe != "/" { probe = (probe as NSString).deletingLastPathComponent }
+        return st.f_flags & UInt32(MNT_LOCAL) == 0 ? .read : .full
+    }
+
+    /// Ścieżka z tekstu: `alias:/katalog` dla połączeń, `~`, ścieżki względne.
+    public func parsePath(_ raw: String, relativeTo base: VFSPath) -> VFSPath {
+        if let colon = raw.firstIndex(of: ":"), raw.first != "/" {
+            let alias = String(raw[..<colon])
+            if remotes.connection(alias) != nil {
+                return VFSPath(provider: RemoteFS.providerID(alias), path: "/" + raw[raw.index(after: colon)...])
+            }
+        }
+        return resolvePath(raw, relativeTo: base.isLocal ? base : nil)
     }
 
     @ObservationIgnored private var restoredCursors: [UUID: String]
@@ -108,7 +137,11 @@ public final class Workspace {
     public func start() async {
         for tab in left.tabs + right.tabs {
             // Karty wyników wyszukiwania nie przetrwają restartu — wracają do katalogu domowego.
-            var target: VFSPath? = (try? providers.provider(for: tab.path)) == nil ? .local(NSHomeDirectory()) : tab.path
+            var target: VFSPath? = (try? providers.provider(for: tab.path)) == nil && RemoteFS.alias(of: tab.path) == nil ? .local(NSHomeDirectory()) : tab.path
+            if let alias = RemoteFS.alias(of: tab.path) {
+                // Karty zdalne łączą się ponownie; bez połączenia — katalog domowy.
+                if (try? await remotes.provider(alias)) == nil { target = .local(NSHomeDirectory()) }
+            }
             var focus = restoredCursors[tab.id]
             while let t = target {
                 if (try? await tab.navigate(to: t, focus: focus)) != nil { break }

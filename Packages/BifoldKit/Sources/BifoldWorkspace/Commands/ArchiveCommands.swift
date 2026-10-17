@@ -37,6 +37,9 @@ extension Workspace {
 
     /// Plik z archiwum wypakowany do katalogu tymczasowego (podgląd, Quick Look, edytor).
     public func materialize(_ item: FileItem) async throws -> FileItem {
+        if let remote = try? providers.provider(for: item.path) as? RemoteFS {
+            return try LocalFS().itemSync(at: .local(try await remote.download(item.path)))
+        }
         guard let fs = try providers.provider(for: item.path) as? ArchiveFS else { return item }
         let data = try await fs.readContents(item.path, range: nil)
         let dir = FileManager.default.temporaryDirectory.appending(path: "bifold-view-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)

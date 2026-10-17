@@ -236,11 +236,15 @@ public final class AgentController: AgentInvocationGate {
 
         // Zasoby: ścieżki jawne i domyślne (zaznaczenie, drugi panel). Zablokowana ścieżka = poziom „Brak”.
         let blocked = BlockedPaths(settings.blockedPaths)
-        for path in try resourcePaths(command.descriptor, context) where AgentPolicy.resourceAccess(path, blocked: blocked) == .none {
-            throw AgentDenial.blockedPath(path.path)
+        var effective = level
+        for path in try resourcePaths(command.descriptor, context) {
+            if AgentPolicy.resourceAccess(path, blocked: blocked) == .none { throw AgentDenial.blockedPath(path.path) }
+            // Zasada najmniejszego poziomu: serwery tylko do odczytu, FTP za zgodą, udziały sieciowe do odczytu.
+            effective = min(effective, workspace.resourceAccess(path))
         }
+        if effective == .none { throw AgentDenial.permissionDenied("zasób niedostępny dla agenta") }
 
-        switch AgentPolicy.decide(level: level, effect: command.descriptor.effect) {
+        switch AgentPolicy.decide(level: effective, effect: command.descriptor.effect) {
         case .allow:
             return
         case .deny(let why):
@@ -269,15 +273,20 @@ public final class AgentController: AgentInvocationGate {
     func resourcePaths(_ d: CommandDescriptor, _ ctx: CommandContext) throws -> [VFSPath] {
         let base = ctx.tab.path
         var paths: [VFSPath] = []
+        let parse = { (raw: String) in self.workspace.parsePath(raw, relativeTo: base) }
         for p in d.parameters {
             switch p.type {
             case .path:
-                if let v = ctx.arguments.path(p.name, relativeTo: base) { paths.append(v) }
+                if let v = ctx.arguments.string(p.name) { paths.append(parse(v)) }
             case .paths where p.name == "paths" || p.name == "names":
-                paths += ctx.arguments.paths(p.name, relativeTo: base) ?? []
+                paths += (ctx.arguments.strings(p.name) ?? []).map(parse)
             default:
                 break
             }
+        }
+        // Narzędzia serwerowe: alias + ścieżka.
+        if let alias = ctx.arguments.string("alias") {
+            paths.append(VFSPath(provider: RemoteFS.providerID(alias), path: ctx.arguments.string("path") ?? "/"))
         }
         if ["file.mkdir", "file.newFile"].contains(d.id), let name = ctx.arguments.string("name") {
             paths.append(resolvePath(name, relativeTo: base))
@@ -293,7 +302,8 @@ public final class AgentController: AgentInvocationGate {
         if ["file.copy", "file.move"].contains(d.id), ctx.arguments["destination"] == nil {
             paths.append(ctx.otherTab.path)
         }
-        if d.effect == .modifiesFiles || d.id == "agent.selection" { paths.append(base) }
+        // Bieżący katalog liczy się tylko, gdy komenda z niego korzysta (zaznaczenie, nowy element).
+        if usesTargets || ["file.mkdir", "file.newFile", "agent.selection"].contains(d.id) { paths.append(base) }
         return paths
     }
 }

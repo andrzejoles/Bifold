@@ -77,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         agents?.controller.stop()
+        workspace.remotes.stop()
         workspace.saveSession()
     }
 

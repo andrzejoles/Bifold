@@ -52,4 +52,6 @@ public protocol UIServices: AnyObject {
     func showReport(title: String, text: String)
     /// Etap 4: hasło (pole maskowane) — tylko dla użytkownika.
     func promptPassword(title: String) async -> String?
+    /// Etap 5
+    func showConnections()
 }

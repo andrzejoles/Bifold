@@ -329,6 +329,18 @@ final class AppUIServices: UIServices {
         return field.stringValue
     }
 
+    private var connectionsWindow: ConnectionsWindowController?
+
+    func showConnections() {
+        if connectionsWindow == nil {
+            connectionsWindow = ConnectionsWindowController(workspace: workspace) { [weak self] command in
+                guard let self else { return }
+                self.runInTerminal(command: command, directory: .local(NSHomeDirectory()))
+            }
+        }
+        connectionsWindow?.showWindow(nil)
+    }
+
     func showReport(title: String, text: String) {
         let alert = NSAlert()
         alert.messageText = title

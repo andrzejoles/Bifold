@@ -43,7 +43,7 @@ final class MenuBuilder: NSObject {
 
         let categories: [(CommandCategory, String)] = [
             (.file, L10n.tr("Plik")), (.panel, L10n.tr("Panel")), (.tabs, L10n.tr("Karty")), (.view, L10n.tr("Widok")),
-            (.selection, L10n.tr("Zaznaczanie")), (.clipboard, L10n.tr("Schowek")), (.queue, L10n.tr("Kolejka")), (.tools, L10n.tr("Narzędzia")), (.agent, L10n.tr("Agent")),
+            (.selection, L10n.tr("Zaznaczanie")), (.clipboard, L10n.tr("Schowek")), (.queue, L10n.tr("Kolejka")), (.tools, L10n.tr("Narzędzia")), (.network, L10n.tr("Sieć")), (.agent, L10n.tr("Agent")),
         ]
         for (category, title) in categories {
             let menu = NSMenu(title: title)

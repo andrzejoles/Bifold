@@ -66,6 +66,13 @@ private func transferCommand(_ kind: TransferKind) -> Command {
                 : L10n.tr("Przenosi elementy w tle. Nadpisywane pliki trafiają do Kosza.")),
         preview: { @MainActor ctx in
             let items = try ctx.targets(allowNonLocal: true)
+            let destArg = ctx.arguments.string("destination").map { ctx.workspace.parsePath($0, relativeTo: ctx.otherTab.path) } ?? ctx.otherTab.path
+            if RemoteFS.alias(of: ctx.tab.path) != nil || RemoteFS.alias(of: destArg) != nil {
+                return EffectPreview(
+                    summary: (isCopy ? L10n.tr("Kopiowanie") : L10n.tr("Przeniesienie")) + " \(Format.describe(items)) \(ctx.tab.path.displayPath) → \(destArg.displayPath)",
+                    operations: items.map { PlannedOperation(kind: kind.rawValue, source: $0.path, destination: destArg.appending($0.name), isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },
+                    fileCount: items.count, totalBytes: items.reduce(0) { $0 + max(0, $1.size) })
+            }
             if ctx.tab.isInArchive {
                 let dest = ctx.arguments.path("destination", relativeTo: ctx.otherTab.path) ?? ctx.otherTab.path
                 return EffectPreview(summary: L10n.tr("Kopiowanie z archiwum \(Format.describe(items)) → \(dest.path)"),
@@ -85,6 +92,17 @@ private func transferCommand(_ kind: TransferKind) -> Command {
         }
     ) { ctx in
         let items = try ctx.targets(allowNonLocal: true)
+        if let (transfer, destination) = try await ctx.remoteTransfer(kind, items: items) {
+            let rc = try ctx.workspace.remotes.runningRclone()
+            let title = (isCopy ? L10n.tr("Kopiowanie") : L10n.tr("Przenoszenie")) + " \(Format.describe(items)) → \(destination.displayPath)"
+            let job = ctx.workspace.jobs.enqueue(.rclone(transfer, rc), title: title, invoker: ctx.invoker, speedLimit: ctx.arguments.int("speedLimit") ?? 0)
+            ctx.tab.clearSelection()
+            if ctx.arguments.bool("wait") == true {
+                let state = await ctx.workspace.jobs.wait(for: job)
+                return CommandResult(message: "\(state)", value: ["job": .string(job.id.uuidString), "state": .string("\(state)"), "errors": .array(job.errors.map { .string($0) })])
+            }
+            return CommandResult(message: title, value: ["job": .string(job.id.uuidString)])
+        }
         if let archive = try? ctx.workspace.providers.provider(for: ctx.tab.path) as? ArchiveFS {
             guard isCopy else { throw CommandError.notAvailable(L10n.tr("Archiwum jest tylko do odczytu — użyj kopiowania (F5)")) }
             let (request, policy, _) = try await ctx.transferRequest(kind, items: items)
@@ -158,6 +176,13 @@ var fileCommands: [Command] { [
             return EffectPreview(summary: L10n.tr("Nowy pusty plik \(path.path)"), operations: [PlannedOperation(kind: "createFile", source: nil, destination: path)], fileCount: 1)
         }
     ) { ctx in
+        if let fs = try await ctx.remoteFS(ctx.tab.path) {
+            let name = try await ctx.text("name", title: L10n.tr("Nowy plik"), message: L10n.tr("Nazwa pliku:"), default: "nowy.txt", selectStem: true)
+            let path = ctx.tab.path.appending(name)
+            try await fs.createFile(path, contents: Data())
+            try await ctx.tab.navigate(to: ctx.tab.path, focus: path.name, recordHistory: false)
+            return CommandResult(message: path.displayPath)
+        }
         _ = try ctx.requireLocalDirectory()
         let name = try await ctx.text("name", title: L10n.tr("Nowy plik"), message: L10n.tr("Nazwa pliku:"), default: "nowy.txt", selectStem: true)
         let path = resolvePath(name, relativeTo: ctx.tab.path)
@@ -180,13 +205,18 @@ var fileCommands: [Command] { [
             let source = try renameSource(ctx)
             let newName = try await ctx.text("newName", title: L10n.tr("Zmień nazwę"), default: source.name)
             let target = source.parent!.appending(newName)
-            let exists = await LocalFS().exists(target) && target.path.lowercased() != source.path.lowercased()
+            let exists = target.isLocal ? (await LocalFS().exists(target) && target.path.lowercased() != source.path.lowercased()) : false
             return EffectPreview(summary: "\(source.name) → \(newName)", operations: [PlannedOperation(kind: "rename", source: source, destination: target, conflict: exists)], fileCount: 1, conflicts: exists ? [target.path] : [])
         }
     ) { ctx in
         let source = try renameSource(ctx)
         let newName = try await ctx.text("newName", title: L10n.tr("Zmień nazwę"), message: L10n.tr("Nowa nazwa:"), default: source.name, selectStem: true)
         guard newName != source.name else { return .ok }
+        if let fs = try await ctx.remoteFS(source) {
+            let target = try await fs.rename(source, to: newName)
+            try await ctx.tab.navigate(to: ctx.tab.path, focus: target.name, recordHistory: false)
+            return CommandResult(message: target.displayPath)
+        }
         let target = try await ctx.workspace.fileOps.rename(source, to: newName, invoker: ctx.invoker)
         if target.parent == ctx.tab.path { try await ctx.tab.navigate(to: ctx.tab.path, focus: target.name, recordHistory: false) }
         return CommandResult(message: target.path)
@@ -203,6 +233,13 @@ var fileCommands: [Command] { [
             return EffectPreview(summary: L10n.tr("Nowy katalog \(path.path)"), operations: [PlannedOperation(kind: "mkdir", source: nil, destination: path, isDirectory: true)])
         }
     ) { ctx in
+        if let fs = try await ctx.remoteFS(ctx.tab.path) {
+            let name = try await ctx.text("name", title: L10n.tr("Nowy katalog"), message: L10n.tr("Nazwa katalogu:"))
+            let path = ctx.tab.path.appending(name)
+            try await fs.createDirectory(path)
+            try await ctx.tab.navigate(to: ctx.tab.path, focus: path.name, recordHistory: false)
+            return CommandResult(message: path.displayPath)
+        }
         _ = try ctx.requireLocalDirectory()
         let name = try await ctx.text("name", title: L10n.tr("Nowy katalog"), message: L10n.tr("Nazwa katalogu:"))
         let path = resolvePath(name, relativeTo: ctx.tab.path)
@@ -226,13 +263,27 @@ var fileCommands: [Command] { [
             parameters: [pathsParam], agent: .approval, effect: .modifiesFiles,
             summary: L10n.tr("Przenosi elementy do Kosza (da się cofnąć).")),
         preview: { @MainActor ctx in
-            let items = try ctx.targets()
+            let items = try ctx.targets(allowNonLocal: true)
+            let remote = RemoteFS.alias(of: items.first?.path ?? .root) != nil
             return EffectPreview(
-                summary: L10n.tr("Do Kosza: \(Format.describe(items))"),
+                summary: remote ? L10n.tr("TRWAŁE usunięcie z serwera: \(Format.describe(items))") : L10n.tr("Do Kosza: \(Format.describe(items))"),
                 operations: items.map { PlannedOperation(kind: "trash", source: $0.path, destination: nil, isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },
                 fileCount: items.count, totalBytes: items.reduce(0) { $0 + max(0, $1.size) })
         }
     ) { ctx in
+        let candidates = try ctx.targets(allowNonLocal: true)
+        if let first = candidates.first, let fs = try await ctx.remoteFS(first.path) {
+            // Serwery nie mają Kosza — trwałe usunięcie, zawsze potwierdzane przez użytkownika.
+            if !ctx.isAgent {
+                guard try await ctx.requireUI().confirm(
+                    title: L10n.tr("Usunąć z serwera?"), message: L10n.tr("\(Format.describe(candidates)) zostanie usunięte z \(fs.connection.alias) bez możliwości cofnięcia."),
+                    confirmTitle: L10n.tr("Usuń"), destructive: true)
+                else { throw CommandError.cancelledByUser }
+            }
+            for item in candidates { try await fs.deletePermanently(item.path) }
+            await ctx.tab.reload()
+            return CommandResult(message: L10n.tr("Usunięto z serwera: \(candidates.count)"))
+        }
         let items = try ctx.targets()
         if !ctx.isAgent, ctx.workspace.settings.confirmTrash, let ui = ctx.ui {
             guard await ui.confirm(title: L10n.tr("Przenieść do Kosza?"), message: Format.describe(items), confirmTitle: L10n.tr("Do Kosza"), destructive: false) else {
@@ -322,7 +373,7 @@ var fileCommands: [Command] { [
 
 @MainActor
 private func renameSource(_ ctx: CommandContext) throws -> VFSPath {
-    if let p = ctx.arguments.path("path", relativeTo: ctx.tab.path) { return p }
+    if let raw = ctx.arguments.string("path") { return ctx.workspace.parsePath(raw, relativeTo: ctx.tab.path) }
     guard let item = ctx.tab.cursorItem, !item.isParentLink else { throw CommandError.nothingSelected }
     return item.path
 }

@@ -29,6 +29,7 @@
 		6564EC6E82A2441BAC0AE591 /* DetailsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88ABDCB99093D29357D17D10 /* DetailsListView.swift */; };
 		6BEA616D6A1D4DCF6EB50421 /* JobsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96D34A2F1BA907345E6BBD20 /* JobsBar.swift */; };
 		700F872F515553F3F4CE31C6 /* ViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27ECF99D333B2873C43BE4E /* ViewerWindowController.swift */; };
+		70D45E25D20DA35EB9734E46 /* ConnectionsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72C1AF97505CC6C756CB98C /* ConnectionsWindow.swift */; };
 		789F6474B019DFA5214AD498 /* CommandPaletteController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AEF1F68B23C6C1946EB1AF7 /* CommandPaletteController.swift */; };
 		7A06665F94711A8D0D5752F5 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABD05211A430CB6EA0D86E31 /* main.swift */; };
 		9306DDA37626CB57CC35A1A0 /* bifold-mcp in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 82470DF1E310E6F21EF3EFFE /* bifold-mcp */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -102,6 +103,7 @@
 		82470DF1E310E6F21EF3EFFE /* bifold-mcp */ = {isa = PBXFileReference; includeInIndex = 0; path = "bifold-mcp"; sourceTree = BUILT_PRODUCTS_DIR; };
 		88ABDCB99093D29357D17D10 /* DetailsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsListView.swift; sourceTree = "<group>"; };
 		96D34A2F1BA907345E6BBD20 /* JobsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobsBar.swift; sourceTree = "<group>"; };
+		A72C1AF97505CC6C756CB98C /* ConnectionsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsWindow.swift; sourceTree = "<group>"; };
 		A965284FB8898DEED1F6DBB1 /* CommandLineBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineBar.swift; sourceTree = "<group>"; };
 		ABD05211A430CB6EA0D86E31 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		B8666EA3361722B64A277E45 /* TerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPane.swift; sourceTree = "<group>"; };
@@ -150,6 +152,7 @@
 			isa = PBXGroup;
 			children = (
 				2AEF1F68B23C6C1946EB1AF7 /* CommandPaletteController.swift */,
+				A72C1AF97505CC6C756CB98C /* ConnectionsWindow.swift */,
 				6BC932422FFDBA0C36E9A0F4 /* JournalWindowController.swift */,
 				1A01328784CA8E2FEE1FA718 /* MultiRenameWindow.swift */,
 				DA25122A33169D614B10B583 /* SearchWindow.swift */,
@@ -479,6 +482,7 @@
 				E74263AEF86B1F30B5C30BC5 /* ColumnListView.swift in Sources */,
 				D3E381A8B4F4E9BAD0F6C4FA /* CommandLineBar.swift in Sources */,
 				789F6474B019DFA5214AD498 /* CommandPaletteController.swift in Sources */,
+				70D45E25D20DA35EB9734E46 /* ConnectionsWindow.swift in Sources */,
 				6564EC6E82A2441BAC0AE591 /* DetailsListView.swift in Sources */,
 				A77C7E34F28113AD1CFE031F /* DirectoryTreeView.swift in Sources */,
 				300765AD292F3784E8D9AB86 /* FullDiskAccess.swift in Sources */,

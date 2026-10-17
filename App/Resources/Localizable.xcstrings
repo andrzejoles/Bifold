@@ -4,6 +4,12 @@
     "": {
       "extractionState": "manual"
     },
+    " · agent: odczyt": {
+      "extractionState": "manual"
+    },
+    " · agent: za zgodą": {
+      "extractionState": "manual"
+    },
     "%@ (domyślna)": {
       "extractionState": "manual"
     },
@@ -17,6 +23,9 @@
       "extractionState": "manual"
     },
     "%@ zostanie usunięte bez możliwości cofnięcia.": {
+      "extractionState": "manual"
+    },
+    "%@ zostanie usunięte z %@ bez możliwości cofnięcia.": {
       "extractionState": "manual"
     },
     "%lld elementy": {
@@ -49,6 +58,9 @@
     "Aa": {
       "extractionState": "manual"
     },
+    "Adres URL": {
+      "extractionState": "manual"
+    },
     "Agenci AI": {
       "extractionState": "manual"
     },
@@ -56,6 +68,15 @@
       "extractionState": "manual"
     },
     "Aktywny panel, karty obu paneli (ścieżka, widok, sortowanie, filtr, kursor, liczba zaznaczonych).": {
+      "extractionState": "manual"
+    },
+    "Alias (widoczny dla agenta)": {
+      "extractionState": "manual"
+    },
+    "Alias połączenia": {
+      "extractionState": "manual"
+    },
+    "Aliasy połączeń i rodzaj dostępu agenta (bez danych logowania).": {
       "extractionState": "manual"
     },
     "Antigravity nie pozwala podać serwera MCP tylko dla jednej sesji. Bifold doda na stałe serwer „bifold” (agy mcp add). Bez tokenu sesji most odrzuca każde połączenie, więc poza sesjami uruchomionymi z Bifolda serwer jest bezużyteczny.": {
@@ -104,6 +125,9 @@
       "extractionState": "manual"
     },
     "Atrybuty: %@ — %@": {
+      "extractionState": "manual"
+    },
+    "Autoryzuj w terminalu": {
       "extractionState": "manual"
     },
     "Bajty na sekundę (0 = bez limitu)": {
@@ -277,10 +301,16 @@
     "Edycja": {
       "extractionState": "manual"
     },
+    "Edycja %@ — zapis wysyła plik na serwer": {
+      "extractionState": "manual"
+    },
     "Edytor (F4)": {
       "extractionState": "manual"
     },
     "Edytuj": {
+      "extractionState": "manual"
+    },
+    "Edytuj plik zdalny": {
       "extractionState": "manual"
     },
     "Element": {
@@ -346,10 +376,16 @@
     "Grupy identycznych plików (nazwa, rozmiar, zawartość SHA-256) w katalogach.": {
       "extractionState": "manual"
     },
+    "Hasło (zapis w Keychain)": {
+      "extractionState": "manual"
+    },
     "Hasło do archiwum": {
       "extractionState": "manual"
     },
     "Hasło do archiwum „%@”": {
+      "extractionState": "manual"
+    },
+    "Hasło klucza (opcjonalnie)": {
       "extractionState": "manual"
     },
     "Hasło nie jest nigdzie zapisywane i nie trafia do agentów.": {
@@ -376,6 +412,9 @@
     "Katalog": {
       "extractionState": "manual"
     },
+    "Katalog (domyślnie /)": {
+      "extractionState": "manual"
+    },
     "Katalog części (domyślnie drugi panel)": {
       "extractionState": "manual"
     },
@@ -394,6 +433,9 @@
     "Katalog główny": {
       "extractionState": "manual"
     },
+    "Katalog na serwerze": {
+      "extractionState": "manual"
+    },
     "Katalog nadrzędny": {
       "extractionState": "manual"
     },
@@ -401,6 +443,12 @@
       "extractionState": "manual"
     },
     "Katalog nowej karty (domyślnie bieżący)": {
+      "extractionState": "manual"
+    },
+    "Katalog startowy": {
+      "extractionState": "manual"
+    },
+    "Katalog startowy na serwerze": {
       "extractionState": "manual"
     },
     "Katalogi przeszukiwania (domyślnie bieżący)": {
@@ -443,6 +491,9 @@
       "extractionState": "manual"
     },
     "Kopiowanie z archiwum %@ → %@": {
+      "extractionState": "manual"
+    },
+    "Kopiowanie z archiwum na serwer: najpierw rozpakuj na dysk": {
       "extractionState": "manual"
     },
     "Kopiuj": {
@@ -505,6 +556,9 @@
     "Liczy sumy MD5/SHA-1/SHA-256 plików i zapisuje je w pliku sum w bieżącym katalogu.": {
       "extractionState": "manual"
     },
+    "Limit (domyślnie 1000)": {
+      "extractionState": "manual"
+    },
     "Limit prędkości": {
       "extractionState": "manual"
     },
@@ -526,7 +580,13 @@
     "Lista elementów katalogu (bez zmiany panelu).": {
       "extractionState": "manual"
     },
+    "Lista elementów katalogu na serwerze.": {
+      "extractionState": "manual"
+    },
     "Lista plików w archiwum (bez rozpakowywania; archiwa z hasłem niedostępne dla agenta).": {
+      "extractionState": "manual"
+    },
+    "Lista połączeń": {
       "extractionState": "manual"
     },
     "Lista skrócona": {
@@ -539,6 +599,9 @@
       "extractionState": "manual"
     },
     "Lista zapisanych wyszukiwań.": {
+      "extractionState": "manual"
+    },
+    "Logowanie OAuth wykonujesz sam: „Autoryzuj w terminalu” uruchamia rclone authorize; skopiuj wypisany token (JSON) do pola poniżej.": {
       "extractionState": "manual"
     },
     "MB/s (0 = bez limitu):": {
@@ -559,6 +622,9 @@
     "Maska": {
       "extractionState": "manual"
     },
+    "Maska nazw": {
+      "extractionState": "manual"
+    },
     "Maska nazw, np. *.jpg;*.png|tmp*": {
       "extractionState": "manual"
     },
@@ -577,6 +643,9 @@
     "Maska: *.jpg;*.png — kilka wzorców przez „;”, wykluczenia po „|”, katalogi z „/” na końcu.": {
       "extractionState": "manual"
     },
+    "Menedżer połączeń…": {
+      "extractionState": "manual"
+    },
     "Menu Udostępnij macOS dla zaznaczonych elementów.": {
       "extractionState": "manual"
     },
@@ -593,6 +662,9 @@
       "extractionState": "manual"
     },
     "Minimalny rozmiar w bajtach": {
+      "extractionState": "manual"
+    },
+    "Montuje udział sieciowy (NetFS) i otwiera go w panelu.": {
       "extractionState": "manual"
     },
     "Motyw": {
@@ -667,6 +739,9 @@
     "Nie ma czego cofać": {
       "extractionState": "manual"
     },
+    "Nie można kopiować do archiwum ani listy wyników": {
+      "extractionState": "manual"
+    },
     "Nie można skopiować katalogu do jego wnętrza: %@": {
       "extractionState": "manual"
     },
@@ -674,6 +749,9 @@
       "extractionState": "manual"
     },
     "Nie udało się": {
+      "extractionState": "manual"
+    },
+    "Nie udało się wysłać %@: %@": {
       "extractionState": "manual"
     },
     "Nie znaleziono edytora (%@). Zmień go w Ustawieniach → Ogólne.": {
@@ -700,6 +778,9 @@
     "Nieznana komenda: %@": {
       "extractionState": "manual"
     },
+    "Nieznane połączenie: %@": {
+      "extractionState": "manual"
+    },
     "Nowa karta": {
       "extractionState": "manual"
     },
@@ -710,6 +791,9 @@
       "extractionState": "manual"
     },
     "Nowa nazwa:": {
+      "extractionState": "manual"
+    },
+    "Nowe": {
       "extractionState": "manual"
     },
     "Nowy katalog": {
@@ -767,6 +851,9 @@
       "extractionState": "manual"
     },
     "Odczyt pliku (agent)": {
+      "extractionState": "manual"
+    },
+    "Odczyt pliku z serwera": {
       "extractionState": "manual"
     },
     "Odmontowuje i wysuwa wolumin.": {
@@ -841,6 +928,9 @@
     "Otwiera podgląd pliku (tekst w wybranym kodowaniu, hex, obrazy).": {
       "extractionState": "manual"
     },
+    "Otwiera połączenie w aktywnym panelu (agent zna tylko aliasy).": {
+      "extractionState": "manual"
+    },
     "Otwiera w drugim panelu katalog aktywnego panelu.": {
       "extractionState": "manual"
     },
@@ -850,10 +940,16 @@
     "Otwórz Ustawienia systemowe": {
       "extractionState": "manual"
     },
+    "Otwórz połączenie…": {
+      "extractionState": "manual"
+    },
     "Otwórz w drugim panelu": {
       "extractionState": "manual"
     },
     "Otwórz w edytorze (domyślnie tak)": {
+      "extractionState": "manual"
+    },
+    "Otwórz w panelu": {
       "extractionState": "manual"
     },
     "Otwórz za pomocą…": {
@@ -907,6 +1003,9 @@
     "Plik archiwum": {
       "extractionState": "manual"
     },
+    "Plik klucza SSH (puste = agent SSH lub hasło)": {
+      "extractionState": "manual"
+    },
     "Plik wynikowy (domyślnie w drugim panelu, nazwa bez .001)": {
       "extractionState": "manual"
     },
@@ -914,6 +1013,9 @@
       "extractionState": "manual"
     },
     "Pliki ukryte": {
+      "extractionState": "manual"
+    },
+    "Pobiera plik do pliku tymczasowego, otwiera w edytorze i wysyła po każdym zapisie.": {
       "extractionState": "manual"
     },
     "Początek (bajty)": {
@@ -1012,6 +1114,9 @@
     "Poprzednia karta": {
       "extractionState": "manual"
     },
+    "Port (puste = domyślny)": {
+      "extractionState": "manual"
+    },
     "Powiększ": {
       "extractionState": "manual"
     },
@@ -1021,10 +1126,22 @@
     "Połącz pliki…": {
       "extractionState": "manual"
     },
+    "Połączenia": {
+      "extractionState": "manual"
+    },
+    "Połączenia SFTP, FTP/FTPS, WebDAV, SMB i chmur (hasła w Keychain).": {
+      "extractionState": "manual"
+    },
+    "Połączenie": {
+      "extractionState": "manual"
+    },
     "Połączenie %@": {
       "extractionState": "manual"
     },
     "Połączenie %lld części → %@": {
+      "extractionState": "manual"
+    },
+    "Połączenie SMB z hasłem w Keychain": {
       "extractionState": "manual"
     },
     "Połączony plik ma inną sumę SHA-256 niż oryginał: %@": {
@@ -1147,6 +1264,9 @@
     "Reguły kolorów (JSON)": {
       "extractionState": "manual"
     },
+    "Rodzaj": {
+      "extractionState": "manual"
+    },
     "Rodzaj widoku": {
       "extractionState": "manual"
     },
@@ -1198,7 +1318,16 @@
     "Schowek": {
       "extractionState": "manual"
     },
+    "Serwer": {
+      "extractionState": "manual"
+    },
+    "Serwery i chmury wymagają rclone (brew install rclone)": {
+      "extractionState": "manual"
+    },
     "Sesja nie zmieniła żadnych plików": {
+      "extractionState": "manual"
+    },
+    "Sieć": {
       "extractionState": "manual"
     },
     "Skopiowano do schowka: %@": {
@@ -1267,6 +1396,9 @@
     "Szukaj komendy": {
       "extractionState": "manual"
     },
+    "Szukaj na serwerze…": {
+      "extractionState": "manual"
+    },
     "Szukaj nazw także wewnątrz archiwów (bez rozpakowywania)": {
       "extractionState": "manual"
     },
@@ -1289,6 +1421,9 @@
       "extractionState": "manual"
     },
     "Szybkie wyszukiwanie": {
+      "extractionState": "manual"
+    },
+    "TRWAŁE usunięcie z serwera: %@": {
       "extractionState": "manual"
     },
     "Ta komenda wymaga interfejsu": {
@@ -1345,7 +1480,13 @@
     "Testuj archiwum": {
       "extractionState": "manual"
     },
+    "Testuj połączenie": {
+      "extractionState": "manual"
+    },
     "To nie jest katalog: %@": {
+      "extractionState": "manual"
+    },
+    "Token (JSON) — zapis w Keychain": {
       "extractionState": "manual"
     },
     "Total Commander (F1–F12)": {
@@ -1355,6 +1496,9 @@
       "extractionState": "manual"
     },
     "Treść pliku tekstowego (z limitem rozmiaru). Pliki binarne: tylko metadane, chyba że hex=true.": {
+      "extractionState": "manual"
+    },
+    "Treść pliku tekstowego z serwera (limit rozmiaru jak dla plików lokalnych).": {
       "extractionState": "manual"
     },
     "Trwają operacje na plikach": {
@@ -1376,6 +1520,9 @@
       "extractionState": "manual"
     },
     "Udostępnij…": {
+      "extractionState": "manual"
+    },
+    "Udział sieciowy": {
       "extractionState": "manual"
     },
     "Ukryj %@": {
@@ -1414,6 +1561,9 @@
     "Ustaw kursor": {
       "extractionState": "manual"
     },
+    "Ustaw kursor na pliku na serwerze": {
+      "extractionState": "manual"
+    },
     "Ustaw reguły kolorów": {
       "extractionState": "manual"
     },
@@ -1447,7 +1597,13 @@
     "Ustawienia…": {
       "extractionState": "manual"
     },
+    "Usunięto z serwera: %lld": {
+      "extractionState": "manual"
+    },
     "Usunąć trwale?": {
+      "extractionState": "manual"
+    },
+    "Usunąć z serwera?": {
       "extractionState": "manual"
     },
     "Usuwa elementy bez Kosza — nieodwracalnie, zawsze z potwierdzeniem.": {
@@ -1457,6 +1613,9 @@
       "extractionState": "manual"
     },
     "Usuwanie: %@": {
+      "extractionState": "manual"
+    },
+    "Usuń": {
       "extractionState": "manual"
     },
     "Usuń trwale": {
@@ -1478,6 +1637,9 @@
       "extractionState": "manual"
     },
     "Uwagi": {
+      "extractionState": "manual"
+    },
+    "Użytkownik": {
       "extractionState": "manual"
     },
     "WIELKIE LITERY": {
@@ -1564,6 +1726,9 @@
     "Wyszukiwanie i uruchamianie dowolnej komendy.": {
       "extractionState": "manual"
     },
+    "Wyszukiwanie plików na serwerze (rclone lsjson rekurencyjnie + maska).": {
+      "extractionState": "manual"
+    },
     "Wyszukiwanie po nazwie (maska, regex), treści (ripgrep, kodowania), dacie, rozmiarze i atrybutach; wyniki opcjonalnie w panelu.": {
       "extractionState": "manual"
     },
@@ -1571,6 +1736,9 @@
       "extractionState": "manual"
     },
     "Wyszukiwanie w treści wymaga ripgrep (brew install ripgrep)": {
+      "extractionState": "manual"
+    },
+    "Wysłano %@ na %@": {
       "extractionState": "manual"
     },
     "Wytnij": {
@@ -1624,6 +1792,12 @@
     "Zamknij kartę": {
       "extractionState": "manual"
     },
+    "Zamontuj (NetFS)": {
+      "extractionState": "manual"
+    },
+    "Zamontuj udział SMB/NFS…": {
+      "extractionState": "manual"
+    },
     "Zamyka kartę (ostatnia karta panelu zostaje).": {
       "extractionState": "manual"
     },
@@ -1640,6 +1814,9 @@
       "extractionState": "manual"
     },
     "Zapisane wyszukiwanie": {
+      "extractionState": "manual"
+    },
+    "Zapisano": {
       "extractionState": "manual"
     },
     "Zapisano „%@”": {
@@ -1694,6 +1871,9 @@
       "extractionState": "manual"
     },
     "Zawartość katalogu (agent)": {
+      "extractionState": "manual"
+    },
+    "Zawartość katalogu na serwerze": {
       "extractionState": "manual"
     },
     "Zawijaj wiersze": {
@@ -1951,6 +2131,15 @@
     "pliki i katalogi": {
       "extractionState": "manual"
     },
+    "rclone (%@): %@": {
+      "extractionState": "manual"
+    },
+    "rclone nie działa": {
+      "extractionState": "manual"
+    },
+    "rclone: błąd protokołu (%@)": {
+      "extractionState": "manual"
+    },
     "regex": {
       "extractionState": "manual"
     },
@@ -1958,6 +2147,9 @@
       "extractionState": "manual"
     },
     "skip (domyślnie), overwrite, rename": {
+      "extractionState": "manual"
+    },
+    "smb://serwer/udział lub nfs://serwer/eksport": {
       "extractionState": "manual"
     },
     "suma zgodna": {
@@ -1970,6 +2162,9 @@
       "extractionState": "manual"
     },
     "telefony z Androidem": {
+      "extractionState": "manual"
+    },
+    "to katalog": {
       "extractionState": "manual"
     },
     "to nie jest zwykły plik": {
@@ -2032,6 +2227,9 @@
     "zmodyfikowane od": {
       "extractionState": "manual"
     },
+    "Łączenie…": {
+      "extractionState": "manual"
+    },
     "Łączy części .001, .002… w jeden plik i sprawdza sumę, jeśli jest plik .sha256.": {
       "extractionState": "manual"
     },
@@ -2048,6 +2246,9 @@
       "extractionState": "manual"
     },
     "„%@” już istnieje": {
+      "extractionState": "manual"
+    },
+    "✓ Połączono — elementów w katalogu startowym: %lld": {
       "extractionState": "manual"
     }
   },

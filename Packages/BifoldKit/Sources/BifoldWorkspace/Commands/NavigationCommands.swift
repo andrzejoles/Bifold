@@ -4,7 +4,7 @@ import Foundation
 extension CommandRegistry {
     /// Wszystkie komendy Etapu 1, w kolejności menu.
     @MainActor public static func standard() -> CommandRegistry {
-        CommandRegistry(navigationCommands + tabCommands + viewCommands + selectionCommands + fileCommands + searchCommands + archiveCommands + clipboardCommands + editCommands + queueCommands + toolCommands)
+        CommandRegistry(navigationCommands + tabCommands + viewCommands + selectionCommands + fileCommands + searchCommands + archiveCommands + remoteCommands + clipboardCommands + editCommands + queueCommands + toolCommands)
     }
 }
 
@@ -47,7 +47,7 @@ var navigationCommands: [Command] { [
         } else if ctx.tab.isSearchResults, item.isNavigable {
             try await ctx.tab.navigate(to: item.path)
             ctx.tab.customTitle = nil
-        } else if item.isNavigable && !(isPackage(item)) {
+        } else if item.isNavigable && (!item.path.isLocal || !isPackage(item)) {
             try await ctx.tab.navigate(to: item.path)
         } else if item.path.isLocal, item.kind == .file, ArchiveFS.isArchive(item.name), ctx.workspace.settings.toolPath("7zz") != nil {
             try await ctx.workspace.enterArchive(item.path, in: ctx.tab)
@@ -66,8 +66,14 @@ var navigationCommands: [Command] { [
         summary: L10n.tr("Otwiera katalog w aktywnym (lub wskazanym) panelu. Ścieżka do pliku otwiera jego katalog i ustawia na nim kursor."))
     ) { ctx in
         let tab = try ctx.tab(forSide: "side")
-        let raw = try await ctx.text("path", title: L10n.tr("Przejdź do katalogu"), default: tab.path.path)
-        let target = resolvePath(raw.trimmingCharacters(in: .whitespaces), relativeTo: tab.path)
+        let raw = try await ctx.text("path", title: L10n.tr("Przejdź do katalogu"), default: tab.path.displayPath)
+        let target = ctx.workspace.parsePath(raw.trimmingCharacters(in: .whitespaces), relativeTo: tab.path)
+        if let alias = RemoteFS.alias(of: target) {
+            let fs = try await ctx.workspace.remotes.provider(alias)
+            try await tab.navigate(to: target)
+            tab.customTitle = "🌐 " + fs.connection.alias
+            return CommandResult(message: target.displayPath)
+        }
         let item = try LocalFS().itemSync(at: target)
         if item.isNavigable {
             try await tab.navigate(to: target)

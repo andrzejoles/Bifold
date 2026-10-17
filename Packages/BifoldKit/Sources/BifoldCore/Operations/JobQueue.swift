@@ -9,6 +9,8 @@ public enum JobSpec: Sendable {
     case extract(archive: ArchiveFS, sources: [VFSPath], destination: VFSPath)
     /// Rozpakowanie całych archiwów (do katalogu docelowego lub podkatalogów nazwanych jak archiwa).
     case extractArchives([VFSPath], destination: VFSPath, tool: SevenZip, overwrite: SevenZip.Overwrite, subfolders: Bool)
+    /// Przesyłanie przez rclone (serwery, chmury).
+    case rclone(RcloneTransfer, Rclone)
     /// Tworzenie archiwum.
     case createArchive(VFSPath, format: ArchiveFormat, base: VFSPath, names: [String], tool: SevenZip, level: Int, password: String?, volumeSize: String?)
 
@@ -200,6 +202,8 @@ public final class JobQueue {
                         p.filesDone += 1
                         progressSink.update(p)
                     }
+                case let .rclone(transfer, rclone):
+                    errors = try transfer.run(rclone: rclone, control: control, journal: journal, batchID: batchID) { progressSink.update($0) }
                 case let .createArchive(archive, format, base, names, tool, level, password, volumeSize):
                     var p = TransferProgress()
                     p.currentItem = archive.name
