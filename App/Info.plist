@@ -9,6 +9,10 @@
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>pl</string>
+		<string>en</string>
+		<string>de</string>
+		<string>es</string>
+		<string>uk</string>
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>

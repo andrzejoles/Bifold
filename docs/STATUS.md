@@ -1,6 +1,6 @@
 # Stan realizacji (2026-10-17)
 
-Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **156** (wszystkie zielone) w
+Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **163** (wszystkie zielone) w
 pakiecie `BifoldKit` (`make test`) + test wydajności w Release (`make test-release`) + opcjonalny test
 E2E z prawdziwymi CLI agentów. Zgodnie z poleceniem „w pełni autonomicznie” punkty „pokaż i poczekaj
 na akceptację” zastąpiłem wpisami w [DECISIONS.md](DECISIONS.md).
@@ -45,6 +45,7 @@ Legenda: ✅ zweryfikowane testem automatycznym · 👁 sprawdzone ręcznie w dz
 | Odrzucenie podstawionego serwera (zmieniony klucz) dla SFTP i SCP | ✅ |
 | Nazwy w ISO-8859-2 na serwerze SCP | ⚠️ kodowanie i parser testowane; brak serwera z takimi nazwami (APFS ich nie przechowa) |
 | Automatyczna aktualizacja (Sparkle) | ✅ ręcznie: kopia 1.0.14 pobrała z lokalnego kanału 1.0.15, sprawdziła podpis EdDSA i podmieniła się przy zamknięciu, ten sam podpis |
+| Interfejs w 5 językach, eksport/import tłumaczeń | ✅ testy (import, odrzucanie złych znaczników, kompletność katalogu) + 👁 interfejs po angielsku; tłumaczenia maszynowe do przejrzenia |
 | Instalatory DMG i PKG | ✅ zbudowane i sprawdzone (zawartość, podpis); bez notaryzacji |
 | Zasada najmniejszego poziomu: SFTP tylko odczyt, FTP za zgodą, FTP→SFTP zabronione | ✅ |
 | SMB/NFS (NetFS), Google Drive / Dropbox / OneDrive (OAuth) | ⚠️ brak serwera SMB i kont chmurowych w środowisku testowym |
@@ -66,5 +67,5 @@ Legenda: ✅ zweryfikowane testem automatycznym · 👁 sprawdzone ręcznie w dz
 - **Grok** startuje w trybie bez interfejsu wolno (~4 min w teście E2E) — to czas samego CLI.
 - **Operacje na serwerach** (wysyłka, zmiana nazwy, usunięcie) nie są cofalne — serwery nie mają Kosza (D32).
 - **Wyszukiwanie w archiwach** dotyczy nazw, nie treści.
-- Tłumaczenia: katalog `Localizable.xcstrings` zawiera wszystkie klucze (język źródłowy polski);
-  inne języki trzeba dodać w Xcode.
+- Tłumaczenia en, de, es, uk przygotował Claude — warto, żeby przejrzały je osoby znające te języki
+  (eksport w danym języku → poprawki → import).

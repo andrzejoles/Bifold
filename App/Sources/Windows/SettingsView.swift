@@ -20,11 +20,51 @@ struct SettingsView: View {
     }
 }
 
+/// Język interfejsu, eksport i import tłumaczeń (jak w CantatePresenter).
+private struct LanguageSection: View {
+    @Bindable var service = LanguageService.shared!
+
+    var body: some View {
+        Section(L10n.tr("Język interfejsu")) {
+            Picker(L10n.tr("Język"), selection: Binding(get: { service.preference }, set: { service.setPreference($0) })) {
+                Text(L10n.tr("Jak w systemie")).tag("system")
+                ForEach(service.languages) { l in
+                    Text("\(l.flag) \(l.name)" + (l.isCustom ? " · " + L10n.tr("zaimportowany") : "")).tag(l.code)
+                }
+            }
+            if service.needsRestart {
+                HStack {
+                    Text(L10n.tr("Nowy język zadziała po ponownym uruchomieniu.")).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(L10n.tr("Uruchom ponownie")) { service.restart() }
+                }
+            }
+            HStack {
+                Button(L10n.tr("Eksportuj plik do tłumaczenia…")) { run { try service.exportFile() } }
+                Button(L10n.tr("Importuj tłumaczenie…")) { run { try service.importFile() } }
+                if let custom = service.languages.first(where: { $0.isCustom && $0.code == service.translations.resolve(service.preference) }) {
+                    Button(L10n.tr("Usuń \(custom.name)")) { service.remove(custom.code) }
+                }
+            }
+            Text(L10n.tr("Plik JSON zawiera wszystkie teksty po polsku z angielską podpowiedzią i instrukcją dla AI. Po przetłumaczeniu (pola „translation”) zaimportuj go — język pojawi się na liście. Eksport w wybranym języku pozwala poprawić istniejące tłumaczenie."))
+                .font(.caption).foregroundStyle(.secondary)
+            if !service.notice.isEmpty {
+                Text(service.notice).font(.caption)
+            }
+        }
+    }
+
+    private func run(_ action: () throws -> Void) {
+        do { try action() } catch { service.notice = "✕ " + error.localizedDescription }
+    }
+}
+
 private struct GeneralSettings: View {
     @Bindable var workspace: Workspace
 
     var body: some View {
         Form {
+            LanguageSection()
             Picker(L10n.tr("Motyw"), selection: $workspace.settings.theme) {
                 ForEach(AppTheme.allCases, id: \.self) { Text($0.displayName).tag($0) }
             }

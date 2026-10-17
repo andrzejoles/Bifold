@@ -11,7 +11,7 @@ OUT="${1:?Podaj plik wyjściowy}"
     echo "========================================"
     echo
     echo "Bifold: licencja MIT, © 2026 Andrzej Oleś w kooperacji z Claude AI (plik LICENSE w repozytorium)."
-    for f in "$ROOT/ThirdParty/HexFiend/License.txt" "$ROOT"/build/DerivedData/SourcePackages/checkouts/*/{LICENSE,LICENSE.txt,LICENSE.md,NOTICE,NOTICE.txt}; do
+    for f in "$ROOT/ThirdParty/HexFiend/License.txt" "$ROOT"/build/DerivedData.noindex/SourcePackages/checkouts/*/{LICENSE,LICENSE.txt,LICENSE.md,NOTICE,NOTICE.txt}; do
         [ -f "$f" ] || continue
         name="$(basename "$(dirname "$f")")"
         echo

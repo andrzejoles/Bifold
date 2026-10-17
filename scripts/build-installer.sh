@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Instalatory macOS (Apple Silicon): dist/Bifold-X.Y.Z.dmg (przeciągnij do Aplikacji) i dist/Bifold-X.Y.Z.pkg
-# (kreator instalacji do /Applications) oraz dist/Bifold-X.Y.Z.app — podpisana kopia użyta w obu.
+# (kreator instalacji do /Applications). Podpisana kopia robocza: dist/staging.noindex/Bifold-X.Y.Z.app
+# (katalog .noindex — Spotlight i Launchpad nie pokazują jej jako kolejnej aplikacji).
 # Podpis: stały certyfikat z własnym podpisem (scripts/signing.sh), żeby po aktualizacjach zostawały
 # zgody macOS (Pełny dostęp do dysku, dostęp do haseł w Pęku kluczy).
 set -euo pipefail
@@ -15,16 +16,18 @@ echo "=== $APP_NAME $VERSION ($BUILD) ==="
 
 echo "[1/4] Budowanie (Release)…"
 scripts/set-version.sh
-xcodebuild -project Bifold.xcodeproj -scheme Bifold -configuration Release -derivedDataPath build/DerivedData \
+xcodebuild -project Bifold.xcodeproj -scheme Bifold -configuration Release -derivedDataPath build/DerivedData.noindex \
     -skipPackagePluginValidation -skipMacroValidation build -quiet
-SRC="build/DerivedData/Build/Products/Release/$APP_NAME.app"
+SRC="build/DerivedData.noindex/Build/Products/Release/$APP_NAME.app"
 [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SRC/Contents/Info.plist")" = "$VERSION" ] \
     || { echo "BŁĄD: wersja w Info.plist nie zgadza się z $VERSION" >&2; exit 1; }
 
 echo "[2/4] Podpis…"
 mkdir -p "$DIST"
-APP="$DIST/$APP_NAME-$VERSION.app"
-rm -rf "$APP"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+APP="$DIST/staging.noindex/$APP_NAME-$VERSION.app"
+rm -rf "$DIST/staging.noindex"
+mkdir -p "$DIST/staging.noindex"
 ditto "$SRC" "$APP"
 # Dane dewelopera nie mogą trafić do instalatora.
 LEAKED="$(find "$APP" \( -name "*.jsonl" -o -name "connections.json" -o -name "settings.json" -o -name "*.p12" -o -name "*.pem" \) -print)"
@@ -73,6 +76,10 @@ AKTUALIZACJE
   Każde wydanie jest podpisane kluczem autora (EdDSA) — aplikacja nie przyjmie pliku z innego źródła.
 TXT
 hdiutil create -quiet -volname "$APP_NAME $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+
+# Kopie robocze nie mają się pojawiać w systemie jako osobne aplikacje.
+"$LSREGISTER" -u "$ROOT/$SRC" 2>/dev/null || true
+"$LSREGISTER" -u "$APP" 2>/dev/null || true
 
 echo "Gotowe:"
 ls -lh "$DMG" "$PKG"

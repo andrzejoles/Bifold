@@ -14,6 +14,9 @@ architektura: `docs/ARCHITECTURE.md`, bezpieczeństwo: `docs/SECURITY.md`, decyz
 - Sekrety tylko w Pęku kluczy; nigdy w plikach, argumentach procesów, zmiennych środowiskowych ani logach.
   Repozytorium jest publiczne — przed commitem nic z `~/Library`, `~/.ssh`, kluczy, haseł, ścieżek domowych.
 - Testy nie dotykają `~/.ssh` ani prawdziwych danych aplikacji (`Workspace(persists: false)`).
+- **Teksty interfejsu** tylko przez `L10n.tr("…")` (kluczem jest polskie zdanie). Każdy nowy tekst: `make build`,
+  `python3 scripts/gen-strings.py` (klucze z kompilatora), potem tłumaczenia en, de, es, uk w
+  `App/Resources/Localizable.xcstrings` — pilnuje tego `LocalizationCatalogTests` (także znaczników `%@`/`%lld`).
 
 ## Polecenia
 
@@ -22,7 +25,8 @@ make bootstrap && make build      # pierwsze budowanie
 make test                         # testy BifoldKit (w tym SCP z lokalnym sshd, SFTP z rclone serve)
 make installer                    # dist/Bifold-X.Y.Z.dmg i .pkg
 scripts/release.sh                # szkic wydania na GitHubie (tylko z main)
-python3 scripts/gen-strings.py    # katalog tłumaczeń po dodaniu tekstów L10n.tr
+python3 scripts/gen-strings.py    # katalog tłumaczeń po dodaniu tekstów L10n.tr (po make build)
+make unregister                   # usuwa z Launchpada kopie Bifolda spoza /Applications
 ```
 
 ## Pułapki

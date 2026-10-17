@@ -7,9 +7,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOL="${1:?Podaj narzędzie: generate_keys, sign_update albo generate_appcast}"
 shift
-BIN="$ROOT/build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin"
+BIN="$ROOT/build/DerivedData.noindex/SourcePackages/artifacts/sparkle/Sparkle/bin"
 if [ ! -x "$BIN/$TOOL" ]; then
-    xcodebuild -project "$ROOT/Bifold.xcodeproj" -scheme Bifold -derivedDataPath "$ROOT/build/DerivedData" \
+    xcodebuild -project "$ROOT/Bifold.xcodeproj" -scheme Bifold -derivedDataPath "$ROOT/build/DerivedData.noindex" \
         -resolvePackageDependencies -skipPackagePluginValidation >/dev/null
 fi
 case "$TOOL" in

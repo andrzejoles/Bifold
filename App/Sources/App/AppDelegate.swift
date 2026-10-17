@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let paths = AppPaths.standard(appName: Brand.appName)
+        // Język przed zbudowaniem komend i menu (tytuły powstają przy starcie).
+        LanguageService.shared = LanguageService(paths: paths)
         workspace = Workspace(paths: paths)
         services = AppUIServices(workspace: workspace)
         workspace.ui = services
@@ -32,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services.mainWindow = mainWindow
         adminHelper = AdminHelperClient(workspace: workspace)
         updates.register(in: workspace)
+        LanguageService.shared.register(in: workspace)
         updates.start()
         agents = AgentUIController(workspace: workspace)
         agents.mainWindow = mainWindow

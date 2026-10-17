@@ -29,11 +29,13 @@
 		45F9582AE7D4EB6B035898AC /* KeyChord+NSEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC24079A107B447CDFCD440 /* KeyChord+NSEvent.swift */; };
 		515C85BEFD6FC203CBF82B05 /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55DF27BCB5B4FB2B145F433 /* MainWindowController.swift */; };
 		5F72C36E45B62E116C83E6DA /* MenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 534DBF9C882210F65150F30D /* MenuBuilder.swift */; };
+		626F9AEC81EDD56029CA450F /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 00E82499236D9B4F9BE4BB78 /* InfoPlist.xcstrings */; };
 		63EA5D8E2D2A15FB69EB3D6A /* QuickLookController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7577258957A8726095CAAE02 /* QuickLookController.swift */; };
 		6564EC6E82A2441BAC0AE591 /* DetailsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88ABDCB99093D29357D17D10 /* DetailsListView.swift */; };
 		6BEA616D6A1D4DCF6EB50421 /* JobsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96D34A2F1BA907345E6BBD20 /* JobsBar.swift */; };
 		700F872F515553F3F4CE31C6 /* ViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27ECF99D333B2873C43BE4E /* ViewerWindowController.swift */; };
 		70D45E25D20DA35EB9734E46 /* ConnectionsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72C1AF97505CC6C756CB98C /* ConnectionsWindow.swift */; };
+		7830036A81638857D72BB181 /* LanguageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6703DF26152DBB41A25AAC0 /* LanguageService.swift */; };
 		789F6474B019DFA5214AD498 /* CommandPaletteController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AEF1F68B23C6C1946EB1AF7 /* CommandPaletteController.swift */; };
 		7A06665F94711A8D0D5752F5 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABD05211A430CB6EA0D86E31 /* main.swift */; };
 		7C881BA0E23EB63531E0F987 /* bifold-helper in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 2512DF4CE97526DD996F0483 /* bifold-helper */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -112,6 +114,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		00E82499236D9B4F9BE4BB78 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		020926F0EF46C78FC131B60C /* AppUIServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUIServices.swift; sourceTree = "<group>"; };
 		088F2A342BDBD970EFB05F9E /* CompareSyncWindows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompareSyncWindows.swift; sourceTree = "<group>"; };
 		124D7F9BFF80AC1000CF1A73 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -138,6 +141,7 @@
 		A72C1AF97505CC6C756CB98C /* ConnectionsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsWindow.swift; sourceTree = "<group>"; };
 		A965284FB8898DEED1F6DBB1 /* CommandLineBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineBar.swift; sourceTree = "<group>"; };
 		ABD05211A430CB6EA0D86E31 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		B6703DF26152DBB41A25AAC0 /* LanguageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageService.swift; sourceTree = "<group>"; };
 		B8666EA3361722B64A277E45 /* TerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPane.swift; sourceTree = "<group>"; };
 		BA1ED275D245D8F3D7E0213E /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		BDD28F6FF60A637FECF21718 /* BifoldKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BifoldKit; path = Packages/BifoldKit; sourceTree = SOURCE_ROOT; };
@@ -258,6 +262,7 @@
 			children = (
 				7CFC1E9E3691CD6C88F3DC7D /* AdminHelper.swift */,
 				020926F0EF46C78FC131B60C /* AppUIServices.swift */,
+				B6703DF26152DBB41A25AAC0 /* LanguageService.swift */,
 				69989DD18DCA59E42EB0FA6E /* UpdateService.swift */,
 			);
 			path = Services;
@@ -310,6 +315,7 @@
 			isa = PBXGroup;
 			children = (
 				606B26C74D764E268FD6D7D8 /* Assets.xcassets */,
+				00E82499236D9B4F9BE4BB78 /* InfoPlist.xcstrings */,
 				BA1ED275D245D8F3D7E0213E /* Localizable.xcstrings */,
 			);
 			path = Resources;
@@ -500,7 +506,11 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				de,
+				en,
+				es,
 				pl,
+				uk,
 			);
 			mainGroup = 5EFCFA59D0DDE14461A2232B;
 			minimizedProjectReferenceProxies = 1;
@@ -527,6 +537,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD838B4FFBD70ED4E5584384 /* Assets.xcassets in Resources */,
+				626F9AEC81EDD56029CA450F /* InfoPlist.xcstrings in Resources */,
 				24F6F373A76BFB5DCC5B07BD /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -594,6 +605,7 @@
 				6BEA616D6A1D4DCF6EB50421 /* JobsBar.swift in Sources */,
 				26A844D1855E5AD7E351318C /* JournalWindowController.swift in Sources */,
 				45F9582AE7D4EB6B035898AC /* KeyChord+NSEvent.swift in Sources */,
+				7830036A81638857D72BB181 /* LanguageService.swift in Sources */,
 				515C85BEFD6FC203CBF82B05 /* MainWindowController.swift in Sources */,
 				5F72C36E45B62E116C83E6DA /* MenuBuilder.swift in Sources */,
 				1A4609D5778CE31D0F2B1958 /* MultiRenameWindow.swift in Sources */,
