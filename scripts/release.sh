@@ -22,11 +22,11 @@ fi
 
 scripts/build-installer.sh
 
-RELEASE_DIR="$ROOT/dist/release-$VERSION"
+RELEASE_DIR="$ROOT/dist/staging.noindex/release-$VERSION"
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 # Archiwum dla Sparkle: tylko ono w katalogu, bo generate_appcast czyta wszystkie archiwa.
-ditto "dist/$APP_NAME-$VERSION.app" "$RELEASE_DIR/stage/$APP_NAME.app"
+ditto "dist/staging.noindex/$APP_NAME-$VERSION.app" "$RELEASE_DIR/stage/$APP_NAME.app"
 ditto -c -k --sequesterRsrc --keepParent "$RELEASE_DIR/stage/$APP_NAME.app" "$RELEASE_DIR/$APP_NAME-$VERSION.zip"
 rm -rf "$RELEASE_DIR/stage"
 scripts/sparkle-tools.sh generate_appcast \

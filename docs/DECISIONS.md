@@ -249,3 +249,21 @@ tworzy certyfikat „Bifold Self-Signed” w osobnym pęku kluczy (hasło losowe
 wymaganie podpisu to „identyfikator + certyfikat” — stałe między wersjami (sprawdzone na aktualizacji
 1.0.14 → 1.0.15). Nie zastępuje Developer ID: Gatekeeper ostrzega przy pierwszym uruchomieniu, a
 pomocnik administratora nadal wymaga zespołu (D36).
+
+### D42 · 2026-10-17 — Tłumaczenia interfejsu jak w CantatePresenter (decyzja właściciela)
+Języki wbudowane: pl (źródłowy), en, de, es, uk — ten sam zestaw co w CantatePresenter; tłumaczenia
+przygotowane przez Claude, do przejrzenia przez osoby znające języki. Wybór w Ustawieniach (domyślnie
+jak w systemie), zapis w UserDefaults (`BifoldLanguage`, potrzebny przed zbudowaniem komend), zmiana po
+ponownym uruchomieniu — tytuły komend i menu powstają przy starcie. Eksport/import w formacie JSON
+podobnym do CantatePresenter (`bifold-i18n-v1`: klucz = polski tekst, kontekst = angielski, instrukcja
+dla AI). Zaimportowany język zapisywany jako `<dane>/languages/<kod>.lproj/Localizable.strings`, więc
+`String(localized:)` korzysta z niego bez przebudowy (sprawdzone, także z `%1$@`). Tłumaczenia z
+niezgodnymi znacznikami odrzucane (inaczej `String(format:)` może zatrzymać aplikację).
+`scripts/gen-strings.py` bierze klucze z plików `.stringsdata` kompilatora: wcześniejsze zgadywanie
+typów (`%@`/`%lld`) dało 18 błędnych kluczy, których nie dało się przetłumaczyć.
+
+### D43 · 2026-10-17 — Jedna kopia aplikacji w systemie
+Xcode rejestruje każdą zbudowaną aplikację w LaunchServices, a Spotlight znajduje kopie w `build/` i
+`dist/` — w Launchpadzie było pięć „Bifoldów”. Katalog budowania to `build/DerivedData.noindex`, kopie
+robocze instalatora w `dist/staging.noindex`, a `make build`, instalator i `make unregister`
+wyrejestrowują wszystko poza `/Applications`.

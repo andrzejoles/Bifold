@@ -4,6 +4,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — języki
+- Interfejs po angielsku, niemiecku, hiszpańsku i ukraińsku (obok polskiego), wybór w Ustawieniach.
+- Eksport pliku do tłumaczenia (JSON dla tłumacza lub AI) i import gotowego tłumaczenia, jak w CantatePresenter.
+- Opisy uprawnień macOS (Biurko, Dokumenty…) w tych samych językach.
+
+### Poprawione
+- 18 komunikatów miało w katalogu tłumaczeń błędne klucze i nie dało się ich przetłumaczyć.
+- W Launchpadzie i „Otwórz za pomocą” widać tylko jedną kopię Bifolda.
+
 ### Dodane — wydania i serwery
 - **SCP** (klasyczny protokół, `scp -O`) dla serwerów bez SFTP: listing, kopiowanie w obie strony,
   nowy katalog, zmiana nazwy, usuwanie, podgląd i edycja; kodowanie nazw UTF-8 lub ISO-8859-2.

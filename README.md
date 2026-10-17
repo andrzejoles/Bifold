@@ -82,6 +82,15 @@ Test z prawdziwymi CLI (zużywa limit subskrypcji):
 cd Packages/BifoldKit && BIFOLD_E2E_AGENTS=1 swift test --filter AgentE2ETests
 ```
 
+## Język interfejsu
+
+Polski (źródłowy), angielski, niemiecki, hiszpański i ukraiński. Domyślnie jak w systemie; zmiana
+w Ustawieniach → Ogólne → Język interfejsu (działa po ponownym uruchomieniu). Jak w CantatePresenter:
+„Eksportuj plik do tłumaczenia…” zapisuje wszystkie teksty do pliku JSON (polski tekst, angielska
+podpowiedź, instrukcja dla AI), a „Importuj tłumaczenie…” dodaje gotowy język — bez przebudowy
+aplikacji. Eksport w wybranym języku pozwala poprawić istniejące tłumaczenie. Teksty z niezgodnymi
+znacznikami wartości (`%@`, `%lld`) są przy imporcie pomijane.
+
 ## Serwery: SFTP, SCP i stare systemy (np. AIX 6.1)
 
 Połączenia (⌘K / Ctrl+F): SFTP, **SCP**, FTP/FTPS, WebDAV, SMB, Google Drive, Dropbox, OneDrive.

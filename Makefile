@@ -1,9 +1,9 @@
 # Bifold — skróty do budowania. Wymaga: Xcode 27, XcodeGen (brew install xcodegen).
 SCHEME = Bifold
-DERIVED = build/DerivedData
+DERIVED = build/DerivedData.noindex
 APP = $(DERIVED)/Build/Products/Debug/Bifold.app
 
-.PHONY: bootstrap generate build release test test-release run strings perf-fixture clean version installer
+.PHONY: bootstrap generate build release test test-release run strings perf-fixture clean version installer unregister
 
 bootstrap:
 	git submodule update --init --recursive
@@ -16,6 +16,7 @@ generate:
 build:
 	./scripts/set-version.sh
 	xcodebuild -project Bifold.xcodeproj -scheme $(SCHEME) -configuration Debug -derivedDataPath $(DERIVED) -skipPackagePluginValidation -skipMacroValidation build -quiet
+	@$(MAKE) -s unregister >/dev/null
 
 release:
 	./scripts/set-version.sh
@@ -30,6 +31,12 @@ test-release:
 
 run: build
 	open $(APP)
+
+# Usuwa z systemu (Launchpad, „Otwórz za pomocą”) wszystkie kopie Bifolda poza /Applications.
+unregister:
+	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -dump \
+	  | awk '/^path:/{p=$$0} /identifier: *local.aoles.bifold$$/{print p}' | sed 's/^path: *//; s/ (0x[0-9a-f]*)$$//' | grep -v '^/Applications/' | sort -u \
+	  | while read -r p; do /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$$p"; echo "wyrejestrowano $$p"; done
 
 strings:
 	python3 scripts/gen-strings.py
