@@ -52,7 +52,11 @@ public final class Tab: Identifiable {
         }
     }
 
-    public var title: String { path.isRoot ? "/" : path.name }
+    /// Tytuł karty wyników wyszukiwania.
+    public var customTitle: String?
+    public var title: String { customTitle ?? (path.isRoot ? "/" : path.name) }
+    /// Karta pokazuje wyniki wyszukiwania (elementy z różnych katalogów).
+    public var isSearchResults: Bool { SearchResultsFS.isSearchResults(path) }
 
     // MARK: Nawigacja
 

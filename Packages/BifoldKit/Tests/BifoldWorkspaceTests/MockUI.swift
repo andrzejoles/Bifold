@@ -43,6 +43,11 @@ final class MockUI: UIServices {
     func showSettings() {}
     func showJournal() {}
     func transferDelegate() -> any TransferDelegate { PolicyTransferDelegate(conflict: .skip) }
+    var reports: [String] = []
+    var multiRenameItems: [FileItem] = []
+    func showSearch(directory: VFSPath, criteria: SearchCriteria?) {}
+    func showMultiRename(items: [FileItem]) { multiRenameItems = items }
+    func showReport(title: String, text: String) { reports.append(text) }
 }
 
 /// `Workspace.ui` jest słabą referencją — atrapy muszą żyć do końca testu.

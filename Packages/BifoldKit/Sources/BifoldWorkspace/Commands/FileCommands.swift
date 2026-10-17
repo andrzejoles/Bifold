@@ -6,7 +6,7 @@ let conflictParam = CommandParameter("conflict", .string, L10n.tr("Co zrobić, g
 extension CommandContext {
     /// Cel kopiowania/przenoszenia: argument `destination` albo okno F5/F6 (domyślnie drugi panel).
     func transferRequest(_ kind: TransferKind, items: [FileItem], createMissing: Bool = true) async throws -> (TransferRequest, ConflictResolution?, Int64) {
-        let base = tab.path
+        let base = tab.path.isLocal ? tab.path : otherTab.path
         let destinationText: String
         var policy = try conflictPolicy()
         var speedLimit = arguments.int("speedLimit") ?? 0
@@ -137,6 +137,7 @@ var fileCommands: [Command] { [
             return EffectPreview(summary: L10n.tr("Nowy pusty plik \(path.path)"), operations: [PlannedOperation(kind: "createFile", source: nil, destination: path)], fileCount: 1)
         }
     ) { ctx in
+        _ = try ctx.requireLocalDirectory()
         let name = try await ctx.text("name", title: L10n.tr("Nowy plik"), message: L10n.tr("Nazwa pliku:"), default: "nowy.txt", selectStem: true)
         let path = resolvePath(name, relativeTo: ctx.tab.path)
         try validateFileName(path.name)
@@ -181,6 +182,7 @@ var fileCommands: [Command] { [
             return EffectPreview(summary: L10n.tr("Nowy katalog \(path.path)"), operations: [PlannedOperation(kind: "mkdir", source: nil, destination: path, isDirectory: true)])
         }
     ) { ctx in
+        _ = try ctx.requireLocalDirectory()
         let name = try await ctx.text("name", title: L10n.tr("Nowy katalog"), message: L10n.tr("Nazwa katalogu:"))
         let path = resolvePath(name, relativeTo: ctx.tab.path)
         // Tworzenie kolejnych brakujących poziomów, każdy zapisany w dzienniku.
@@ -287,7 +289,8 @@ var fileCommands: [Command] { [
         } else if ctx.isAgent {
             throw CommandError.missingArgument("tags")
         } else {
-            let current = (try? LocalFS().tagsSync(of: items[0].path)) ?? []
+            let first = items[0].path
+            let current = (try? await runBlocking(qos: .userInitiated) { try LocalFS().tagsSync(of: first) }) ?? []
             guard let t = try await ctx.requireUI().promptTags(items: items, current: current) else { throw CommandError.cancelledByUser }
             tags = t
         }

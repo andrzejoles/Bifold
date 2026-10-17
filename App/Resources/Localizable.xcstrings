@@ -31,6 +31,9 @@
     "(bez nazwy)": {
       "extractionState": "manual"
     },
+    "(limit)": {
+      "extractionState": "manual"
+    },
     "1 element": {
       "extractionState": "manual"
     },
@@ -38,6 +41,9 @@
       "extractionState": "manual"
     },
     "API agenta jest wyłączone": {
+      "extractionState": "manual"
+    },
+    "Aa": {
       "extractionState": "manual"
     },
     "Agenci AI": {
@@ -103,6 +109,9 @@
     "Brak uprawnień: %@": {
       "extractionState": "manual"
     },
+    "Brak zapisanych wyszukiwań (zapisz je w oknie Szukaj).": {
+      "extractionState": "manual"
+    },
     "Brak — część katalogów jest niedostępna": {
       "extractionState": "manual"
     },
@@ -116,6 +125,9 @@
       "extractionState": "manual"
     },
     "Błąd: %@": {
+      "extractionState": "manual"
+    },
+    "Błędy: %@ z %lld": {
       "extractionState": "manual"
     },
     "Błędy: %lld": {
@@ -184,6 +196,9 @@
     "Data": {
       "extractionState": "manual"
     },
+    "Data i rozmiar": {
+      "extractionState": "manual"
+    },
     "Data modyfikacji": {
       "extractionState": "manual"
     },
@@ -205,6 +220,9 @@
     "Do Kosza: %@": {
       "extractionState": "manual"
     },
+    "Do panelu": {
+      "extractionState": "manual"
+    },
     "Dodaje do zaznaczenia elementy pasujące do maski.": {
       "extractionState": "manual"
     },
@@ -221,6 +239,9 @@
       "extractionState": "manual"
     },
     "Dyski i woluminy…": {
+      "extractionState": "manual"
+    },
+    "Dzieli plik na części .001, .002… z plikiem .sha256 do kontroli.": {
       "extractionState": "manual"
     },
     "Dziennik": {
@@ -292,6 +313,12 @@
     "Grupa": {
       "extractionState": "manual"
     },
+    "Grupy duplikatów: %lld": {
+      "extractionState": "manual"
+    },
+    "Grupy identycznych plików (nazwa, rozmiar, zawartość SHA-256) w katalogach.": {
+      "extractionState": "manual"
+    },
     "Identyfikator zadania (domyślnie wszystkie aktywne)": {
       "extractionState": "manual"
     },
@@ -308,6 +335,9 @@
       "extractionState": "manual"
     },
     "Katalog": {
+      "extractionState": "manual"
+    },
+    "Katalog części (domyślnie drugi panel)": {
       "extractionState": "manual"
     },
     "Katalog docelowy albo nowa ścieżka (jeden element); domyślnie katalog drugiego panelu": {
@@ -328,7 +358,19 @@
     "Katalog nowej karty (domyślnie bieżący)": {
       "extractionState": "manual"
     },
+    "Katalogi przeszukiwania (domyślnie bieżący)": {
+      "extractionState": "manual"
+    },
+    "Katalogi: %lld · %@": {
+      "extractionState": "manual"
+    },
+    "Każde Słowo Wielką": {
+      "extractionState": "manual"
+    },
     "Kodowanie tekstu (domyślnie wykrywane)": {
+      "extractionState": "manual"
+    },
+    "Kodowanie treści: auto, utf-8, windows-1250, iso-8859-2, utf-16le…": {
       "extractionState": "manual"
     },
     "Kolejka": {
@@ -391,7 +433,22 @@
     "Liczba bajtów (domyślnie do limitu)": {
       "extractionState": "manual"
     },
+    "Licznik od %lld": {
+      "extractionState": "manual"
+    },
+    "Licznik: krok": {
+      "extractionState": "manual"
+    },
+    "Licznik: liczba cyfr": {
+      "extractionState": "manual"
+    },
+    "Licznik: początek": {
+      "extractionState": "manual"
+    },
     "Liczy rozmiary zaznaczonych katalogów (bez zaznaczenia — wszystkich w panelu).": {
+      "extractionState": "manual"
+    },
+    "Liczy sumy MD5/SHA-1/SHA-256 plików i zapisuje je w pliku sum w bieżącym katalogu.": {
       "extractionState": "manual"
     },
     "Limit prędkości": {
@@ -401,6 +458,9 @@
       "extractionState": "manual"
     },
     "Limit prędkości…": {
+      "extractionState": "manual"
+    },
+    "Limit wyników (domyślnie 1000 dla agenta)": {
       "extractionState": "manual"
     },
     "Limit wywołań na minutę: %lld": {
@@ -421,6 +481,9 @@
     "Lista zadań": {
       "extractionState": "manual"
     },
+    "Lista zapisanych wyszukiwań.": {
+      "extractionState": "manual"
+    },
     "MB/s (0 = bez limitu):": {
       "extractionState": "manual"
     },
@@ -430,7 +493,22 @@
     "Maks. rozmiar odczytu pliku: %@": {
       "extractionState": "manual"
     },
+    "Maksymalny rozmiar w bajtach": {
+      "extractionState": "manual"
+    },
     "Maska": {
+      "extractionState": "manual"
+    },
+    "Maska nazw, np. *.jpg;*.png|tmp*": {
+      "extractionState": "manual"
+    },
+    "Maska nazwy": {
+      "extractionState": "manual"
+    },
+    "Maska nazwy: [N] nazwa, [N2-5] fragment, [C] licznik, [P] katalog, [Y][M][D][h][m][s] data, [Exif:DateTimeOriginal:yyyy-MM-dd], [Exif:Model], [Media:artist|title|album|year]": {
+      "extractionState": "manual"
+    },
+    "Maska rozszerzenia (domyślnie [E])": {
       "extractionState": "manual"
     },
     "Maska, np. *.jpg;*.png|tmp*": {
@@ -452,6 +530,9 @@
       "extractionState": "manual"
     },
     "Minimalizuj": {
+      "extractionState": "manual"
+    },
+    "Minimalny rozmiar w bajtach": {
       "extractionState": "manual"
     },
     "Motyw": {
@@ -499,7 +580,16 @@
     "Nazwa nowego pliku (w bieżącym katalogu)": {
       "extractionState": "manual"
     },
+    "Nazwa pliku sum (domyślnie wg pierwszego elementu)": {
+      "extractionState": "manual"
+    },
     "Nazwa pliku:": {
+      "extractionState": "manual"
+    },
+    "Nazwa wyszukiwania": {
+      "extractionState": "manual"
+    },
+    "Nazwa zapisanego wyszukiwania": {
       "extractionState": "manual"
     },
     "Nazwa zapisanego zaznaczenia": {
@@ -518,6 +608,9 @@
       "extractionState": "manual"
     },
     "Nie można skopiować katalogu do jego wnętrza: %@": {
+      "extractionState": "manual"
+    },
+    "Nie pokazuj przy starcie (instrukcja jest w Ustawieniach → Ogólne)": {
       "extractionState": "manual"
     },
     "Nie udało się": {
@@ -595,6 +688,9 @@
     "OK": {
       "extractionState": "manual"
     },
+    "Obecna nazwa": {
+      "extractionState": "manual"
+    },
     "Obiekt {\"rules\":[…]} jak w colors.get": {
       "extractionState": "manual"
     },
@@ -644,6 +740,9 @@
       "extractionState": "manual"
     },
     "Okno ustawień.": {
+      "extractionState": "manual"
+    },
+    "Opcje": {
       "extractionState": "manual"
     },
     "Operacja": {
@@ -724,7 +823,19 @@
     "Pełny ekran": {
       "extractionState": "manual"
     },
+    "Pierwsza część (.001)": {
+      "extractionState": "manual"
+    },
+    "Pierwsza wielka": {
+      "extractionState": "manual"
+    },
     "Plik": {
+      "extractionState": "manual"
+    },
+    "Plik (domyślnie pod kursorem)": {
+      "extractionState": "manual"
+    },
+    "Plik wynikowy (domyślnie w drugim panelu, nazwa bez .001)": {
       "extractionState": "manual"
     },
     "Pliki starsze niż 3 miesiące": {
@@ -740,6 +851,21 @@
       "extractionState": "manual"
     },
     "Podgląd": {
+      "extractionState": "manual"
+    },
+    "Podkatalogi": {
+      "extractionState": "manual"
+    },
+    "Podział %@": {
+      "extractionState": "manual"
+    },
+    "Podział %@ na %@ części po %@": {
+      "extractionState": "manual"
+    },
+    "Podziel plik": {
+      "extractionState": "manual"
+    },
+    "Podziel plik…": {
       "extractionState": "manual"
     },
     "Pokazuj pliki ukryte": {
@@ -772,6 +898,9 @@
     "Pokaż w Finderze": {
       "extractionState": "manual"
     },
+    "Pokaż wyniki w nowej karcie panelu": {
+      "extractionState": "manual"
+    },
     "Pole sortowania": {
       "extractionState": "manual"
     },
@@ -782,6 +911,9 @@
       "extractionState": "manual"
     },
     "Polecenie powłoki w bieżącym katalogu (Enter — wykonaj w terminalu)": {
+      "extractionState": "manual"
+    },
+    "Pomijaj pliki mniejsze (bajty)": {
       "extractionState": "manual"
     },
     "Pomiń": {
@@ -814,6 +946,18 @@
     "Pozostali": {
       "extractionState": "manual"
     },
+    "Połącz pliki…": {
+      "extractionState": "manual"
+    },
+    "Połączenie %@": {
+      "extractionState": "manual"
+    },
+    "Połączenie %lld części → %@": {
+      "extractionState": "manual"
+    },
+    "Połączony plik ma inną sumę SHA-256 niż oryginał: %@": {
+      "extractionState": "manual"
+    },
     "Prawa ósemkowo, np. 644": {
       "extractionState": "manual"
     },
@@ -836,6 +980,9 @@
       "extractionState": "manual"
     },
     "Przejdź do katalogu…": {
+      "extractionState": "manual"
+    },
+    "Przejdź do pliku": {
       "extractionState": "manual"
     },
     "Przeniesienie": {
@@ -940,10 +1087,25 @@
     "Rozmiar czcionki list: %lld": {
       "extractionState": "manual"
     },
+    "Rozmiar części (np. 100M, 4,7G):": {
+      "extractionState": "manual"
+    },
+    "Rozmiar części, np. 100M, 4,7G, 1440K": {
+      "extractionState": "manual"
+    },
+    "Rozróżniaj wielkość liter": {
+      "extractionState": "manual"
+    },
+    "Rozróżniaj wielkość liter przy znajdowaniu": {
+      "extractionState": "manual"
+    },
     "Rozsz.": {
       "extractionState": "manual"
     },
     "Rozszerzenie": {
+      "extractionState": "manual"
+    },
+    "SUMA NIEZGODNA": {
       "extractionState": "manual"
     },
     "Schowek": {
@@ -970,6 +1132,15 @@
     "Spacja": {
       "extractionState": "manual"
     },
+    "Spotlight": {
+      "extractionState": "manual"
+    },
+    "Sprawdza pliki wymienione w pliku sum (.md5, .sha1, .sha256).": {
+      "extractionState": "manual"
+    },
+    "Sprawdź sumy kontrolne": {
+      "extractionState": "manual"
+    },
     "Stan": {
       "extractionState": "manual"
     },
@@ -985,13 +1156,40 @@
     "Szukaj": {
       "extractionState": "manual"
     },
+    "Szukaj (nazwa lub treść):": {
+      "extractionState": "manual"
+    },
+    "Szukaj duplikatów…": {
+      "extractionState": "manual"
+    },
     "Szukaj komendy": {
+      "extractionState": "manual"
+    },
+    "Szukaj plików": {
+      "extractionState": "manual"
+    },
+    "Szukaj plików…": {
+      "extractionState": "manual"
+    },
+    "Szukaj w": {
+      "extractionState": "manual"
+    },
+    "Szukaj w Spotlight…": {
+      "extractionState": "manual"
+    },
+    "Szukam…": {
+      "extractionState": "manual"
+    },
+    "Szukany tekst (nazwa lub treść)": {
       "extractionState": "manual"
     },
     "Szybkie wyszukiwanie": {
       "extractionState": "manual"
     },
     "Ta komenda wymaga interfejsu": {
+      "extractionState": "manual"
+    },
+    "Ta operacja wymaga zwykłego katalogu, nie listy wyników": {
       "extractionState": "manual"
     },
     "Tagi": {
@@ -1012,10 +1210,22 @@
     "Także pliki ukryte": {
       "extractionState": "manual"
     },
+    "Także podkatalogi (domyślnie tak)": {
+      "extractionState": "manual"
+    },
+    "Także ukryte": {
+      "extractionState": "manual"
+    },
     "Tego woluminu nie można wysunąć": {
       "extractionState": "manual"
     },
     "Tekst": {
+      "extractionState": "manual"
+    },
+    "Tekst w treści jest wyrażeniem regularnym": {
+      "extractionState": "manual"
+    },
+    "Tekst w treści plików (ripgrep)": {
       "extractionState": "manual"
     },
     "Ten sam katalog w drugim panelu": {
@@ -1028,6 +1238,9 @@
       "extractionState": "manual"
     },
     "Total Commander (F1–F12)": {
+      "extractionState": "manual"
+    },
+    "Treść": {
       "extractionState": "manual"
     },
     "Treść pliku tekstowego (z limitem rozmiaru). Pliki binarne: tylko metadane, chyba że hex=true.": {
@@ -1057,6 +1270,9 @@
     "Ukryj pozostałe": {
       "extractionState": "manual"
     },
+    "Ukryte": {
+      "extractionState": "manual"
+    },
     "Ukryty": {
       "extractionState": "manual"
     },
@@ -1066,10 +1282,16 @@
     "Uruchamia polecenie w powłoce użytkownika w bieżącym katalogu (wynik w terminalu).": {
       "extractionState": "manual"
     },
+    "Uruchamia zapisane wyszukiwanie; wyniki trafiają do panelu.": {
+      "extractionState": "manual"
+    },
     "Uruchom %@": {
       "extractionState": "manual"
     },
     "Uruchom polecenie": {
+      "extractionState": "manual"
+    },
+    "Uruchom zapisane wyszukiwanie…": {
       "extractionState": "manual"
     },
     "Ustaw kursor": {
@@ -1132,13 +1354,37 @@
     "Usługi": {
       "extractionState": "manual"
     },
+    "Utworzono %lld plików": {
+      "extractionState": "manual"
+    },
+    "Utwórz sumy kontrolne…": {
+      "extractionState": "manual"
+    },
+    "Uwagi": {
+      "extractionState": "manual"
+    },
+    "WIELKIE LITERY": {
+      "extractionState": "manual"
+    },
     "Wchodzi do katalogu pod kursorem albo otwiera plik w domyślnej aplikacji.": {
       "extractionState": "manual"
     },
     "Wczytaj zaznaczenie z pliku…": {
       "extractionState": "manual"
     },
+    "Weryfikacja sum": {
+      "extractionState": "manual"
+    },
     "Widok": {
+      "extractionState": "manual"
+    },
+    "Wielkość liter": {
+      "extractionState": "manual"
+    },
+    "Wielkość liter nazwy": {
+      "extractionState": "manual"
+    },
+    "Wielkość liter rozszerzenia": {
       "extractionState": "manual"
     },
     "Wklej": {
@@ -1177,6 +1423,9 @@
     "Wybierz kartę": {
       "extractionState": "manual"
     },
+    "Wybierz pierwszą część (.001)": {
+      "extractionState": "manual"
+    },
     "Wybierz…": {
       "extractionState": "manual"
     },
@@ -1186,6 +1435,9 @@
     "Wymuś": {
       "extractionState": "manual"
     },
+    "Wyrażenie regularne na nazwie (zamiast maski)": {
+      "extractionState": "manual"
+    },
     "Wysuń": {
       "extractionState": "manual"
     },
@@ -1193,6 +1445,15 @@
       "extractionState": "manual"
     },
     "Wyszukiwanie i uruchamianie dowolnej komendy.": {
+      "extractionState": "manual"
+    },
+    "Wyszukiwanie po nazwie (maska, regex), treści (ripgrep, kodowania), dacie, rozmiarze i atrybutach; wyniki opcjonalnie w panelu.": {
+      "extractionState": "manual"
+    },
+    "Wyszukiwanie przez indeks Spotlight w bieżącym katalogu.": {
+      "extractionState": "manual"
+    },
+    "Wyszukiwanie w treści wymaga ripgrep (brew install ripgrep)": {
       "extractionState": "manual"
     },
     "Wytnij": {
@@ -1231,6 +1492,12 @@
     "Zamienia katalogi aktywnych kart obu paneli.": {
       "extractionState": "manual"
     },
+    "Zamień na": {
+      "extractionState": "manual"
+    },
+    "Zamień na ($1… dla wyrażeń regularnych)": {
+      "extractionState": "manual"
+    },
     "Zamień panele": {
       "extractionState": "manual"
     },
@@ -1246,6 +1513,21 @@
     "Zapamiętuje nazwy zaznaczonych elementów.": {
       "extractionState": "manual"
     },
+    "Zapisane": {
+      "extractionState": "manual"
+    },
+    "Zapisane wyszukiwania": {
+      "extractionState": "manual"
+    },
+    "Zapisane wyszukiwanie": {
+      "extractionState": "manual"
+    },
+    "Zapisano „%@”": {
+      "extractionState": "manual"
+    },
+    "Zapisuje kryteria wyszukiwania pod nazwą.": {
+      "extractionState": "manual"
+    },
     "Zapisuje listę zaznaczonych nazw w katalogu aplikacji.": {
       "extractionState": "manual"
     },
@@ -1253,6 +1535,12 @@
       "extractionState": "manual"
     },
     "Zapisz listę": {
+      "extractionState": "manual"
+    },
+    "Zapisz plik sum (domyślnie tak); false = tylko zwróć sumy": {
+      "extractionState": "manual"
+    },
+    "Zapisz wyszukiwanie": {
       "extractionState": "manual"
     },
     "Zapisz zaznaczenie do pliku…": {
@@ -1276,6 +1564,9 @@
     "Zastępuje zaznaczenie podanymi elementami bieżącego katalogu.": {
       "extractionState": "manual"
     },
+    "Zatrzymaj": {
+      "extractionState": "manual"
+    },
     "Zatwierdź": {
       "extractionState": "manual"
     },
@@ -1292,6 +1583,9 @@
       "extractionState": "manual"
     },
     "Zaznacz i w górę": {
+      "extractionState": "manual"
+    },
+    "Zaznacz plik sum (.md5, .sha1, .sha256)": {
       "extractionState": "manual"
     },
     "Zaznacz pliki z tym samym rozszerzeniem": {
@@ -1336,7 +1630,22 @@
     "Zaznaczono: %lld": {
       "extractionState": "manual"
     },
+    "Zmian: %@ z %lld, problemy: %@": {
+      "extractionState": "manual"
+    },
     "Zmiana atrybutów (%lld)": {
+      "extractionState": "manual"
+    },
+    "Zmiana nazw (%lld)": {
+      "extractionState": "manual"
+    },
+    "Zmiana nazw wielu plików…": {
+      "extractionState": "manual"
+    },
+    "Zmiana nazw: %@": {
+      "extractionState": "manual"
+    },
+    "Zmiana nazw: %@ z %lld": {
       "extractionState": "manual"
     },
     "Zmiana nazwy %@ → %@": {
@@ -1345,13 +1654,22 @@
     "Zmiana tagów (%lld)": {
       "extractionState": "manual"
     },
+    "Zmienia nazwy wielu elementów według masek, licznika, dat, metadanych EXIF/multimediów, znajdź-zamień (regex) i wielkości liter; z podglądem.": {
+      "extractionState": "manual"
+    },
     "Zmienia nazwę elementu.": {
       "extractionState": "manual"
     },
     "Zmienia prawa, właściciela, daty i flagi elementów.": {
       "extractionState": "manual"
     },
+    "Zmieniono nazwy: %lld, pominięto: %lld": {
+      "extractionState": "manual"
+    },
     "Zmień": {
+      "extractionState": "manual"
+    },
+    "Zmień nazwy": {
       "extractionState": "manual"
     },
     "Zmień nazwę": {
@@ -1364,6 +1682,27 @@
       "extractionState": "manual"
     },
     "Zmień prawa dostępu": {
+      "extractionState": "manual"
+    },
+    "Zmodyfikowane po (ISO 8601)": {
+      "extractionState": "manual"
+    },
+    "Zmodyfikowane przed (ISO 8601)": {
+      "extractionState": "manual"
+    },
+    "Znajdź": {
+      "extractionState": "manual"
+    },
+    "Znajdź (w całej nowej nazwie)": {
+      "extractionState": "manual"
+    },
+    "Znajdź jako wyrażenie regularne": {
+      "extractionState": "manual"
+    },
+    "Znaleziono: %@": {
+      "extractionState": "manual"
+    },
+    "Znaleziono: %lld": {
       "extractionState": "manual"
     },
     "Zrzut szesnastkowy (dla plików binarnych, maks. 64 KB)": {
@@ -1384,10 +1723,22 @@
     "agy mcp add zakończył się błędem (%@)": {
       "extractionState": "manual"
     },
+    "albo regex na nazwie": {
+      "extractionState": "manual"
+    },
     "anulowane": {
       "extractionState": "manual"
     },
+    "any | files | directories": {
+      "extractionState": "manual"
+    },
     "archiwa": {
+      "extractionState": "manual"
+    },
+    "bez pliku sum": {
+      "extractionState": "manual"
+    },
+    "bez zmian": {
       "extractionState": "manual"
     },
     "brak karty": {
@@ -1402,7 +1753,22 @@
     "cofnięta": {
       "extractionState": "manual"
     },
+    "content (treść), nameAndSize, name": {
+      "extractionState": "manual"
+    },
+    "cyfry %lld": {
+      "extractionState": "manual"
+    },
     "czeka na zgodę": {
+      "extractionState": "manual"
+    },
+    "do": {
+      "extractionState": "manual"
+    },
+    "duplikaty (%lld)": {
+      "extractionState": "manual"
+    },
+    "element o tej nazwie już istnieje": {
       "extractionState": "manual"
     },
     "iPhone": {
@@ -1414,6 +1780,9 @@
     "konflikty": {
       "extractionState": "manual"
     },
+    "krok %lld": {
+      "extractionState": "manual"
+    },
     "liczba ósemkowa, np. 644": {
       "extractionState": "manual"
     },
@@ -1423,7 +1792,28 @@
     "macOS (Cmd)": {
       "extractionState": "manual"
     },
+    "maks. rozmiar": {
+      "extractionState": "manual"
+    },
+    "maska, np. *.txt;*.md|*.bak": {
+      "extractionState": "manual"
+    },
+    "małe litery": {
+      "extractionState": "manual"
+    },
+    "md5, sha1, sha256 (domyślnie)": {
+      "extractionState": "manual"
+    },
+    "min. rozmiar (10M)": {
+      "extractionState": "manual"
+    },
+    "nazwa": {
+      "extractionState": "manual"
+    },
     "nieodwracalna": {
+      "extractionState": "manual"
+    },
+    "nieprawidłowa nazwa": {
       "extractionState": "manual"
     },
     "odblokowany": {
@@ -1432,13 +1822,34 @@
     "odczyt": {
       "extractionState": "manual"
     },
+    "pliki i katalogi": {
+      "extractionState": "manual"
+    },
+    "regex": {
+      "extractionState": "manual"
+    },
     "serwery, chmury, synchronizacja": {
+      "extractionState": "manual"
+    },
+    "suma zgodna": {
+      "extractionState": "manual"
+    },
+    "taka sama nazwa jak dla „%@”": {
+      "extractionState": "manual"
+    },
+    "tekst w plikach (ripgrep)": {
       "extractionState": "manual"
     },
     "telefony z Androidem": {
       "extractionState": "manual"
     },
     "to nie jest zwykły plik": {
+      "extractionState": "manual"
+    },
+    "tylko katalogi": {
+      "extractionState": "manual"
+    },
+    "tylko pliki": {
       "extractionState": "manual"
     },
     "ukryty": {
@@ -1465,6 +1876,9 @@
     "wykonanie": {
       "extractionState": "manual"
     },
+    "wyniki": {
+      "extractionState": "manual"
+    },
     "wyszukiwanie w treści": {
       "extractionState": "manual"
     },
@@ -1481,6 +1895,12 @@
       "extractionState": "manual"
     },
     "zmod. %@": {
+      "extractionState": "manual"
+    },
+    "zmodyfikowane od": {
+      "extractionState": "manual"
+    },
+    "Łączy części .001, .002… w jeden plik i sprawdza sumę, jeśli jest plik .sha256.": {
       "extractionState": "manual"
     },
     "Ścieżka katalogu (absolutna, z ~ albo względna wobec bieżącego)": {

@@ -58,6 +58,16 @@ public enum ToolCatalog {
         Entry("queue_resume", "queue.resume"),
         Entry("queue_cancel", "queue.cancel"),
         Entry("queue_speed_limit", "queue.setSpeedLimit"),
+        Entry("search", "search.find"),
+        Entry("spotlight_search", "search.spotlight"),
+        Entry("saved_search_run", "search.runSaved"),
+        Entry("saved_search_list", "search.listSaved"),
+        Entry("find_duplicates", "search.duplicates"),
+        Entry("multi_rename", "file.multiRename"),
+        Entry("checksum", "file.checksumCreate"),
+        Entry("checksum_verify", "file.checksumVerify"),
+        Entry("split_file", "file.split"),
+        Entry("join_files", "file.join"),
     ]
 
     public static func entry(named name: String) -> Entry? { entries.first { $0.tool == name } }

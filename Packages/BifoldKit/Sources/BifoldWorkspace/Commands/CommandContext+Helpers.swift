@@ -37,6 +37,12 @@ extension CommandContext {
         return r
     }
 
+    /// Bieżący katalog musi być lokalny (nie np. wyniki wyszukiwania) dla operacji tworzących pliki.
+    func requireLocalDirectory() throws -> VFSPath {
+        guard tab.path.isLocal else { throw CommandError.notAvailable(L10n.tr("Ta operacja wymaga zwykłego katalogu, nie listy wyników")) }
+        return tab.path
+    }
+
     func requireUI() throws -> any UIServices {
         guard let ui else { throw CommandError.notAvailable(L10n.tr("Ta komenda wymaga interfejsu")) }
         return ui

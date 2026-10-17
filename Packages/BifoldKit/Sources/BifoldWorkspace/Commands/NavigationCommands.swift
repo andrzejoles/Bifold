@@ -4,7 +4,7 @@ import Foundation
 extension CommandRegistry {
     /// Wszystkie komendy Etapu 1, w kolejności menu.
     @MainActor public static func standard() -> CommandRegistry {
-        CommandRegistry(navigationCommands + tabCommands + viewCommands + selectionCommands + fileCommands + clipboardCommands + editCommands + queueCommands + toolCommands)
+        CommandRegistry(navigationCommands + tabCommands + viewCommands + selectionCommands + fileCommands + searchCommands + clipboardCommands + editCommands + queueCommands + toolCommands)
     }
 }
 
@@ -44,6 +44,9 @@ var navigationCommands: [Command] { [
         guard let item = ctx.tab.cursorItem else { return .ok }
         if item.isParentLink {
             try await ctx.tab.goUp()
+        } else if ctx.tab.isSearchResults, item.isNavigable {
+            try await ctx.tab.navigate(to: item.path)
+            ctx.tab.customTitle = nil
         } else if item.isNavigable && !(isPackage(item)) {
             try await ctx.tab.navigate(to: item.path)
         } else if let url = item.path.url {

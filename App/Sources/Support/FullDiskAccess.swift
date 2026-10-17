@@ -20,8 +20,13 @@ enum FullDiskAccess {
 
     static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
 
-    static func showInstructions(for window: NSWindow?) {
+    static let suppressKey = "FullDiskAccessInstructionsSuppressed"
+
+    static func showInstructions(for window: NSWindow?, force: Bool = false) {
+        if !force && UserDefaults.standard.bool(forKey: suppressKey) { return }
         let alert = NSAlert()
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = L10n.tr("Nie pokazuj przy starcie (instrukcja jest w Ustawieniach → Ogólne)")
         alert.alertStyle = .warning
         alert.messageText = L10n.tr("\(Brand.appName) potrzebuje pełnego dostępu do dysku")
         alert.informativeText = L10n.tr("""
@@ -34,6 +39,7 @@ enum FullDiskAccess {
         alert.addButton(withTitle: L10n.tr("Otwórz Ustawienia systemowe"))
         alert.addButton(withTitle: L10n.tr("Później"))
         let handler: (NSApplication.ModalResponse) -> Void = { response in
+            if alert.suppressionButton?.state == .on { UserDefaults.standard.set(true, forKey: suppressKey) }
             if response == .alertFirstButtonReturn {
                 NSWorkspace.shared.open(settingsURL)
                 NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])

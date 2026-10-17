@@ -22,7 +22,6 @@ final class DirectoryWatcher: @unchecked Sendable {
         // FSEvents raportuje ścieżki rzeczywiste (np. /private/tmp zamiast /tmp).
         self.watchedPath = realPath(path) ?? path
         self.continuation = continuation
-        queue.setSpecific(key: Self.queueKey, value: ())
     }
 
     private func start() {
@@ -52,19 +51,19 @@ final class DirectoryWatcher: @unchecked Sendable {
         }
     }
 
+    /// Zatrzymanie asynchronicznie na kolejce strumienia. (Wcześniej `queue.sync` — zakleszczenie,
+    /// gdy anulowanie strumienia trzyma jego blokadę, a callback FSEvents czeka na nią w `yield`.)
+    /// Blok trzyma silną referencję, więc obiekt żyje do unieważnienia strumienia; po
+    /// `FSEventStreamInvalidate` na tej kolejce callback już się nie wykona.
     private func stop() {
-        // Synchronicznie: po powrocie callback nie może już odwołać się do `self`.
-        let work = { [self] in
+        queue.async { [self] in
             guard let stream else { return }
             FSEventStreamStop(stream)
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
             self.stream = nil
         }
-        if DispatchQueue.getSpecific(key: Self.queueKey) != nil { work() } else { queue.sync(execute: work) }
     }
-
-    private static let queueKey = DispatchSpecificKey<Void>()
 
     private func handle(path: String, flags: FSEventStreamEventFlags) {
         let trimmed = path.hasSuffix("/") && path.count > 1 ? String(path.dropLast()) : path

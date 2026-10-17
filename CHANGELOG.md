@@ -4,6 +4,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — Etap 3 (wyszukiwanie, zmiana nazw, narzędzia plikowe)
+- Wyszukiwanie (Alt+F7): maska/regex nazwy, treść przez ripgrep (kodowania, w tym windows-1250),
+  daty, rozmiary, typ, ukryte; wyniki na żywo, „Do panelu”, „Przejdź do pliku”, zapisane wyszukiwania.
+- Spotlight (`NSMetadataQuery`), duplikaty (nazwa / nazwa+rozmiar / treść SHA-256).
+- Zmiana nazw wielu plików (Ctrl+M) z podglądem: maski TC, licznik, daty, EXIF, tagi multimediów,
+  znajdź-zamień (regex), wielkość liter nazwy i rozszerzenia; cofanie także zamian a↔b.
+- Sumy MD5/SHA-1/SHA-256 (tworzenie i weryfikacja), dzielenie i łączenie plików z kontrolą SHA-256.
+- Narzędzia MCP: search, spotlight_search, saved_search_*, find_duplicates, multi_rename, checksum,
+  checksum_verify, split_file, join_files.
+
+### Naprawione
+- Zawieszanie startu na folderach w chmurze (tagi czytane w tle), zakleszczenie obserwatora katalogów,
+  okno zatwierdzania bez przycisku domyślnego.
+
 ### Dodane — Etap 2 (API agentów)
 - Most `bifold-mcp` (stdio ⇄ gniazdo Unix `0600` w katalogu `0700`, bez portów TCP) w pakiecie aplikacji.
 - Uwierzytelnianie połączenia: UID rozmówcy, ramka `hello` z 256-bitowym tokenem (porównanie w stałym

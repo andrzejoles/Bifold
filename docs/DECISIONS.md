@@ -119,3 +119,28 @@ Jeśli Bifold uruchomiono z terminala, w którym działało CLI agenta, zmienne 
 Test w aplikacji pokazał, że Enter wciśnięty w terminalu agenta tuż przed pojawieniem się arkusza
 mógł zatwierdzić operację. Teraz „Zatwierdź” nie ma skrótu klawiszowego i włącza się po 0,8 s,
 Esc odrzuca. Zgoda wymaga kliknięcia.
+
+### D24 · 2026-10-17 — Teksty do procesów nie przez argumenty (`Process` → NFD)
+`Process` przekazuje argumenty w postaci `fileSystemRepresentation`, czyli NFD. Wzorzec
+„gęślą” w NFD nie pasuje do tekstu w NFC, więc ripgrep dostaje wzorzec z pliku (`--file`,
+plik tymczasowy 0600). Ścieżki mogą iść argumentami (system plików i tak normalizuje).
+
+### D25 · 2026-10-17 — Żadnych odczytów atrybutów rozszerzonych na głównym wątku
+Zawieszony start aplikacji: kolumna „Tagi” czytała tagi Findera (`getxattr`) na głównym wątku,
+a dla folderu File Provider (OneDrive) wywołanie blokowało się. Tagi wczytuje teraz jedna kolejka
+w tle, a wiersz odświeża się po odczycie.
+
+### D26 · 2026-10-17 — `DirectoryWatcher.stop()` asynchronicznie
+`queue.sync` przy anulowaniu strumienia zakleszczał się z callbackiem FSEvents czekającym na
+blokadę `AsyncStream` (wykryte w pełnym przebiegu testów). Zatrzymanie idzie przez `queue.async`.
+
+### D27 · 2026-10-17 — Wyniki wyszukiwania jako dostawca `search:<id>`
+Wyniki (Alt+F7, Spotlight, duplikaty) trafiają do nowej karty z dostawcą `SearchResultsFS`;
+elementy mają prawdziwe ścieżki lokalne, więc działają na nich wszystkie komendy. Operacje
+tworzące pliki w takiej karcie są zablokowane. Karty wyników nie są przywracane po restarcie.
+
+### D28 · 2026-10-17 — Zmiana nazw wielu plików: maski TC + rozszerzenia
+Składnia jak w TC (`[N]`, `[E]`, `[N2-5]`, `[C]`, `[P]`, `[Y][M][D]`…) plus `[Exif:Pole]`,
+`[Exif:DateTimeOriginal:format]` (ImageIO) i `[Media:artist|title|album|year]` (AVFoundation).
+Zamiany nazw w obrębie zbioru (a↔b) idą przez nazwy tymczasowe i każdy krok trafia do dziennika,
+więc cofanie jest dokładne.

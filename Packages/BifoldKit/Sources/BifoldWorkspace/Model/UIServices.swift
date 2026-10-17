@@ -46,4 +46,8 @@ public protocol UIServices: AnyObject {
     func showSettings()
     func showJournal()
     func transferDelegate() -> any TransferDelegate
+    /// Etap 3
+    func showSearch(directory: VFSPath, criteria: SearchCriteria?)
+    func showMultiRename(items: [FileItem])
+    func showReport(title: String, text: String)
 }

@@ -9,6 +9,13 @@ final class AppUIServices: UIServices {
     let workspace: Workspace
     weak var mainWindow: MainWindowController?
     private var viewers: [ViewerWindowController] = []
+    /// Okna pomocnicze (wyszukiwanie, zmiana nazw) — trzymane do zamknięcia.
+    private var windows: [NSWindowController] = []
+
+    private func keep(_ controller: NSWindowController) {
+        windows.removeAll { !($0.window?.isVisible ?? false) && !($0.window?.isMiniaturized ?? false) }
+        windows.append(controller)
+    }
     private lazy var quickLook = QuickLookController()
     private lazy var palette = CommandPaletteController(workspace: workspace)
     private var settingsWindow: NSWindowController?
@@ -295,6 +302,26 @@ final class AppUIServices: UIServices {
 
     func transferDelegate() -> any TransferDelegate {
         AppTransferDelegate(services: self)
+    }
+
+    func showSearch(directory: VFSPath, criteria: SearchCriteria?) {
+        let controller = SearchWindowController(workspace: workspace, directory: directory, criteria: criteria)
+        keep(controller)
+        controller.showWindow(nil)
+    }
+
+    func showMultiRename(items: [FileItem]) {
+        let controller = MultiRenameWindowController(items: items, workspace: workspace)
+        keep(controller)
+        controller.showWindow(nil)
+    }
+
+    func showReport(title: String, text: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.accessoryView = AgentUIController.textAccessory(text)
+        alert.addButton(withTitle: L10n.tr("OK"))
+        Task { _ = await present(alert) }
     }
 }
 

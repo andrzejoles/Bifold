@@ -107,7 +107,8 @@ public final class Workspace {
     /// do najbliższego istniejącego katalogu nadrzędnego.
     public func start() async {
         for tab in left.tabs + right.tabs {
-            var target: VFSPath? = tab.path
+            // Karty wyników wyszukiwania nie przetrwają restartu — wracają do katalogu domowego.
+            var target: VFSPath? = (try? providers.provider(for: tab.path)) == nil ? .local(NSHomeDirectory()) : tab.path
             var focus = restoredCursors[tab.id]
             while let t = target {
                 if (try? await tab.navigate(to: t, focus: focus)) != nil { break }
@@ -116,6 +117,18 @@ public final class Workspace {
             }
         }
         refreshVolumes()
+    }
+
+    /// Wyniki wyszukiwania w nowej karcie aktywnego (lub wskazanego) panelu.
+    @discardableResult
+    public func showResults(title: String, items: [FileItem], side: PanelSide? = nil) async throws -> Tab {
+        let provider = SearchResultsFS(title: title, items: items)
+        providers.register(provider)
+        let panel = self.panel(side ?? activeSide)
+        let tab = panel.newTab(at: provider.root)
+        tab.customTitle = "🔍 " + title
+        try await tab.navigate(to: provider.root)
+        return tab
     }
 
     public func panel(_ side: PanelSide) -> Panel { side == .left ? left : right }

@@ -144,11 +144,20 @@ final class DetailsListView: NSView, FileListView {
 
     fileprivate func isMarked(_ item: FileItem) -> Bool { tab?.selection.contains(item.path) ?? false }
 
+    /// Tagi czytane w tle (getxattr na plikach w chmurze — OneDrive, iCloud — potrafi blokować),
+    /// po odczycie odświeżany jest tylko ten wiersz.
     fileprivate func tags(for item: FileItem) -> [String] {
         if let t = tagCache[item.path] { return t }
-        let t = (try? LocalFS().tagsSync(of: item.path)) ?? []
-        tagCache[item.path] = t
-        return t
+        tagCache[item.path] = []
+        let path = item.path
+        TagLoader.shared.load(path) { [weak self] tags in
+            guard let self, !tags.isEmpty else { return }
+            self.tagCache[path] = tags
+            if let row = self.items.firstIndex(where: { $0.path == path }), let col = self.table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "tags" }) {
+                self.table.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: col))
+            }
+        }
+        return []
     }
 }
 
@@ -164,6 +173,10 @@ extension DetailsListView: NSTableViewDataSource, NSTableViewDelegate {
         let text: String
         var secondary = false
         switch column {
+        case .name where tab?.isSearchResults == true:
+            // Wyniki wyszukiwania: pełna ścieżka (elementy z różnych katalogów).
+            text = (item.path.path as NSString).abbreviatingWithTildeInPath
+            cell.imageView?.image = IconCache.shared.icon(for: item)
         case .name:
             text = item.isNavigable || item.isParentLink ? item.name : (item.fileExtension.isEmpty ? item.name : item.name.fileStem)
             cell.imageView?.image = IconCache.shared.icon(for: item)
@@ -287,4 +300,18 @@ final class FileTableView: NSTableView {
     }
 
     override func validateProposedFirstResponder(_ responder: NSResponder, for event: NSEvent?) -> Bool { true }
+}
+
+/// Odczyt tagów Findera poza głównym wątkiem (jedna kolejka, żeby zablokowany plik w chmurze
+/// nie zajął wielu wątków).
+final class TagLoader: @unchecked Sendable {
+    static let shared = TagLoader()
+    private let queue = DispatchQueue(label: "bifold.tags", qos: .utility)
+
+    func load(_ path: VFSPath, completion: @escaping @MainActor ([String]) -> Void) {
+        queue.async {
+            let tags = (try? LocalFS().tagsSync(of: path)) ?? []
+            Task { @MainActor in completion(tags) }
+        }
+    }
 }

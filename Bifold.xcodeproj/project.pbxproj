@@ -11,6 +11,7 @@
 		0FD666503EB0E24987D66E2D /* HexFiend.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2603FC086786D7D7FBE7ADE3 /* HexFiend.framework */; };
 		1116E89CAA0F84AA450BD1BC /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5FA15C9237BD0D5CCD2D9F2 /* Theme.swift */; };
 		14DD14E17BB5A8FB98F6C618 /* BifoldAgent in Frameworks */ = {isa = PBXBuildFile; productRef = 14C4EAF34643E9662961215E /* BifoldAgent */; };
+		1A4609D5778CE31D0F2B1958 /* MultiRenameWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A01328784CA8E2FEE1FA718 /* MultiRenameWindow.swift */; };
 		203113BB789AE150F78C70E8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F627BE2FCFDE1EAE3F030427 /* SettingsView.swift */; };
 		24F6F373A76BFB5DCC5B07BD /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BA1ED275D245D8F3D7E0213E /* Localizable.xcstrings */; };
 		26989D62F76DF349345F5186 /* BifoldBridgeKit in Frameworks */ = {isa = PBXBuildFile; productRef = B760EFAB67E4C2939313D878 /* BifoldBridgeKit */; };
@@ -43,6 +44,7 @@
 		E74263AEF86B1F30B5C30BC5 /* ColumnListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ACFDBB9F909F9FECBAB84F4 /* ColumnListView.swift */; };
 		E7D80F286F2BCB8EAFA83C30 /* HexFiend.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2603FC086786D7D7FBE7ADE3 /* HexFiend.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F57F3DB573560DE1641C152D /* AppUIServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020926F0EF46C78FC131B60C /* AppUIServices.swift */; };
+		F65FF48AF8F97E5D950F962B /* SearchWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA25122A33169D614B10B583 /* SearchWindow.swift */; };
 		FD838B4FFBD70ED4E5584384 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 606B26C74D764E268FD6D7D8 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -83,6 +85,7 @@
 
 /* Begin PBXFileReference section */
 		020926F0EF46C78FC131B60C /* AppUIServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUIServices.swift; sourceTree = "<group>"; };
+		1A01328784CA8E2FEE1FA718 /* MultiRenameWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiRenameWindow.swift; sourceTree = "<group>"; };
 		2603FC086786D7D7FBE7ADE3 /* HexFiend.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HexFiend.framework; path = ThirdParty/build/HexFiend.framework; sourceTree = "<group>"; };
 		2AEF1F68B23C6C1946EB1AF7 /* CommandPaletteController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteController.swift; sourceTree = "<group>"; };
 		36BBC7D375CB52AFFDFB0B10 /* FullDiskAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullDiskAccess.swift; sourceTree = "<group>"; };
@@ -109,6 +112,7 @@
 		CE72F960ECE1D54DB93340F5 /* Bifold.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bifold.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D55DF27BCB5B4FB2B145F433 /* MainWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		D5FA15C9237BD0D5CCD2D9F2 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		DA25122A33169D614B10B583 /* SearchWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchWindow.swift; sourceTree = "<group>"; };
 		E49E1DE49E280B7D389E2A64 /* AgentPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPane.swift; sourceTree = "<group>"; };
 		EE0880797A5A61F530C55920 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		F1E73F4F7492DA6533F57EBF /* GridListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridListView.swift; sourceTree = "<group>"; };
@@ -147,6 +151,8 @@
 			children = (
 				2AEF1F68B23C6C1946EB1AF7 /* CommandPaletteController.swift */,
 				6BC932422FFDBA0C36E9A0F4 /* JournalWindowController.swift */,
+				1A01328784CA8E2FEE1FA718 /* MultiRenameWindow.swift */,
+				DA25122A33169D614B10B583 /* SearchWindow.swift */,
 				F627BE2FCFDE1EAE3F030427 /* SettingsView.swift */,
 			);
 			path = Windows;
@@ -482,11 +488,13 @@
 				45F9582AE7D4EB6B035898AC /* KeyChord+NSEvent.swift in Sources */,
 				515C85BEFD6FC203CBF82B05 /* MainWindowController.swift in Sources */,
 				5F72C36E45B62E116C83E6DA /* MenuBuilder.swift in Sources */,
+				1A4609D5778CE31D0F2B1958 /* MultiRenameWindow.swift in Sources */,
 				D2EB9CD81B5D8F046DCD8F2A /* Observe.swift in Sources */,
 				42D9ED7E4C2E3D22017229C4 /* PanelBars.swift in Sources */,
 				CBFAC2C52D0F3302C2C3EBCC /* PanelViewController.swift in Sources */,
 				63EA5D8E2D2A15FB69EB3D6A /* QuickLookController.swift in Sources */,
 				C2B4CD356CEE4D299A1FC712 /* QuickViewPane.swift in Sources */,
+				F65FF48AF8F97E5D950F962B /* SearchWindow.swift in Sources */,
 				203113BB789AE150F78C70E8 /* SettingsView.swift in Sources */,
 				446A5D5718B440193E71D5B4 /* TerminalPane.swift in Sources */,
 				1116E89CAA0F84AA450BD1BC /* Theme.swift in Sources */,

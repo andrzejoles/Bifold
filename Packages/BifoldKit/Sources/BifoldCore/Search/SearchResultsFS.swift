@@ -1,0 +1,92 @@
+import Foundation
+import Synchronization
+
+/// Wyniki wyszukiwania jako „katalog” w panelu (TC: Feed to listbox). Elementy mają
+/// prawdziwe ścieżki lokalne, więc wszystkie operacje (kopiowanie, Kosz, zmiana nazw) działają.
+public final class SearchResultsFS: FileSystemProvider {
+    public let id: ProviderID
+    public let title: String
+    public let capabilities: ProviderCapabilities = [.read]
+    private let items: Mutex<[FileItem]>
+
+    public init(title: String, items: [FileItem]) {
+        id = ProviderID("search:\(UUID().uuidString.prefix(8).lowercased())")
+        self.title = title
+        self.items = Mutex(items)
+    }
+
+    public var root: VFSPath { VFSPath(provider: id, path: "/") }
+
+    public func list(_ directory: VFSPath, options: ListOptions) async throws -> [FileItem] {
+        // Elementy usunięte od czasu wyszukiwania znikają z listy.
+        let current = items.withLock { $0 }
+        let fs = LocalFS()
+        let fresh = current.compactMap { try? fs.itemSync(at: $0.path) }
+        items.withLock { $0 = fresh }
+        return options.includeHidden ? fresh : fresh.filter { !$0.isHidden }
+    }
+
+    public func item(at path: VFSPath) async throws -> FileItem {
+        if path == root { return FileItem(path: root, name: title, kind: .directory) }
+        return try LocalFS().itemSync(at: .local(path.path))
+    }
+
+    public func readContents(_ path: VFSPath, range: Range<Int64>?) async throws -> Data {
+        try LocalFS().readSync(.local(path.path), range: range)
+    }
+
+    public func volumeInfo(for path: VFSPath) async throws -> VolumeInfo {
+        try Volumes.info(for: .root)
+    }
+
+    public static func isSearchResults(_ path: VFSPath) -> Bool {
+        path.provider.rawValue.hasPrefix("search:")
+    }
+}
+
+/// Spotlight (`NSMetadataQuery`): zapytanie tekstowe (nazwa lub treść) w zakresie katalogów.
+@MainActor
+public final class SpotlightSearch {
+    private let query = NSMetadataQuery()
+    private var observer: (any NSObjectProtocol)?
+    private var continuation: CheckedContinuation<[VFSPath], Never>?
+    private var limit = 2000
+
+    public static func run(_ text: String, scopes: [VFSPath], limit: Int = 2000, timeout: Double = 15) async -> [VFSPath] {
+        await SpotlightSearch().run(text, scopes: scopes, limit: limit, timeout: timeout)
+    }
+
+    private func run(_ text: String, scopes: [VFSPath], limit: Int, timeout: Double) async -> [VFSPath] {
+        self.limit = limit
+        let escaped = text.replacingOccurrences(of: "\"", with: "\\\"")
+        query.predicate = NSPredicate(fromMetadataQueryString:
+            "(kMDItemFSName == \"*\(escaped)*\"cd) || (kMDItemTextContent == \"\(escaped)\"cd) || (kMDItemDisplayName == \"*\(escaped)*\"cd)")
+        query.searchScopes = scopes.isEmpty ? [NSMetadataQueryUserHomeScope] : scopes.compactMap(\.url)
+        return await withCheckedContinuation { c in
+            continuation = c
+            observer = NotificationCenter.default.addObserver(forName: .NSMetadataQueryDidFinishGathering, object: query, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.finish() }
+            }
+            query.start()
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(timeout))
+                self?.finish()
+            }
+        }
+    }
+
+    private func finish() {
+        guard let c = continuation else { return }
+        continuation = nil
+        query.stop()
+        var out: [VFSPath] = []
+        for i in 0..<min(query.resultCount, limit) {
+            if let item = query.result(at: i) as? NSMetadataItem, let p = item.value(forAttribute: NSMetadataItemPathKey) as? String {
+                out.append(.local(p))
+            }
+        }
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        observer = nil
+        c.resume(returning: out)
+    }
+}

@@ -12,7 +12,8 @@ import Testing
             #expect(!c.title.isEmpty, "\(c.id)")
             #expect(!c.summary.isEmpty, "\(c.id)")
             // Komenda zmieniająca pliki nie może mieć poziomu „Pełny” ani „Odczyt”.
-            if c.effect == .modifiesFiles { #expect(c.agentAccess == .approval || c.agentAccess == .none, "\(c.id)") }
+            // Wyjątek z macierzy: sumy kontrolne („Pełny”) tworzą tylko nowy plik sum (cofalne).
+            if c.effect == .modifiesFiles, c.id != "file.checksumCreate" { #expect(c.agentAccess == .approval || c.agentAccess == .none, "\(c.id)") }
             if c.effect == .external { #expect(c.agentAccess == .none, "\(c.id)") }
         }
         #expect(Set(registry.descriptors.map(\.id)).count == registry.descriptors.count)
@@ -28,6 +29,9 @@ import Testing
         ("file.view", .read), ("view.quickLook", .read), ("view.previewPanel", .read), ("file.edit", .none),
         ("tools.commandLine", .none), ("tools.terminal", .none), ("tools.volumes", .read), ("file.tags", .approval),
         ("tools.share", .none), ("tools.openWith", .none),
+        ("search.find", .full), ("search.spotlight", .full), ("search.runSaved", .full), ("search.duplicates", .read),
+        ("file.multiRename", .approval), ("file.checksumCreate", .full), ("file.checksumVerify", .full),
+        ("file.split", .approval), ("file.join", .approval),
     ] as [(String, AgentAccess)])
     func accessMatrix(id: String, level: AgentAccess) {
         #expect(registry.command(CommandID(rawValue: id))?.descriptor.agentAccess == level)
