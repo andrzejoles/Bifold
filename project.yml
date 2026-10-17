@@ -1,0 +1,73 @@
+# Definicja projektu Xcode (XcodeGen). Po zmianie: `make generate`.
+name: Bifold
+options:
+  deploymentTarget:
+    macOS: "27.0"
+  developmentLanguage: pl
+  createIntermediateGroups: true
+  groupSortPosition: top
+configFiles:
+  Debug: Config/Brand.xcconfig
+  Release: Config/Brand.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
+    MACOSX_DEPLOYMENT_TARGET: "27.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    DEAD_CODE_STRIPPING: YES
+packages:
+  BifoldKit:
+    path: Packages/BifoldKit
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    exactVersion: 1.99.0
+targets:
+  Bifold:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Sources
+      - path: App/Resources
+    settings:
+      base:
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/Bifold.entitlements
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/ThirdParty/build
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - package: BifoldKit
+        product: BifoldCore
+      - package: BifoldKit
+        product: BifoldWorkspace
+      - package: SwiftTerm
+        product: SwiftTerm
+      - framework: ThirdParty/build/HexFiend.framework
+        embed: true
+        codeSign: true
+    preBuildScripts:
+      - name: HexFiend.framework
+        script: "\"$SRCROOT/scripts/build-hexfiend.sh\""
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(SRCROOT)/ThirdParty/build/HexFiend.framework/HexFiend
+schemes:
+  Bifold:
+    build:
+      targets:
+        Bifold: all
+    run:
+      config: Debug
+    archive:
+      config: Release

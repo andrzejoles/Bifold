@@ -1,0 +1,1323 @@
+{
+  "sourceLanguage": "pl",
+  "strings": {
+    "": {
+      "extractionState": "manual"
+    },
+    "%@ (domyślna)": {
+      "extractionState": "manual"
+    },
+    "%@ potrzebuje pełnego dostępu do dysku": {
+      "extractionState": "manual"
+    },
+    "%@ wolne": {
+      "extractionState": "manual"
+    },
+    "%@ zostanie usunięte bez możliwości cofnięcia.": {
+      "extractionState": "manual"
+    },
+    "%lld elementy": {
+      "extractionState": "manual"
+    },
+    "%lld elementów": {
+      "extractionState": "manual"
+    },
+    "%lld warunków": {
+      "extractionState": "manual"
+    },
+    "(bez nazwy)": {
+      "extractionState": "manual"
+    },
+    "1 element": {
+      "extractionState": "manual"
+    },
+    "<KAT>": {
+      "extractionState": "manual"
+    },
+    "API agenta jest wyłączone": {
+      "extractionState": "manual"
+    },
+    "Agenci AI": {
+      "extractionState": "manual"
+    },
+    "Anulowano": {
+      "extractionState": "manual"
+    },
+    "Anuluj": {
+      "extractionState": "manual"
+    },
+    "Anuluj operacje": {
+      "extractionState": "manual"
+    },
+    "Anuluje zadania w tle (bez pozostawiania częściowych plików).": {
+      "extractionState": "manual"
+    },
+    "Aplikacja": {
+      "extractionState": "manual"
+    },
+    "Atrybuty": {
+      "extractionState": "manual"
+    },
+    "Atrybuty i uprawnienia…": {
+      "extractionState": "manual"
+    },
+    "Atrybuty: %@": {
+      "extractionState": "manual"
+    },
+    "Atrybuty: %@ — %@": {
+      "extractionState": "manual"
+    },
+    "Bajty na sekundę (0 = bez limitu)": {
+      "extractionState": "manual"
+    },
+    "Bez limitu": {
+      "extractionState": "manual"
+    },
+    "Brak": {
+      "extractionState": "manual"
+    },
+    "Brak argumentu: %lld": {
+      "extractionState": "manual"
+    },
+    "Brak uprawnień: %@": {
+      "extractionState": "manual"
+    },
+    "Brak — część katalogów jest niedostępna": {
+      "extractionState": "manual"
+    },
+    "Bundle id (gdy aplikacji nie ma pod ścieżką)": {
+      "extractionState": "manual"
+    },
+    "Błąd JSON: %@": {
+      "extractionState": "manual"
+    },
+    "Błąd wejścia/wyjścia (%@): %@": {
+      "extractionState": "manual"
+    },
+    "Błąd: %@": {
+      "extractionState": "manual"
+    },
+    "Błędy: %lld": {
+      "extractionState": "manual"
+    },
+    "Ciemny": {
+      "extractionState": "manual"
+    },
+    "Co zrobić, gdy element docelowy istnieje (domyślnie skip)": {
+      "extractionState": "manual"
+    },
+    "Cofa ostatnią operację na plikach (przeniesienie, zmianę nazwy, Kosz, utworzenie, kopię, atrybuty, tagi). Agent cofa tylko własne operacje.": {
+      "extractionState": "manual"
+    },
+    "Cofnij operację": {
+      "extractionState": "manual"
+    },
+    "Cofnij pozostałe": {
+      "extractionState": "manual"
+    },
+    "Cofnij zaznaczoną operację": {
+      "extractionState": "manual"
+    },
+    "Cofnięcie „%@” — wykryto konflikty": {
+      "extractionState": "manual"
+    },
+    "Cofnięcie: %@": {
+      "extractionState": "manual"
+    },
+    "Cofnięto: %lld, pominięto: %lld, błędy: %lld": {
+      "extractionState": "manual"
+    },
+    "Czas": {
+      "extractionState": "manual"
+    },
+    "Czekaj na zakończenie zadania": {
+      "extractionState": "manual"
+    },
+    "Czyści listę zakończonych zadań.": {
+      "extractionState": "manual"
+    },
+    "Czyści zaznaczenie.": {
+      "extractionState": "manual"
+    },
+    "Dalej": {
+      "extractionState": "manual"
+    },
+    "Data": {
+      "extractionState": "manual"
+    },
+    "Data modyfikacji": {
+      "extractionState": "manual"
+    },
+    "Data modyfikacji ISO 8601": {
+      "extractionState": "manual"
+    },
+    "Data utworzenia": {
+      "extractionState": "manual"
+    },
+    "Data utworzenia ISO 8601": {
+      "extractionState": "manual"
+    },
+    "Dla wszystkich": {
+      "extractionState": "manual"
+    },
+    "Do Kosza": {
+      "extractionState": "manual"
+    },
+    "Do Kosza: %@": {
+      "extractionState": "manual"
+    },
+    "Dodaje do zaznaczenia elementy pasujące do maski.": {
+      "extractionState": "manual"
+    },
+    "Drugi panel pokazuje podgląd elementu pod kursorem (jak Ctrl+Q w TC).": {
+      "extractionState": "manual"
+    },
+    "Drzewo katalogów": {
+      "extractionState": "manual"
+    },
+    "Drzewo katalogów w nowych panelach": {
+      "extractionState": "manual"
+    },
+    "Dyski i woluminy": {
+      "extractionState": "manual"
+    },
+    "Dyski i woluminy…": {
+      "extractionState": "manual"
+    },
+    "Dziennik operacji": {
+      "extractionState": "manual"
+    },
+    "Edycja": {
+      "extractionState": "manual"
+    },
+    "Edytor (F4)": {
+      "extractionState": "manual"
+    },
+    "Edytuj": {
+      "extractionState": "manual"
+    },
+    "Element (domyślnie pod kursorem)": {
+      "extractionState": "manual"
+    },
+    "Element już istnieje: %@": {
+      "extractionState": "manual"
+    },
+    "Element nie istnieje: %@": {
+      "extractionState": "manual"
+    },
+    "Element zmienił się od czasu operacji: %@": {
+      "extractionState": "manual"
+    },
+    "F1–F12 na MacBooku wymagają klawisza fn (albo włącz „Używaj klawiszy F1, F2 itd. jako standardowych klawiszy funkcyjnych”). Profil macOS dodaje zamienniki z Cmd.": {
+      "extractionState": "manual"
+    },
+    "Filtr panelu": {
+      "extractionState": "manual"
+    },
+    "Filtr: %@": {
+      "extractionState": "manual"
+    },
+    "Filtr: fragment nazwy lub maska (*.jpg)": {
+      "extractionState": "manual"
+    },
+    "Flaga „ukryty”": {
+      "extractionState": "manual"
+    },
+    "Flaga „zablokowany”": {
+      "extractionState": "manual"
+    },
+    "Fragment nazwy albo maska (np. *.jpg); pusty tekst wyłącza filtr": {
+      "extractionState": "manual"
+    },
+    "GID grupy": {
+      "extractionState": "manual"
+    },
+    "Gdy istnieje:": {
+      "extractionState": "manual"
+    },
+    "Grupa": {
+      "extractionState": "manual"
+    },
+    "Identyfikator zadania (domyślnie wszystkie aktywne)": {
+      "extractionState": "manual"
+    },
+    "Jasny": {
+      "extractionState": "manual"
+    },
+    "Karty": {
+      "extractionState": "manual"
+    },
+    "Katalog docelowy albo nowa ścieżka (jeden element); domyślnie katalog drugiego panelu": {
+      "extractionState": "manual"
+    },
+    "Katalog domowy": {
+      "extractionState": "manual"
+    },
+    "Katalog główny": {
+      "extractionState": "manual"
+    },
+    "Katalog nadrzędny": {
+      "extractionState": "manual"
+    },
+    "Katalog narzędzi": {
+      "extractionState": "manual"
+    },
+    "Katalog nowej karty (domyślnie bieżący)": {
+      "extractionState": "manual"
+    },
+    "Kolejka": {
+      "extractionState": "manual"
+    },
+    "Kolory": {
+      "extractionState": "manual"
+    },
+    "Kolumny": {
+      "extractionState": "manual"
+    },
+    "Komendy": {
+      "extractionState": "manual"
+    },
+    "Kopiowanie": {
+      "extractionState": "manual"
+    },
+    "Kopiuj": {
+      "extractionState": "manual"
+    },
+    "Kopiuj %@ do:": {
+      "extractionState": "manual"
+    },
+    "Kopiuj nazwy": {
+      "extractionState": "manual"
+    },
+    "Kopiuj ścieżki": {
+      "extractionState": "manual"
+    },
+    "Kopiuj ścieżkę katalogu": {
+      "extractionState": "manual"
+    },
+    "Kopiuje elementy w tle (z zachowaniem atrybutów, ACL i dat). Nadpisywane pliki trafiają do Kosza.": {
+      "extractionState": "manual"
+    },
+    "Kopiuje nazwy elementów do schowka (jedna w wierszu).": {
+      "extractionState": "manual"
+    },
+    "Kopiuje pełne ścieżki elementów do schowka (jedna w wierszu).": {
+      "extractionState": "manual"
+    },
+    "Kopiuje ścieżkę bieżącego katalogu do schowka.": {
+      "extractionState": "manual"
+    },
+    "Kopiuj…": {
+      "extractionState": "manual"
+    },
+    "Kroki bez konfliktów zostaną wykonane. „Wymuś” cofa też elementy zmienione od czasu operacji.": {
+      "extractionState": "manual"
+    },
+    "Kto": {
+      "extractionState": "manual"
+    },
+    "Liczy rozmiary zaznaczonych katalogów (bez zaznaczenia — wszystkich w panelu).": {
+      "extractionState": "manual"
+    },
+    "Limit prędkości": {
+      "extractionState": "manual"
+    },
+    "Limit prędkości w bajtach na sekundę (0 = bez limitu)": {
+      "extractionState": "manual"
+    },
+    "Limit prędkości…": {
+      "extractionState": "manual"
+    },
+    "Limit wywołań na minutę: %lld": {
+      "extractionState": "manual"
+    },
+    "Linia poleceń": {
+      "extractionState": "manual"
+    },
+    "Lista skrócona": {
+      "extractionState": "manual"
+    },
+    "Lista woluminów z wolnym miejscem.": {
+      "extractionState": "manual"
+    },
+    "Lista zadań": {
+      "extractionState": "manual"
+    },
+    "MB/s (0 = bez limitu):": {
+      "extractionState": "manual"
+    },
+    "Maks. rozmiar odczytu pliku: %@": {
+      "extractionState": "manual"
+    },
+    "Maska": {
+      "extractionState": "manual"
+    },
+    "Maska, np. *.jpg;*.png|tmp*": {
+      "extractionState": "manual"
+    },
+    "Maska: *.jpg;*.png — kilka wzorców przez „;”, wykluczenia po „|”, katalogi z „/” na końcu.": {
+      "extractionState": "manual"
+    },
+    "Menu Udostępnij macOS dla zaznaczonych elementów.": {
+      "extractionState": "manual"
+    },
+    "Miejsce docelowe jest zajęte: %@": {
+      "extractionState": "manual"
+    },
+    "Miniatury": {
+      "extractionState": "manual"
+    },
+    "Minimalizuj": {
+      "extractionState": "manual"
+    },
+    "Motyw": {
+      "extractionState": "manual"
+    },
+    "Nadany": {
+      "extractionState": "manual"
+    },
+    "Nadpisz": {
+      "extractionState": "manual"
+    },
+    "Nadpisz (stare do Kosza)": {
+      "extractionState": "manual"
+    },
+    "Nadpisz starsze": {
+      "extractionState": "manual"
+    },
+    "Narzędzia": {
+      "extractionState": "manual"
+    },
+    "Narzędzia (Homebrew)": {
+      "extractionState": "manual"
+    },
+    "Następna karta": {
+      "extractionState": "manual"
+    },
+    "Następny katalog w historii karty.": {
+      "extractionState": "manual"
+    },
+    "Nazwa": {
+      "extractionState": "manual"
+    },
+    "Nazwa elementu w bieżącym katalogu": {
+      "extractionState": "manual"
+    },
+    "Nazwa katalogu:": {
+      "extractionState": "manual"
+    },
+    "Nazwa katalogu; a/b/c tworzy zagnieżdżone": {
+      "extractionState": "manual"
+    },
+    "Nazwa nowego pliku (w bieżącym katalogu)": {
+      "extractionState": "manual"
+    },
+    "Nazwa pliku:": {
+      "extractionState": "manual"
+    },
+    "Nazwa zapisanego zaznaczenia": {
+      "extractionState": "manual"
+    },
+    "Nazwa zaznaczenia": {
+      "extractionState": "manual"
+    },
+    "Nazwy elementów w bieżącym katalogu": {
+      "extractionState": "manual"
+    },
+    "Nic nie zaznaczono": {
+      "extractionState": "manual"
+    },
+    "Nie ma czego cofać": {
+      "extractionState": "manual"
+    },
+    "Nie można skopiować katalogu do jego wnętrza: %@": {
+      "extractionState": "manual"
+    },
+    "Nie udało się": {
+      "extractionState": "manual"
+    },
+    "Nie znaleziono edytora (%@). Zmień go w Ustawieniach → Ogólne.": {
+      "extractionState": "manual"
+    },
+    "Nie znaleziono: %@": {
+      "extractionState": "manual"
+    },
+    "Nieprawidłowa nazwa: %lld": {
+      "extractionState": "manual"
+    },
+    "Nieprawidłowy argument %lld: %@": {
+      "extractionState": "manual"
+    },
+    "Nieprawidłowy skrót: %@ (np. ctrl+shift+k, cmd+alt+f5)": {
+      "extractionState": "manual"
+    },
+    "Nieznana komenda: %@": {
+      "extractionState": "manual"
+    },
+    "Nowa karta": {
+      "extractionState": "manual"
+    },
+    "Nowa lista tagów (zastępuje dotychczasowe)": {
+      "extractionState": "manual"
+    },
+    "Nowa nazwa": {
+      "extractionState": "manual"
+    },
+    "Nowa nazwa:": {
+      "extractionState": "manual"
+    },
+    "Nowy katalog": {
+      "extractionState": "manual"
+    },
+    "Nowy katalog %@": {
+      "extractionState": "manual"
+    },
+    "Nowy katalog…": {
+      "extractionState": "manual"
+    },
+    "Nowy plik": {
+      "extractionState": "manual"
+    },
+    "Nowy plik %@": {
+      "extractionState": "manual"
+    },
+    "Nowy plik…": {
+      "extractionState": "manual"
+    },
+    "Nowy pusty plik %@": {
+      "extractionState": "manual"
+    },
+    "Nowy: %@\nIstniejący: %@\n\nNadpisany plik trafi do Kosza.": {
+      "extractionState": "manual"
+    },
+    "Numer karty (od 0)": {
+      "extractionState": "manual"
+    },
+    "Numer karty (od 0); domyślnie aktywna": {
+      "extractionState": "manual"
+    },
+    "Numer wiersza (od 0)": {
+      "extractionState": "manual"
+    },
+    "O programie %@": {
+      "extractionState": "manual"
+    },
+    "OK": {
+      "extractionState": "manual"
+    },
+    "Obiekt {\"rules\":[…]} jak w colors.get": {
+      "extractionState": "manual"
+    },
+    "Oblicz rozmiary katalogów": {
+      "extractionState": "manual"
+    },
+    "Obraz": {
+      "extractionState": "manual"
+    },
+    "Odczyt": {
+      "extractionState": "manual"
+    },
+    "Odmontowuje i wysuwa wolumin.": {
+      "extractionState": "manual"
+    },
+    "Odwraca zaznaczenie plików w panelu.": {
+      "extractionState": "manual"
+    },
+    "Odwróć zaznaczenie": {
+      "extractionState": "manual"
+    },
+    "Odznacz według maski": {
+      "extractionState": "manual"
+    },
+    "Odznacz według maski…": {
+      "extractionState": "manual"
+    },
+    "Odznacz wszystko": {
+      "extractionState": "manual"
+    },
+    "Odśwież": {
+      "extractionState": "manual"
+    },
+    "Ogranicza prędkość zadań w tle.": {
+      "extractionState": "manual"
+    },
+    "Ogólne": {
+      "extractionState": "manual"
+    },
+    "Okno": {
+      "extractionState": "manual"
+    },
+    "Okno ustawień.": {
+      "extractionState": "manual"
+    },
+    "Operacja": {
+      "extractionState": "manual"
+    },
+    "Operacja między tymi systemami plików nie jest jeszcze obsługiwana": {
+      "extractionState": "manual"
+    },
+    "Operacja nieobsługiwana: %@": {
+      "extractionState": "manual"
+    },
+    "Operacji nie da się cofnąć: %@": {
+      "extractionState": "manual"
+    },
+    "Otwiera Quick Look dla zaznaczonych elementów.": {
+      "extractionState": "manual"
+    },
+    "Otwiera katalog spod kursora w drugim panelu.": {
+      "extractionState": "manual"
+    },
+    "Otwiera katalog w aktywnym (lub wskazanym) panelu. Ścieżka do pliku otwiera jego katalog i ustawia na nim kursor.": {
+      "extractionState": "manual"
+    },
+    "Otwiera nową kartę w panelu.": {
+      "extractionState": "manual"
+    },
+    "Otwiera plik w edytorze (domyślnie Nextpad++).": {
+      "extractionState": "manual"
+    },
+    "Otwiera podgląd pliku (tekst w wybranym kodowaniu, hex, obrazy).": {
+      "extractionState": "manual"
+    },
+    "Otwiera w drugim panelu katalog aktywnego panelu.": {
+      "extractionState": "manual"
+    },
+    "Otwórz": {
+      "extractionState": "manual"
+    },
+    "Otwórz Ustawienia systemowe": {
+      "extractionState": "manual"
+    },
+    "Otwórz w drugim panelu": {
+      "extractionState": "manual"
+    },
+    "Otwórz w edytorze (domyślnie tak)": {
+      "extractionState": "manual"
+    },
+    "Otwórz za pomocą…": {
+      "extractionState": "manual"
+    },
+    "Paleta komend…": {
+      "extractionState": "manual"
+    },
+    "Panel": {
+      "extractionState": "manual"
+    },
+    "Panel podglądu": {
+      "extractionState": "manual"
+    },
+    "Panel: left lub right (domyślnie aktywny)": {
+      "extractionState": "manual"
+    },
+    "Pełny": {
+      "extractionState": "manual"
+    },
+    "Pełny dostęp do dysku": {
+      "extractionState": "manual"
+    },
+    "Pełny ekran": {
+      "extractionState": "manual"
+    },
+    "Plik": {
+      "extractionState": "manual"
+    },
+    "Pliki starsze niż 3 miesiące": {
+      "extractionState": "manual"
+    },
+    "Pliki ukryte": {
+      "extractionState": "manual"
+    },
+    "Początek nazwy": {
+      "extractionState": "manual"
+    },
+    "Podgląd": {
+      "extractionState": "manual"
+    },
+    "Pokazuj pliki ukryte": {
+      "extractionState": "manual"
+    },
+    "Pokazuje dziennik operacji na plikach.": {
+      "extractionState": "manual"
+    },
+    "Pokazuje element w oknie Findera.": {
+      "extractionState": "manual"
+    },
+    "Pokazuje lub ukrywa drzewo katalogów obok listy plików.": {
+      "extractionState": "manual"
+    },
+    "Pokazuje lub ukrywa pliki ukryte.": {
+      "extractionState": "manual"
+    },
+    "Pokazuje lub ukrywa wbudowany terminal w bieżącym katalogu.": {
+      "extractionState": "manual"
+    },
+    "Pokazuje w panelu tylko elementy pasujące do filtra.": {
+      "extractionState": "manual"
+    },
+    "Pokaż pliki ukryte": {
+      "extractionState": "manual"
+    },
+    "Pokaż w Finderze": {
+      "extractionState": "manual"
+    },
+    "Pole sortowania": {
+      "extractionState": "manual"
+    },
+    "Polecenie": {
+      "extractionState": "manual"
+    },
+    "Polecenie powłoki": {
+      "extractionState": "manual"
+    },
+    "Polecenie powłoki w bieżącym katalogu (Enter — wykonaj w terminalu)": {
+      "extractionState": "manual"
+    },
+    "Pomiń": {
+      "extractionState": "manual"
+    },
+    "Pomiń istniejące": {
+      "extractionState": "manual"
+    },
+    "Pomiń wszystkie": {
+      "extractionState": "manual"
+    },
+    "Pomoc": {
+      "extractionState": "manual"
+    },
+    "Ponownie wczytuje zawartość katalogu.": {
+      "extractionState": "manual"
+    },
+    "Ponów": {
+      "extractionState": "manual"
+    },
+    "Poprzedni katalog w historii karty.": {
+      "extractionState": "manual"
+    },
+    "Poprzednia karta": {
+      "extractionState": "manual"
+    },
+    "Powiększ": {
+      "extractionState": "manual"
+    },
+    "Pozostali": {
+      "extractionState": "manual"
+    },
+    "Prawa ósemkowo, np. 644": {
+      "extractionState": "manual"
+    },
+    "Profil": {
+      "extractionState": "manual"
+    },
+    "Przechodzi do katalogu domowego.": {
+      "extractionState": "manual"
+    },
+    "Przechodzi do katalogu głównego woluminu.": {
+      "extractionState": "manual"
+    },
+    "Przechodzi do katalogu nadrzędnego.": {
+      "extractionState": "manual"
+    },
+    "Przejdź do katalogu": {
+      "extractionState": "manual"
+    },
+    "Przejdź do katalogu…": {
+      "extractionState": "manual"
+    },
+    "Przeniesienie": {
+      "extractionState": "manual"
+    },
+    "Przenieś": {
+      "extractionState": "manual"
+    },
+    "Przenieś %@ do:": {
+      "extractionState": "manual"
+    },
+    "Przenieś do Kosza": {
+      "extractionState": "manual"
+    },
+    "Przenieść do Kosza?": {
+      "extractionState": "manual"
+    },
+    "Przenieś…": {
+      "extractionState": "manual"
+    },
+    "Przenosi elementy do Kosza (da się cofnąć).": {
+      "extractionState": "manual"
+    },
+    "Przenosi elementy w tle. Nadpisywane pliki trafiają do Kosza.": {
+      "extractionState": "manual"
+    },
+    "Przenosi fokus do linii poleceń pod panelami.": {
+      "extractionState": "manual"
+    },
+    "Przenoszenie": {
+      "extractionState": "manual"
+    },
+    "Przerwij i zakończ": {
+      "extractionState": "manual"
+    },
+    "Przełącz panel": {
+      "extractionState": "manual"
+    },
+    "Przełącz profil skrótów (F-klawisze / Cmd)": {
+      "extractionState": "manual"
+    },
+    "Przełącza między profilem Total Commandera a profilem z Cmd.": {
+      "extractionState": "manual"
+    },
+    "Przełącza na kartę o podanym numerze.": {
+      "extractionState": "manual"
+    },
+    "Przełącza na następną kartę.": {
+      "extractionState": "manual"
+    },
+    "Przełącza na poprzednią kartę.": {
+      "extractionState": "manual"
+    },
+    "Przełącza widok aktywnej karty: %@.": {
+      "extractionState": "manual"
+    },
+    "Przełącza zaznaczenie elementu i przesuwa kursor w dół.": {
+      "extractionState": "manual"
+    },
+    "Przełącza zaznaczenie elementu i przesuwa kursor w górę.": {
+      "extractionState": "manual"
+    },
+    "Przełącza zaznaczenie elementu pod kursorem i przesuwa kursor w dół; dla katalogu liczy jego rozmiar.": {
+      "extractionState": "manual"
+    },
+    "Przywróć domyślne": {
+      "extractionState": "manual"
+    },
+    "Przywróć zaznaczenie": {
+      "extractionState": "manual"
+    },
+    "Prędkość:": {
+      "extractionState": "manual"
+    },
+    "Pytaj": {
+      "extractionState": "manual"
+    },
+    "Pytaj przed przeniesieniem do Kosza (F8)": {
+      "extractionState": "manual"
+    },
+    "Później": {
+      "extractionState": "manual"
+    },
+    "Quick Look": {
+      "extractionState": "manual"
+    },
+    "Reguły kolorowania plików — pierwsza pasująca reguła wygrywa. Warunki: olderThan / newerThan (amount, unit: minutes|hours|days|weeks|months|years, field: modified|created), largerThan / smallerThan (bytes), extensions (list), nameMask (mask), nameRegex (pattern), attribute (directory|file|symlink|hidden|executable|readOnly|locked, value). Styl: textColor, backgroundColor (#RRGGBB), bold, italic, strikethrough.": {
+      "extractionState": "manual"
+    },
+    "Reguły kolorów (JSON)": {
+      "extractionState": "manual"
+    },
+    "Rodzaj widoku": {
+      "extractionState": "manual"
+    },
+    "Rosnąco (domyślnie tak)": {
+      "extractionState": "manual"
+    },
+    "Rozmiar": {
+      "extractionState": "manual"
+    },
+    "Rozmiar czcionki list: %lld": {
+      "extractionState": "manual"
+    },
+    "Rozsz.": {
+      "extractionState": "manual"
+    },
+    "Rozszerzenie": {
+      "extractionState": "manual"
+    },
+    "Schowek": {
+      "extractionState": "manual"
+    },
+    "Skopiowano do schowka: %@": {
+      "extractionState": "manual"
+    },
+    "Skróty": {
+      "extractionState": "manual"
+    },
+    "Sortuj": {
+      "extractionState": "manual"
+    },
+    "Sortuj: %@": {
+      "extractionState": "manual"
+    },
+    "Sortuje według pola %@; ponowne wywołanie odwraca kolejność.": {
+      "extractionState": "manual"
+    },
+    "Spacja": {
+      "extractionState": "manual"
+    },
+    "Stan": {
+      "extractionState": "manual"
+    },
+    "Systemowy": {
+      "extractionState": "manual"
+    },
+    "Szczegóły": {
+      "extractionState": "manual"
+    },
+    "Szukaj": {
+      "extractionState": "manual"
+    },
+    "Szukaj komendy": {
+      "extractionState": "manual"
+    },
+    "Szybkie wyszukiwanie": {
+      "extractionState": "manual"
+    },
+    "Ta komenda wymaga interfejsu": {
+      "extractionState": "manual"
+    },
+    "Tagi": {
+      "extractionState": "manual"
+    },
+    "Tagi %@: %@": {
+      "extractionState": "manual"
+    },
+    "Tagi Findera: %@": {
+      "extractionState": "manual"
+    },
+    "Tagi Findera…": {
+      "extractionState": "manual"
+    },
+    "Także katalogi": {
+      "extractionState": "manual"
+    },
+    "Tego woluminu nie można wysunąć": {
+      "extractionState": "manual"
+    },
+    "Tekst": {
+      "extractionState": "manual"
+    },
+    "Ten sam katalog w drugim panelu": {
+      "extractionState": "manual"
+    },
+    "Terminal": {
+      "extractionState": "manual"
+    },
+    "To nie jest katalog: %@": {
+      "extractionState": "manual"
+    },
+    "Total Commander (F1–F12)": {
+      "extractionState": "manual"
+    },
+    "Trwają operacje na plikach": {
+      "extractionState": "manual"
+    },
+    "Tryb ścisły (CLI agenta bez własnej powłoki i edycji plików)": {
+      "extractionState": "manual"
+    },
+    "Tworzy katalog (także zagnieżdżony) w bieżącym katalogu.": {
+      "extractionState": "manual"
+    },
+    "Tworzy pusty plik o podanej nazwie i otwiera go w domyślnym edytorze.": {
+      "extractionState": "manual"
+    },
+    "UID właściciela": {
+      "extractionState": "manual"
+    },
+    "Udostępnij…": {
+      "extractionState": "manual"
+    },
+    "Ukryj %@": {
+      "extractionState": "manual"
+    },
+    "Ukryj pozostałe": {
+      "extractionState": "manual"
+    },
+    "Ukryty": {
+      "extractionState": "manual"
+    },
+    "Uruchamia polecenie w powłoce użytkownika w bieżącym katalogu (wynik w terminalu).": {
+      "extractionState": "manual"
+    },
+    "Uruchom polecenie": {
+      "extractionState": "manual"
+    },
+    "Ustaw kursor": {
+      "extractionState": "manual"
+    },
+    "Ustaw reguły kolorów": {
+      "extractionState": "manual"
+    },
+    "Ustaw widok": {
+      "extractionState": "manual"
+    },
+    "Ustaw zaznaczenie": {
+      "extractionState": "manual"
+    },
+    "Ustawia fokus na drugim (albo wskazanym) panelu.": {
+      "extractionState": "manual"
+    },
+    "Ustawia kursor na elemencie o podanej nazwie lub numerze.": {
+      "extractionState": "manual"
+    },
+    "Ustawia kursor na pierwszym elemencie, którego nazwa zaczyna się od podanego tekstu.": {
+      "extractionState": "manual"
+    },
+    "Ustawia sortowanie karty.": {
+      "extractionState": "manual"
+    },
+    "Ustawia tagi Findera dla elementów.": {
+      "extractionState": "manual"
+    },
+    "Ustawia widok karty: details, brief, thumbnails albo columns.": {
+      "extractionState": "manual"
+    },
+    "Ustawienia": {
+      "extractionState": "manual"
+    },
+    "Ustawienia…": {
+      "extractionState": "manual"
+    },
+    "Usunąć trwale?": {
+      "extractionState": "manual"
+    },
+    "Usuwa elementy bez Kosza — nieodwracalnie, zawsze z potwierdzeniem.": {
+      "extractionState": "manual"
+    },
+    "Usuwa z zaznaczenia elementy pasujące do maski.": {
+      "extractionState": "manual"
+    },
+    "Usuwanie: %@": {
+      "extractionState": "manual"
+    },
+    "Usuń trwale": {
+      "extractionState": "manual"
+    },
+    "Usuń trwale…": {
+      "extractionState": "manual"
+    },
+    "Usuń zakończone z listy": {
+      "extractionState": "manual"
+    },
+    "Usługi": {
+      "extractionState": "manual"
+    },
+    "Wchodzi do katalogu pod kursorem albo otwiera plik w domyślnej aplikacji.": {
+      "extractionState": "manual"
+    },
+    "Wczytaj zaznaczenie z pliku…": {
+      "extractionState": "manual"
+    },
+    "Widok": {
+      "extractionState": "manual"
+    },
+    "Wklej": {
+      "extractionState": "manual"
+    },
+    "Wolne: %@ z %@": {
+      "extractionState": "manual"
+    },
+    "Wolumin (domyślnie wolumin bieżącego katalogu)": {
+      "extractionState": "manual"
+    },
+    "Woluminy": {
+      "extractionState": "manual"
+    },
+    "Wpisy": {
+      "extractionState": "manual"
+    },
+    "Wpisz nazwę komendy…": {
+      "extractionState": "manual"
+    },
+    "Wpisz tagi oddzielone przecinkami (np. Czerwony, Projekt). Pusta lista usuwa tagi.": {
+      "extractionState": "manual"
+    },
+    "Wstecz": {
+      "extractionState": "manual"
+    },
+    "Wstrzymaj / wznów": {
+      "extractionState": "manual"
+    },
+    "Wstrzymaj operacje": {
+      "extractionState": "manual"
+    },
+    "Wstrzymuje zadania w tle.": {
+      "extractionState": "manual"
+    },
+    "Wybierz kartę": {
+      "extractionState": "manual"
+    },
+    "Wybierz…": {
+      "extractionState": "manual"
+    },
+    "Wybór aplikacji do otwarcia elementów.": {
+      "extractionState": "manual"
+    },
+    "Wymuś": {
+      "extractionState": "manual"
+    },
+    "Wysuń": {
+      "extractionState": "manual"
+    },
+    "Wysuń wolumin": {
+      "extractionState": "manual"
+    },
+    "Wyszukiwanie i uruchamianie dowolnej komendy.": {
+      "extractionState": "manual"
+    },
+    "Wytnij": {
+      "extractionState": "manual"
+    },
+    "Wznawia wstrzymane zadania.": {
+      "extractionState": "manual"
+    },
+    "Wznów operacje": {
+      "extractionState": "manual"
+    },
+    "Właściciel": {
+      "extractionState": "manual"
+    },
+    "Za zgodą": {
+      "extractionState": "manual"
+    },
+    "Zablokowane ścieżki (jedna w wierszu)": {
+      "extractionState": "manual"
+    },
+    "Zablokowany": {
+      "extractionState": "manual"
+    },
+    "Zakończ %@": {
+      "extractionState": "manual"
+    },
+    "Zakończenie przerwie %lld zadań. Częściowo skopiowane pliki zostaną usunięte.": {
+      "extractionState": "manual"
+    },
+    "Zamienia katalogi aktywnych kart obu paneli.": {
+      "extractionState": "manual"
+    },
+    "Zamień panele": {
+      "extractionState": "manual"
+    },
+    "Zamknij kartę": {
+      "extractionState": "manual"
+    },
+    "Zamyka kartę (ostatnia karta panelu zostaje).": {
+      "extractionState": "manual"
+    },
+    "Zapamiętaj zaznaczenie": {
+      "extractionState": "manual"
+    },
+    "Zapamiętuje nazwy zaznaczonych elementów.": {
+      "extractionState": "manual"
+    },
+    "Zapisuje listę zaznaczonych nazw w katalogu aplikacji.": {
+      "extractionState": "manual"
+    },
+    "Zapisz": {
+      "extractionState": "manual"
+    },
+    "Zapisz listę": {
+      "extractionState": "manual"
+    },
+    "Zapisz zaznaczenie do pliku…": {
+      "extractionState": "manual"
+    },
+    "Zastosuj": {
+      "extractionState": "manual"
+    },
+    "Zastosuj JSON": {
+      "extractionState": "manual"
+    },
+    "Zastępuje reguły kolorowania plików (warunki: wiek, rozmiar, rozszerzenie, atrybuty, maska, regex).": {
+      "extractionState": "manual"
+    },
+    "Zastępuje zaznaczenie podanymi elementami bieżącego katalogu.": {
+      "extractionState": "manual"
+    },
+    "Zawijaj wiersze": {
+      "extractionState": "manual"
+    },
+    "Zaznacz / odznacz": {
+      "extractionState": "manual"
+    },
+    "Zaznacz i w dół": {
+      "extractionState": "manual"
+    },
+    "Zaznacz i w górę": {
+      "extractionState": "manual"
+    },
+    "Zaznacz pliki z tym samym rozszerzeniem": {
+      "extractionState": "manual"
+    },
+    "Zaznacz według maski": {
+      "extractionState": "manual"
+    },
+    "Zaznacz według maski…": {
+      "extractionState": "manual"
+    },
+    "Zaznacz wszystko": {
+      "extractionState": "manual"
+    },
+    "Zaznacz wszystko w polu": {
+      "extractionState": "manual"
+    },
+    "Zaznacza elementy o zapamiętanych nazwach w bieżącym katalogu.": {
+      "extractionState": "manual"
+    },
+    "Zaznacza elementy z zapisanej listy nazw.": {
+      "extractionState": "manual"
+    },
+    "Zaznacza pliki o rozszerzeniu takim jak element pod kursorem.": {
+      "extractionState": "manual"
+    },
+    "Zaznacza wszystkie elementy panelu.": {
+      "extractionState": "manual"
+    },
+    "Zaznaczanie": {
+      "extractionState": "manual"
+    },
+    "Zaznaczono %lld z %@, %@ z %@": {
+      "extractionState": "manual"
+    },
+    "Zaznaczono: %lld": {
+      "extractionState": "manual"
+    },
+    "Zmiana atrybutów (%lld)": {
+      "extractionState": "manual"
+    },
+    "Zmiana nazwy %@ → %@": {
+      "extractionState": "manual"
+    },
+    "Zmiana tagów (%lld)": {
+      "extractionState": "manual"
+    },
+    "Zmienia nazwę elementu.": {
+      "extractionState": "manual"
+    },
+    "Zmienia prawa, właściciela, daty i flagi elementów.": {
+      "extractionState": "manual"
+    },
+    "Zmień": {
+      "extractionState": "manual"
+    },
+    "Zmień nazwę": {
+      "extractionState": "manual"
+    },
+    "Zmień nazwę kopii": {
+      "extractionState": "manual"
+    },
+    "Zmień nazwę…": {
+      "extractionState": "manual"
+    },
+    "Zmień prawa dostępu": {
+      "extractionState": "manual"
+    },
+    "Zwraca reguły kolorowania plików w formacie JSON.": {
+      "extractionState": "manual"
+    },
+    "Zwraca zadania w kolejce z postępem.": {
+      "extractionState": "manual"
+    },
+    "[… pokazano pierwsze %@ — całość w trybie Hex]": {
+      "extractionState": "manual"
+    },
+    "agent": {
+      "extractionState": "manual"
+    },
+    "anulowane": {
+      "extractionState": "manual"
+    },
+    "archiwa": {
+      "extractionState": "manual"
+    },
+    "brak karty": {
+      "extractionState": "manual"
+    },
+    "brak w katalogu": {
+      "extractionState": "manual"
+    },
+    "cofnięta": {
+      "extractionState": "manual"
+    },
+    "iPhone": {
+      "extractionState": "manual"
+    },
+    "katalog": {
+      "extractionState": "manual"
+    },
+    "konflikty": {
+      "extractionState": "manual"
+    },
+    "liczba ósemkowa, np. 644": {
+      "extractionState": "manual"
+    },
+    "limit %@/s": {
+      "extractionState": "manual"
+    },
+    "macOS (Cmd)": {
+      "extractionState": "manual"
+    },
+    "nieodwracalna": {
+      "extractionState": "manual"
+    },
+    "odblokowany": {
+      "extractionState": "manual"
+    },
+    "odczyt": {
+      "extractionState": "manual"
+    },
+    "serwery, chmury, synchronizacja": {
+      "extractionState": "manual"
+    },
+    "telefony z Androidem": {
+      "extractionState": "manual"
+    },
+    "ukryty": {
+      "extractionState": "manual"
+    },
+    "utw. %@": {
+      "extractionState": "manual"
+    },
+    "użytkownik": {
+      "extractionState": "manual"
+    },
+    "w kolejce": {
+      "extractionState": "manual"
+    },
+    "widoczny": {
+      "extractionState": "manual"
+    },
+    "wstrzymane": {
+      "extractionState": "manual"
+    },
+    "wykonanie": {
+      "extractionState": "manual"
+    },
+    "wyszukiwanie w treści": {
+      "extractionState": "manual"
+    },
+    "zablokowany": {
+      "extractionState": "manual"
+    },
+    "zakończone": {
+      "extractionState": "manual"
+    },
+    "zapis": {
+      "extractionState": "manual"
+    },
+    "zmod. %@": {
+      "extractionState": "manual"
+    },
+    "Ścieżka katalogu (absolutna, z ~ albo względna wobec bieżącego)": {
+      "extractionState": "manual"
+    },
+    "Ścieżka zakończona „/” to katalog (zostanie utworzony, jeśli nie istnieje). Dla jednego elementu inna nazwa = kopia pod nową nazwą.": {
+      "extractionState": "manual"
+    },
+    "Ścieżki elementów (domyślnie zaznaczenie lub element pod kursorem)": {
+      "extractionState": "manual"
+    },
+    "„%@” już istnieje": {
+      "extractionState": "manual"
+    }
+  },
+  "version": "1.0"
+}

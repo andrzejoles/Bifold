@@ -6,53 +6,53 @@ działa płynnie. Operacje w tle da się anulować i cofnąć. Wszystkie czynno�
 ## Zadania
 
 ### 1.1 Szkielet projektu
-- [ ] `project.yml` (XcodeGen), `Config/Brand.xcconfig` (nazwa i bundle id w jednym miejscu),
+- [x] `project.yml` (XcodeGen), `Config/Brand.xcconfig` (nazwa i bundle id w jednym miejscu),
       `Makefile` (`bootstrap`, `generate`, `build`, `test`, `run`)
-- [ ] Pakiet `BifoldKit`: `BifoldCore`, `BifoldWorkspace` + testy (Swift Testing)
-- [ ] Swift 6, strict concurrency, macOS 27, arm64, bez sandboxa, podpis „Sign to Run Locally”
-- [ ] `Localizable.xcstrings` (język źródłowy: polski) + skrypt sprawdzający kompletność
-- [ ] Wykrywanie braku Full Disk Access + okno z instrukcją i przyciskiem do Ustawień systemowych
+- [x] Pakiet `BifoldKit`: `BifoldCore`, `BifoldWorkspace` + testy (Swift Testing)
+- [x] Swift 6, strict concurrency, macOS 27, arm64, bez sandboxa, podpis „Sign to Run Locally”
+- [x] `Localizable.xcstrings` (język źródłowy: polski) + skrypt sprawdzający kompletność
+- [x] Wykrywanie braku Full Disk Access + okno z instrukcją i przyciskiem do Ustawień systemowych
 
 ### 1.2 BifoldCore
-- [ ] `VFSPath`, `FileItem`, `FileSystemProvider`, `ProviderRegistry`
-- [ ] `LocalFS`: listowanie `getattrlistbulk` (+ zapasowo `FileManager`), FSEvents, informacje o woluminie
-- [ ] `NameMask` — maski TC (`*.txt;*.md|*.bak`), wyrażenia regularne
-- [ ] `ColorRule` / `ColorRuleSet` — warunki: wiek, rozmiar, rozszerzenie, atrybuty, regex; JSON
-- [ ] `FileOperations`: mkdir, nowy plik, zmiana nazwy, Kosz (z nową ścieżką), trwałe usuwanie,
+- [x] `VFSPath`, `FileItem`, `FileSystemProvider`, `ProviderRegistry`
+- [x] `LocalFS`: listowanie `getattrlistbulk` (+ zapasowo `FileManager`), FSEvents, informacje o woluminie
+- [x] `NameMask` — maski TC (`*.txt;*.md|*.bak`), wyrażenia regularne
+- [x] `ColorRule` / `ColorRuleSet` — warunki: wiek, rozmiar, rozszerzenie, atrybuty, regex; JSON
+- [x] `FileOperations`: mkdir, nowy plik, zmiana nazwy, Kosz (z nową ścieżką), trwałe usuwanie,
       atrybuty (prawa, właściciel, daty), tagi Findera
-- [ ] `OperationQueue` + `FileJob`: kopiowanie/przenoszenie (`copyfile` z callbackiem), pauza,
+- [x] `OperationQueue` + `FileJob`: kopiowanie/przenoszenie (`copyfile` z callbackiem), pauza,
       wznowienie, anulowanie, limit prędkości, konflikty (nadpisz/pomiń/zmień nazwę/dla wszystkich)
-- [ ] `OperationJournal` (JSONL) + `UndoPlanner` (wykrywanie konfliktów przed cofnięciem)
-- [ ] `DirectorySizer` (równolegle, anulowalne), `VolumeList` (lista, wolne miejsce, wysuwanie)
-- [ ] `TextDecoding` — wykrywanie i zmiana kodowania dla podglądu
+- [x] `OperationJournal` (JSONL) + `UndoPlanner` (wykrywanie konfliktów przed cofnięciem)
+- [x] `DirectorySizer` (równolegle, anulowalne), `VolumeList` (lista, wolne miejsce, wysuwanie)
+- [x] `TextDecoding` — wykrywanie i zmiana kodowania dla podglądu
 
 ### 1.3 BifoldWorkspace
-- [ ] `Workspace`, `Panel`, `Tab` (`@Observable`, `@MainActor`), `SessionStore` (karty między uruchomieniami)
-- [ ] `ListingProcessor` — sortowanie i filtrowanie w tle
-- [ ] `CommandRegistry`, `CommandDescriptor`, `AgentAccess`, `EffectPreview`
-- [ ] Komendy Etapu 1 (lista niżej) z poziomami agenta z macierzy
-- [ ] `Keymap` + profile `totalCommander` i `command`, zapis/odczyt nadpisań
-- [ ] `SelectionStore` — zapis i odczyt zaznaczenia
+- [x] `Workspace`, `Panel`, `Tab` (`@Observable`, `@MainActor`), `SessionStore` (karty między uruchomieniami)
+- [x] `ListingProcessor` — sortowanie i filtrowanie w tle
+- [x] `CommandRegistry`, `CommandDescriptor`, `AgentAccess`, `EffectPreview`
+- [x] Komendy Etapu 1 (lista niżej) z poziomami agenta z macierzy
+- [x] `Keymap` + profile `totalCommander` i `command`, zapis/odczyt nadpisań
+- [x] `SelectionStore` — zapis i odczyt zaznaczenia
 
 ### 1.4 Interfejs
-- [ ] Okno główne: dwa panele, Tab zmienia panel, aktywny panel wyróżniony
-- [ ] Karty (Ctrl+T / Ctrl+W, Ctrl+Tab), zapamiętywane
-- [ ] Widoki: szczegóły (`NSTableView`), lista skrócona, miniatury (`NSCollectionView`), kolumnowy (`NSBrowser`)
-- [ ] Drzewo katalogów (`NSOutlineView`) obok listy
-- [ ] Szybkie wyszukiwanie (przeskok po literach) i filtr panelu
-- [ ] Pasek stanu (zaznaczone: liczba, rozmiar; wolne miejsce), rozmiary katalogów (Spacja)
-- [ ] Motyw jasny/ciemny/systemowy, reguły kolorów stosowane w listach
-- [ ] Pasek kolejki operacji: postęp, pauza, wznowienie, anulowanie, limit prędkości
-- [ ] Okna dialogowe: nazwa (F7, Shift+F4, Shift+F6), potwierdzenie kopiowania/przenoszenia z celem,
+- [x] Okno główne: dwa panele, Tab zmienia panel, aktywny panel wyróżniony
+- [x] Karty (Ctrl+T / Ctrl+W, Ctrl+Tab), zapamiętywane
+- [x] Widoki: szczegóły (`NSTableView`), lista skrócona, miniatury (`NSCollectionView`), kolumnowy (`NSBrowser`)
+- [x] Drzewo katalogów (`NSOutlineView`) obok listy
+- [x] Szybkie wyszukiwanie (przeskok po literach) i filtr panelu
+- [x] Pasek stanu (zaznaczone: liczba, rozmiar; wolne miejsce), rozmiary katalogów (Spacja)
+- [x] Motyw jasny/ciemny/systemowy, reguły kolorów stosowane w listach
+- [x] Pasek kolejki operacji: postęp, pauza, wznowienie, anulowanie, limit prędkości
+- [x] Okna dialogowe: nazwa (F7, Shift+F4, Shift+F6), potwierdzenie kopiowania/przenoszenia z celem,
       konflikt, trwałe usuwanie, atrybuty, maska zaznaczenia
-- [ ] Podgląd F3 (tekst + kodowania, hex HexFiend, obrazy), Quick Look, panel podglądu
-- [ ] F4 w edytorze (domyślnie Nextpad++), Shift+F4 nowy plik i otwarcie
-- [ ] Linia poleceń pod panelami → `$SHELL -lc` w terminalu SwiftTerm; wbudowany terminal
-- [ ] Dyski i woluminy (menu z listą, wolne miejsce, wysuwanie)
-- [ ] Tagi Findera (odczyt w kolumnie, nadawanie w oknie)
-- [ ] Menu Udostępnij, Otwórz za pomocą
-- [ ] Paleta komend (Cmd+Shift+P) — wszystkie komendy z rejestru
-- [ ] Ustawienia (SwiftUI): ogólne, skróty, reguły kolorów (JSON + edytor), narzędzia, agent (limity)
+- [x] Podgląd F3 (tekst + kodowania, hex HexFiend, obrazy), Quick Look, panel podglądu
+- [x] F4 w edytorze (domyślnie Nextpad++), Shift+F4 nowy plik i otwarcie
+- [x] Linia poleceń pod panelami → `$SHELL -lc` w terminalu SwiftTerm; wbudowany terminal
+- [x] Dyski i woluminy (menu z listą, wolne miejsce, wysuwanie)
+- [x] Tagi Findera (odczyt w kolumnie, nadawanie w oknie)
+- [x] Menu Udostępnij, Otwórz za pomocą
+- [x] Paleta komend (Cmd+Shift+P) — wszystkie komendy z rejestru
+- [x] Ustawienia (SwiftUI): ogólne, skróty, reguły kolorów (JSON + edytor), narzędzia, agent (limity)
 
 ## Komendy Etapu 1
 

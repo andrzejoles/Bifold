@@ -51,3 +51,32 @@ Brak oficjalnego API. Próba otwarcia do odczytu `~/Library/Application Support/
 Skróty TC (F-klawisze, Tab, Spacja, litery w szybkim wyszukiwaniu) nie mieszczą się w modelu
 `keyEquivalent`. `KeyRouter` dopasowuje `NSEvent` do `KeyChord` z aktywnego `Keymap` i wywołuje
 komendę z rejestru; menu pokazuje te same skróty (jeśli da się je wyrazić jako `keyEquivalent`).
+
+### D11 · 2026-10-17 — Poziom „Odczyt” pozwala zmieniać stan interfejsu
+Macierz daje poziom „Odczyt” m.in. dla drzewa katalogów, podglądu, Quick Look i przełączania
+paneli. Polityka agenta (Etap 2) dopuszcza przy poziomie „Odczyt” komendy o skutkach `none`
+i `uiState` (nie zmieniają plików ani ustawień), a odrzuca `modifiesFiles`, `external`, `settings`.
+
+### D12 · 2026-10-17 — Bez skrótów Option+litera
+Na polskim układzie klawiatury Option+litera wpisuje ą, ę, ł… Skróty TC z Alt+literą (atrybuty)
+mają zamienniki Ctrl+Alt+litera, a szybkie wyszukiwanie w panelu przyjmuje polskie litery.
+
+### D13 · 2026-10-17 — Klucz sortowania nazw zamiast `localizedStandardCompare`
+Sortowanie 100 000 nazw przez `localizedStandardCompare` trwało ~0,6 s nawet w Release.
+`NameCollation` liczy klucz raz na nazwę (kolejność naturalna liczb, polskie litery po literach
+bazowych, bez rozróżniania wielkości liter); remisy rozstrzyga `localizedStandardCompare`.
+Test zgodności z kolejnością Findera dla typowych nazw: `NameCollationTests`. Wynik: 100 000
+plików — listowanie + sortowanie ≈ 0,3 s (Debug).
+
+### D14 · 2026-10-17 — Nadpisywane pliki trafiają do Kosza
+Przy konflikcie „Nadpisz” stary plik jest przenoszony do Kosza (i zapisywany w dzienniku),
+a nie usuwany. Dzięki temu kopiowanie/przenoszenie z nadpisaniem da się w pełni cofnąć.
+
+### D15 · 2026-10-17 — Linia poleceń przez interaktywną powłokę w terminalu
+PROMPT mówi o `$SHELL -lc`. Polecenie trafia do wbudowanego terminalu (SwiftTerm), w którym
+działa powłoka logowania (`$SHELL -l`) — wynik zostaje w historii terminalu, a `cd` w linii
+poleceń zmienia katalog panelu (jak w TC). Zmienna `BIFOLD_AGENT_TOKEN` jest usuwana ze
+środowiska terminalu.
+
+### D16 · 2026-10-17 — Repozytorium prywatne
+Repozytorium GitHub `andrzejoles/Bifold` jest prywatne (narzędzie do użytku własnego).

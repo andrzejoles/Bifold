@@ -155,7 +155,7 @@ var selectionCommands: [Command] { [
     },
 
     Command(CommandDescriptor(
-        id: "selection.invert", title: L10n.tr("Odwróć zaznaczenie"), category: .selection, tc: ["cmd+*"], cmd: ["cmd+*"],
+        id: "selection.invert", title: L10n.tr("Odwróć zaznaczenie"), category: .selection, tc: ["cmd+shift+8"], cmd: ["cmd+shift+8"],
         parameters: [CommandParameter("includeDirectories", .boolean, L10n.tr("Także katalogi")), sideParam],
         agent: .full, effect: .uiState, summary: L10n.tr("Odwraca zaznaczenie plików w panelu."))
     ) { ctx in

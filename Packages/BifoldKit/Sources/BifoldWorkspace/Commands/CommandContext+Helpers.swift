@@ -46,7 +46,10 @@ extension CommandContext {
 /// Formatowanie rozmiarów i liczb w tekstach komend.
 public enum Format {
     public static func bytes(_ n: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: n, countStyle: .file)
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        f.allowsNonnumericFormatting = false
+        return f.string(fromByteCount: n)
     }
 
     public static func items(_ n: Int) -> String {

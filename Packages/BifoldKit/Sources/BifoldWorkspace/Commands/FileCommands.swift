@@ -239,7 +239,7 @@ var fileCommands: [Command] { [
 
     Command(
         CommandDescriptor(
-            id: "file.attributes", title: L10n.tr("Atrybuty i uprawnienia…"), category: .file, tc: ["alt+a"], cmd: ["cmd+i"],
+            id: "file.attributes", title: L10n.tr("Atrybuty i uprawnienia…"), category: .file, tc: ["ctrl+alt+a"], cmd: ["cmd+i"],
             parameters: [
                 pathsParam,
                 CommandParameter("permissions", .string, L10n.tr("Prawa ósemkowo, np. 644")),
@@ -270,7 +270,7 @@ var fileCommands: [Command] { [
 
     Command(
         CommandDescriptor(
-            id: "file.tags", title: L10n.tr("Tagi Findera…"), category: .file, tc: ["alt+g"], cmd: ["cmd+alt+g"],
+            id: "file.tags", title: L10n.tr("Tagi Findera…"), category: .file, tc: ["ctrl+alt+g"], cmd: ["cmd+alt+g"],
             parameters: [pathsParam, CommandParameter("tags", .paths, required: true, L10n.tr("Nowa lista tagów (zastępuje dotychczasowe)"))],
             agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Ustawia tagi Findera dla elementów.")),
         preview: { @MainActor ctx in
