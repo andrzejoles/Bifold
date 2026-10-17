@@ -145,3 +145,27 @@ import Testing
         }
     }
 }
+
+@Suite struct NameCollationTests {
+    func sorted(_ names: [String]) -> [String] {
+        names.sorted { NameCollation.compare(NameCollation.key($0), NameCollation.key($1)) == .orderedAscending }
+    }
+
+    @Test func naturalAndPolishOrder() {
+        #expect(sorted(["plik10", "plik2", "plik1"]) == ["plik1", "plik2", "plik10"])
+        #expect(sorted(["b", "ą", "a", "ć", "c"]) == ["a", "ą", "b", "c", "ć"])
+        #expect(sorted(["żaba", "zebra", "źdźbło"]) == ["zebra", "źdźbło", "żaba"])
+        #expect(sorted(["łoś", "lis", "mysz"]) == ["lis", "łoś", "mysz"])
+        #expect(sorted(["Beta", "alfa", "ALFA2"]) == ["alfa", "ALFA2", "Beta"])
+        #expect(sorted(["a_b", "a b", "a1", "ab"]) == ["a b", "a_b", "a1", "ab"])
+        #expect(sorted(["x007", "x7", "x08"]).first == "x007" || sorted(["x007", "x7", "x08"]).first == "x7")
+    }
+
+    /// Dla typowych nazw plików kolejność zgadza się z Finderem (localizedStandardCompare).
+    @Test func agreesWithFinderOnTypicalNames() {
+        let names = ["IMG_0001.JPG", "IMG_0010.JPG", "IMG_0002.jpg", "raport 2024.pdf", "raport 2023.pdf", "Raport.docx",
+                     "notatki.txt", "Notatki (2).txt", "a.b.c", "zdjęcie.png", "zdjecie2.png", "README.md", "1.txt", "10.txt", "9.txt"]
+        let finder = names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        #expect(sorted(names) == finder)
+    }
+}

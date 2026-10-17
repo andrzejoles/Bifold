@@ -97,10 +97,13 @@ public final class TransferEngine: @unchecked Sendable {
     // MARK: Planowanie
 
     /// Liczy rozmiary i konflikty bez zmieniania czegokolwiek (podgląd „na sucho”).
-    public static func plan(_ request: TransferRequest, isCancelled: () -> Bool = { false }) throws -> TransferPlan {
+    /// - Parameter assumingEmptyDestination: katalog docelowy jeszcze nie istnieje (zostanie utworzony).
+    public static func plan(_ request: TransferRequest, assumingEmptyDestination: Bool = false, isCancelled: () -> Bool = { false }) throws -> TransferPlan {
         let fs = LocalFS()
-        let destDir = try fs.itemSync(at: request.destinationDirectory)
-        guard destDir.isNavigable else { throw VFSError.notADirectory(request.destinationDirectory) }
+        if !assumingEmptyDestination {
+            let destDir = try fs.itemSync(at: request.destinationDirectory)
+            guard destDir.isNavigable else { throw VFSError.notADirectory(request.destinationDirectory) }
+        }
         if request.newName != nil { try validateFileName(request.newName!) }
 
         var plan = TransferPlan(request: request, operations: [], totalBytes: 0, fileCount: 0, directoryCount: 0, conflicts: [], subtreeSizes: [:])

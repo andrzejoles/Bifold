@@ -1,0 +1,98 @@
+import BifoldCore
+import Foundation
+import Observation
+
+public enum PanelSide: String, Codable, Sendable, CaseIterable {
+    case left, right
+
+    public var other: PanelSide { self == .left ? .right : .left }
+}
+
+@MainActor @Observable
+public final class Panel {
+    public let side: PanelSide
+    public private(set) var tabs: [Tab]
+    public private(set) var activeTabIndex: Int = 0
+    public var showsTree: Bool
+
+    @ObservationIgnored let providers: ProviderRegistry
+
+    init(side: PanelSide, tabs: [Tab], activeTabIndex: Int = 0, showsTree: Bool = false, providers: ProviderRegistry) {
+        precondition(!tabs.isEmpty)
+        self.side = side
+        self.tabs = tabs
+        self.activeTabIndex = min(max(0, activeTabIndex), tabs.count - 1)
+        self.showsTree = showsTree
+        self.providers = providers
+    }
+
+    public var activeTab: Tab { tabs[activeTabIndex] }
+
+    @discardableResult
+    public func newTab(at path: VFSPath? = nil, activate: Bool = true) -> Tab {
+        let current = activeTab
+        let tab = Tab(path: path ?? current.path, viewMode: current.viewMode, sort: current.sort, showHidden: current.showHidden, providers: providers)
+        tabs.insert(tab, at: activeTabIndex + 1)
+        if activate { activeTabIndex += 1 }
+        return tab
+    }
+
+    /// Zamyka kartę; ostatniej karty panelu nie da się zamknąć.
+    @discardableResult
+    public func closeTab(at index: Int? = nil) -> Bool {
+        let i = index ?? activeTabIndex
+        guard tabs.count > 1, tabs.indices.contains(i) else { return false }
+        tabs.remove(at: i)
+        if activeTabIndex >= tabs.count || i < activeTabIndex { activeTabIndex = max(0, activeTabIndex - 1) }
+        return true
+    }
+
+    public func selectTab(_ index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        activeTabIndex = index
+    }
+
+    public func selectTab(id: UUID) {
+        if let i = tabs.firstIndex(where: { $0.id == id }) { activeTabIndex = i }
+    }
+
+    public func nextTab() { activeTabIndex = (activeTabIndex + 1) % tabs.count }
+    public func previousTab() { activeTabIndex = (activeTabIndex - 1 + tabs.count) % tabs.count }
+
+    public func moveTab(from: Int, to: Int) {
+        guard tabs.indices.contains(from), tabs.indices.contains(to), from != to else { return }
+        let active = activeTab
+        let t = tabs.remove(at: from)
+        tabs.insert(t, at: to)
+        activeTabIndex = tabs.firstIndex { $0 === active } ?? 0
+    }
+}
+
+// MARK: - Zapis sesji (karty między uruchomieniami)
+
+public struct SessionSnapshot: Codable, Sendable, Equatable {
+    public struct TabState: Codable, Sendable, Equatable {
+        public var path: VFSPath
+        public var viewMode: ViewMode
+        public var sort: SortSpec
+        public var cursorName: String?
+    }
+
+    public struct PanelState: Codable, Sendable, Equatable {
+        public var tabs: [TabState]
+        public var activeTab: Int
+        public var showsTree: Bool
+    }
+
+    public var left: PanelState
+    public var right: PanelState
+    public var activeSide: PanelSide
+}
+
+extension Panel {
+    var snapshot: SessionSnapshot.PanelState {
+        SessionSnapshot.PanelState(
+            tabs: tabs.map { SessionSnapshot.TabState(path: $0.path, viewMode: $0.viewMode, sort: $0.sort, cursorName: $0.cursorItem?.name) },
+            activeTab: activeTabIndex, showsTree: showsTree)
+    }
+}
