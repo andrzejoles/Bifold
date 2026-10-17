@@ -12,12 +12,29 @@ let package = Package(
     products: [
         .library(name: "BifoldCore", targets: ["BifoldCore"]),
         .library(name: "BifoldWorkspace", targets: ["BifoldWorkspace"]),
+        .library(name: "BifoldAgent", targets: ["BifoldAgent"]),
+        .library(name: "BifoldBridgeKit", targets: ["BifoldBridgeKit"]),
+        .executable(name: "bifold-mcp", targets: ["bifold-mcp"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.12.1"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
     ],
     targets: [
         .target(name: "BifoldCore", swiftSettings: strict),
         .target(name: "BifoldWorkspace", dependencies: ["BifoldCore"], swiftSettings: strict),
+        .target(name: "BifoldBridgeKit", swiftSettings: strict),
+        .target(
+            name: "BifoldAgent",
+            dependencies: [
+                "BifoldWorkspace", "BifoldBridgeKit",
+                .product(name: "MCP", package: "swift-sdk"), .product(name: "Logging", package: "swift-log"),
+            ],
+            swiftSettings: strict),
+        .executableTarget(name: "bifold-mcp", dependencies: ["BifoldBridgeKit"], swiftSettings: strict),
         .testTarget(name: "BifoldCoreTests", dependencies: ["BifoldCore"], swiftSettings: strict),
         .testTarget(name: "BifoldWorkspaceTests", dependencies: ["BifoldWorkspace"], swiftSettings: strict),
+        .testTarget(name: "BifoldAgentTests", dependencies: ["BifoldAgent", "bifold-mcp"], swiftSettings: strict),
     ],
     swiftLanguageModes: [.v6]
 )
