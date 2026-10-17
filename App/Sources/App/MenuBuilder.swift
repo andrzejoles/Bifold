@@ -14,7 +14,8 @@ final class MenuBuilder: NSObject {
         let main = NSMenu()
 
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: L10n.tr("O programie \(Brand.appName)"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(item(for: "app.about"))
+        appMenu.addItem(item(for: "app.checkForUpdates"))
         appMenu.addItem(.separator())
         appMenu.addItem(item(for: "tools.settings"))
         appMenu.addItem(.separator())

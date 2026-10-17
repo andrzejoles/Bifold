@@ -8,3 +8,4 @@ xcuserdata/
 ThirdParty/build/
 Packages/BifoldKit/.build/
 Packages/BifoldKit/Package.resolved
+dist/

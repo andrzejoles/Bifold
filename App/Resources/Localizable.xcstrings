@@ -28,6 +28,9 @@
     "%@ zostanie usunięte z %@ bez możliwości cofnięcia.": {
       "extractionState": "manual"
     },
+    "%@: istnieje na serwerze — pominięto": {
+      "extractionState": "manual"
+    },
     "%lld elementy": {
       "extractionState": "manual"
     },
@@ -68,6 +71,9 @@
       "extractionState": "manual"
     },
     "Aktualizacja (źródło → cel)": {
+      "extractionState": "manual"
+    },
+    "Aktualizacje są wyłączone w tej kompilacji (brak klucza SUPublicEDKey)": {
       "extractionState": "manual"
     },
     "Aktywny panel, karty obu paneli (ścieżka, widok, sortowanie, filtr, kursor, liczba zaznaczonych).": {
@@ -136,6 +142,9 @@
     "Atrybuty: %@ — %@": {
       "extractionState": "manual"
     },
+    "Autor: Andrzej Oleś w kooperacji z Claude AI": {
+      "extractionState": "manual"
+    },
     "Autoryzuj w terminalu": {
       "extractionState": "manual"
     },
@@ -149,6 +158,9 @@
       "extractionState": "manual"
     },
     "Brak argumentu: %lld": {
+      "extractionState": "manual"
+    },
+    "Brak katalogu %@": {
       "extractionState": "manual"
     },
     "Brak mostu bifold-mcp w pakiecie aplikacji (%@).": {
@@ -502,6 +514,18 @@
     "Każde archiwum do podkatalogu o jego nazwie (domyślnie tak)": {
       "extractionState": "manual"
     },
+    "Klasyczny protokół SCP (scp -O) i polecenia powłoki przez SSH — dla serwerów bez SFTP. Klucz serwera zapamiętywany w ~/.ssh/known_hosts przy pierwszym połączeniu.": {
+      "extractionState": "manual"
+    },
+    "Klucz serwera nie zgadza się z zapamiętanym w ~/.ssh/known_hosts — możliwy atak lub zmiana serwera": {
+      "extractionState": "manual"
+    },
+    "Kod źródłowy (licencja MIT): ": {
+      "extractionState": "manual"
+    },
+    "Kodowanie nazw na serwerze": {
+      "extractionState": "manual"
+    },
     "Kodowanie tekstu (domyślnie wykrywane)": {
       "extractionState": "manual"
     },
@@ -524,6 +548,9 @@
       "extractionState": "manual"
     },
     "Kopiowanie": {
+      "extractionState": "manual"
+    },
+    "Kopiowanie %@ z %@": {
       "extractionState": "manual"
     },
     "Kopiowanie z %@": {
@@ -808,6 +835,9 @@
     "Nie udało się": {
       "extractionState": "manual"
     },
+    "Nie udało się połączyć": {
+      "extractionState": "manual"
+    },
     "Nie udało się wysłać %@: %@": {
       "extractionState": "manual"
     },
@@ -923,6 +953,9 @@
       "extractionState": "manual"
     },
     "Odmontowuje i wysuwa wolumin.": {
+      "extractionState": "manual"
+    },
+    "Odmowa dostępu (sprawdź użytkownika, hasło albo klucz)": {
       "extractionState": "manual"
     },
     "Odrzuć": {
@@ -1256,6 +1289,9 @@
       "extractionState": "manual"
     },
     "Połączenia SFTP, FTP/FTPS, WebDAV, SMB i chmur (hasła w Keychain).": {
+      "extractionState": "stale"
+    },
+    "Połączenia SFTP, SCP, FTP/FTPS, WebDAV, SMB i chmur (hasła w Keychain).": {
       "extractionState": "manual"
     },
     "Połączenie": {
@@ -1462,6 +1498,12 @@
     "Serwer": {
       "extractionState": "manual"
     },
+    "Serwer SCP ⇄ inny serwer lub archiwum: najpierw skopiuj na dysk": {
+      "extractionState": "manual"
+    },
+    "Serwer SCP: przenoszenie nie jest obsługiwane — skopiuj (F5), potem usuń (F8)": {
+      "extractionState": "manual"
+    },
     "Serwery i chmury wymagają rclone (brew install rclone)": {
       "extractionState": "manual"
     },
@@ -1507,7 +1549,13 @@
     "Sprawdza spójność archiwów (7zz t).": {
       "extractionState": "manual"
     },
+    "Sprawdza, czy jest nowa wersja (aktualizacje instalują się też same, raz dziennie).": {
+      "extractionState": "manual"
+    },
     "Sprawdź sumy kontrolne": {
+      "extractionState": "manual"
+    },
+    "Sprawdź uaktualnienia…": {
       "extractionState": "manual"
     },
     "Stan": {
@@ -1592,6 +1640,9 @@
       "extractionState": "manual"
     },
     "Ta komenda wymaga interfejsu": {
+      "extractionState": "manual"
+    },
+    "Ta operacja nie działa dla połączeń SCP — skopiuj pliki na dysk": {
       "extractionState": "manual"
     },
     "Ta operacja wymaga zwykłego katalogu, nie listy wyników": {
@@ -1849,6 +1900,9 @@
     "Wczytaj zaznaczenie z pliku…": {
       "extractionState": "manual"
     },
+    "Wersja, autor i licencja.": {
+      "extractionState": "manual"
+    },
     "Weryfikacja sum": {
       "extractionState": "manual"
     },
@@ -1921,6 +1975,9 @@
     "Wysuń wolumin": {
       "extractionState": "manual"
     },
+    "Wysyłanie %@ → %@": {
+      "extractionState": "manual"
+    },
     "Wyszukiwanie i uruchamianie dowolnej komendy.": {
       "extractionState": "manual"
     },
@@ -1949,6 +2006,9 @@
       "extractionState": "manual"
     },
     "Właściciel": {
+      "extractionState": "manual"
+    },
+    "Włącza algorytmy diffie-hellman-group1/14-sha1, ssh-rsa i szyfry CBC — tylko dla serwerów, które nie znają nowszych.": {
       "extractionState": "manual"
     },
     "Za zgodą": {
@@ -2156,6 +2216,9 @@
       "extractionState": "manual"
     },
     "Zaznaczono: %lld": {
+      "extractionState": "manual"
+    },
+    "Zgodność ze starymi serwerami (AIX, stary OpenSSH)": {
       "extractionState": "manual"
     },
     "Zmian: %@ z %lld, problemy: %@": {
@@ -2480,6 +2543,9 @@
       "extractionState": "manual"
     },
     "wyszukiwanie w treści": {
+      "extractionState": "manual"
+    },
+    "włącz „Zgodność ze starymi serwerami” w połączeniu": {
       "extractionState": "manual"
     },
     "zablokowany": {

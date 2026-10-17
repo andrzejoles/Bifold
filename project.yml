@@ -30,6 +30,10 @@ packages:
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm
     exactVersion: 1.99.0
+  # Automatyczne aktualizacje (ta sama wersja co w CantatePresenter).
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.6
 targets:
   Bifold:
     type: application
@@ -51,6 +55,7 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
       - package: BifoldKit
         product: BifoldCore
@@ -72,6 +77,8 @@ targets:
         product: BifoldHelperKit
       - package: SwiftTerm
         product: SwiftTerm
+      - package: Sparkle
+        product: Sparkle
       - framework: ThirdParty/build/HexFiend.framework
         embed: true
         codeSign: true
@@ -112,6 +119,10 @@ schemes:
     build:
       targets:
         Bifold: all
+      preActions:
+        - name: Wersja z gita
+          script: "\"$SRCROOT/scripts/set-version.sh\""
+          settingsTarget: Bifold
     run:
       config: Debug
     archive:

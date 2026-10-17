@@ -38,6 +38,20 @@
 	<false/>
 	<key>NSSupportsSuddenTermination</key>
 	<false/>
+	<key>NSHumanReadableCopyright</key>
+	<string>$(BIFOLD_COPYRIGHT)</string>
+	<key>BifoldRepository</key>
+	<string>$(BIFOLD_REPOSITORY)</string>
+	<key>SUFeedURL</key>
+	<string>$(BIFOLD_UPDATE_FEED_URL)</string>
+	<key>SUPublicEDKey</key>
+	<string>$(BIFOLD_SPARKLE_PUBLIC_KEY)</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>NSDesktopFolderUsageDescription</key>
 	<string>Menedżer plików wyświetla i zmienia pliki na Biurku.</string>
 	<key>NSDocumentsFolderUsageDescription</key>

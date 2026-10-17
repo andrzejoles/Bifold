@@ -3,7 +3,7 @@ SCHEME = Bifold
 DERIVED = build/DerivedData
 APP = $(DERIVED)/Build/Products/Debug/Bifold.app
 
-.PHONY: bootstrap generate build release test test-release run strings perf-fixture clean
+.PHONY: bootstrap generate build release test test-release run strings perf-fixture clean version installer
 
 bootstrap:
 	git submodule update --init --recursive
@@ -14,9 +14,11 @@ generate:
 	xcodegen generate --quiet
 
 build:
+	./scripts/set-version.sh
 	xcodebuild -project Bifold.xcodeproj -scheme $(SCHEME) -configuration Debug -derivedDataPath $(DERIVED) -skipPackagePluginValidation -skipMacroValidation build -quiet
 
 release:
+	./scripts/set-version.sh
 	xcodebuild -project Bifold.xcodeproj -scheme $(SCHEME) -configuration Release -derivedDataPath $(DERIVED) -skipPackagePluginValidation -skipMacroValidation build -quiet
 
 test:
@@ -35,6 +37,14 @@ strings:
 # Katalog testowy ze 100 000 plików: /tmp/bifold-100k
 perf-fixture:
 	mkdir -p /tmp/bifold-100k && cd /tmp/bifold-100k && seq 1 100000 | xargs -n 1000 touch
+
+# Wersja z historii gita (jak w CantatePresenter): 1 + PR/10 . PR mod 10 . commity od ostatniego PR.
+version:
+	@./scripts/version.sh
+
+# Instalatory DMG i PKG w dist/ (podpis: scripts/signing.sh). Wydanie na GitHubie: scripts/release.sh.
+installer:
+	./scripts/build-installer.sh
 
 clean:
 	rm -rf build

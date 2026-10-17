@@ -104,11 +104,12 @@ public final class Workspace {
         remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "local.aoles.bifold") + (persists ? ".remote" : ".tests"))
         if !persists {
             // Testy nie dotykają ~/.ssh (known_hosts i konfiguracja w katalogu testu).
-            remotes.sshKnownHostsFile = paths.root.appending(path: "known_hosts").path
-            let config = paths.root.appending(path: "ssh_config")
-            try? FileManager.default.createDirectory(at: paths.root, withIntermediateDirectories: true)
-            FileManager.default.createFile(atPath: config.path, contents: Data())
-            remotes.sshConfigFile = config.path
+            // Osobny katalog tymczasowy — nie w katalogu danych (testy listują katalogi z nim w środku).
+            let sshDir = FileManager.default.temporaryDirectory.appending(path: "bifold-tests-ssh-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
+            try? FileManager.default.createDirectory(at: sshDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            FileManager.default.createFile(atPath: sshDir.appending(path: "ssh_config").path, contents: Data())
+            remotes.sshKnownHostsFile = sshDir.appending(path: "known_hosts").path
+            remotes.sshConfigFile = sshDir.appending(path: "ssh_config").path
         }
     }
 

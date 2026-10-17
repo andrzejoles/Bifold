@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBuilder: MenuBuilder!
     private var agents: AgentUIController!
     private var adminHelper: AdminHelperClient!
+    private let updates = UpdateService()
     private let observations = ObservationBag()
 
     static func main() {
@@ -30,6 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainWindow = MainWindowController(workspace: workspace, services: services)
         services.mainWindow = mainWindow
         adminHelper = AdminHelperClient(workspace: workspace)
+        updates.register(in: workspace)
+        updates.start()
         agents = AgentUIController(workspace: workspace)
         agents.mainWindow = mainWindow
         mainWindow.agentPane = agents.pane
