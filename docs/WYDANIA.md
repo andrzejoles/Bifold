@@ -19,8 +19,8 @@ ani zgód Pęku kluczy po aktualizacji.
 
 **Kopia zapasowa** (bez niej nowa tożsamość na innym Macu oznacza jednorazowe ponowne nadanie zgód):
 ```sh
-scripts/signing.sh export ~/Bezpieczne/bifold-signing.p12   # poza repozytorium!
-scripts/signing.sh import ~/Bezpieczne/bifold-signing.p12   # na nowym Macu
+scripts/signing.sh export ~/Bezpieczne    # pęk kluczy podpisu + jego hasło — poza repozytorium!
+scripts/signing.sh restore ~/Bezpieczne   # na nowym Macu
 ```
 
 Developer ID (opcjonalnie, płatne): po ustawieniu podpisu Developer ID i notaryzacji Gatekeeper
@@ -32,7 +32,8 @@ Prywatny w Pęku kluczy logowania (konto `bifold`), publiczny w `Config/Brand.xc
 (`BIFOLD_SPARKLE_PUBLIC_KEY`).
 ```sh
 scripts/sparkle-tools.sh generate_keys -p              # klucz publiczny
-scripts/sparkle-tools.sh generate_keys -x klucz.txt    # kopia klucza prywatnego — poza repozytorium!
+scripts/sparkle-tools.sh generate_keys -x ~/Bezpieczne/bifold-sparkle-eddsa-private.txt   # kopia — poza repozytorium!
+scripts/sparkle-tools.sh generate_keys -f ~/Bezpieczne/bifold-sparkle-eddsa-private.txt   # odtworzenie na nowym Macu
 ```
 Utrata klucza prywatnego = zainstalowane kopie nie przyjmą kolejnych aktualizacji (jednorazowa ręczna
 instalacja wersji z nowym kluczem).

@@ -11,8 +11,9 @@
 #
 # Użycie: scripts/signing.sh ensure            tworzy tożsamość (raz)
 #         scripts/signing.sh sign Bifold.app   podpisuje pakiet od środka
-#         scripts/signing.sh export plik.p12   kopia zapasowa tożsamości (np. na drugi Mac) — poza repozytorium!
-#         scripts/signing.sh import plik.p12   odtworzenie tożsamości z kopii
+#         scripts/signing.sh export KATALOG    kopia zapasowa (pęk kluczy + jego hasło) — poza repozytorium!
+#         scripts/signing.sh restore KATALOG   odtworzenie z kopii (np. na nowym Macu)
+#         scripts/signing.sh import plik.p12   tożsamość z pliku .p12 (np. własny certyfikat)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KC="$HOME/Library/Keychains/bifold-signing.keychain-db"
@@ -105,11 +106,25 @@ case "${1:-}" in
         codesign -d -r- "$APP" 2>&1 | grep designated
         ;;
     export)
-        OUT="${2:?Podaj plik .p12}"
-        ensure
-        read -r -s -p "Hasło do pliku $OUT: " P12PW; echo
-        security export -k "$KC" -t identities -f pkcs12 -P "$P12PW" -o "$OUT"
-        echo "Zapisano $OUT — przechowuj poza repozytorium."
+        # Kopia całego pęku (zaszyfrowany swoim hasłem) i hasła — bez eksportu klucza, który
+        # wymagałby okna zgody z hasłem pęku.
+        DIR="${2:?Podaj katalog kopii}"
+        mkdir -p -m 700 "$DIR"
+        ensure >/dev/null
+        (umask 077
+         cp -p "$KC" "$DIR/bifold-signing.keychain-db"
+         password > "$DIR/bifold-signing-haslo-pęku.txt"
+         chmod 600 "$DIR/bifold-signing.keychain-db" "$DIR/bifold-signing-haslo-pęku.txt")
+        echo "Zapisano w $DIR — przechowuj poza repozytorium (np. menedżer haseł, zaszyfrowany dysk)."
+        ;;
+    restore)
+        DIR="${2:?Podaj katalog kopii}"
+        [ ! -f "$KC" ] || { echo "Już jest $KC — najpierw go usuń, jeśli chcesz odtworzyć kopię" >&2; exit 1; }
+        PW="$(cat "$DIR/bifold-signing-haslo-pęku.txt")"
+        cp -p "$DIR/bifold-signing.keychain-db" "$KC"
+        security add-generic-password -U -s "$SERVICE" -a bifold -w "$PW" -T /usr/bin/security
+        security unlock-keychain -p "$PW" "$KC"
+        identity
         ;;
     import)
         FILE="${2:?Podaj plik .p12}"
@@ -119,7 +134,7 @@ case "${1:-}" in
         identity
         ;;
     *)
-        echo "Użycie: $0 ensure | sign Bifold.app | export plik.p12 | import plik.p12" >&2
+        echo "Użycie: $0 ensure | sign Bifold.app | export KATALOG | restore KATALOG | import plik.p12" >&2
         exit 2
         ;;
 esac
