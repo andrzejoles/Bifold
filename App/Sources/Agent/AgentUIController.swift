@@ -244,9 +244,14 @@ final class AgentUIController: ApprovalPresenter {
         let args = r.arguments.values.filter { !$0.key.hasPrefix("__") }
         lines += ["", L10n.tr("Argumenty: \(JSONValue.object(args).description)")]
         alert.accessoryView = Self.textAccessory(lines.joined(separator: "\n"))
-        alert.addButton(withTitle: L10n.tr("Zatwierdź"))
+        // Zgoda wymaga świadomego kliknięcia: Enter nic nie zatwierdza (użytkownik mógł właśnie
+        // pisać w terminalu agenta), Esc odrzuca, a „Zatwierdź” jest aktywny dopiero po chwili.
+        let approve = alert.addButton(withTitle: L10n.tr("Zatwierdź"))
+        approve.keyEquivalent = ""
+        approve.isEnabled = false
         let reject = alert.addButton(withTitle: L10n.tr("Odrzuć"))
         reject.keyEquivalent = "\u{1b}"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { approve.isEnabled = true }
         return await present(alert) == .alertFirstButtonReturn
     }
 

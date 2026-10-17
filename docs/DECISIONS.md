@@ -114,3 +114,8 @@ komendy „Brak” są niedostępne.
 ### D22 · 2026-10-17 — Znaczniki sesji CLI usuwane ze środowiska agenta
 Jeśli Bifold uruchomiono z terminala, w którym działało CLI agenta, zmienne `CLAUDECODE`,
 `CLAUDE_CODE_*`, `CODEX_*` nie przechodzą do CLI uruchamianego w panelu agenta.
+
+### D23 · 2026-10-17 — Okno zatwierdzania bez przycisku domyślnego
+Test w aplikacji pokazał, że Enter wciśnięty w terminalu agenta tuż przed pojawieniem się arkusza
+mógł zatwierdzić operację. Teraz „Zatwierdź” nie ma skrótu klawiszowego i włącza się po 0,8 s,
+Esc odrzuca. Zgoda wymaga kliknięcia.
