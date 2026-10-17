@@ -31,7 +31,7 @@ brew install libimobiledevice  # Etap 7: iPhone (AFC)
 git clone --recursive https://github.com/andrzejoles/Bifold.git
 cd Bifold
 make bootstrap   # buduje HexFiend.framework, generuje Bifold.xcodeproj
-make test        # testy pakietu BifoldKit (143)
+make test        # testy pakietu BifoldKit (144)
 make test-release  # test wydajności 100 000 plików w Release (kryterium < 1 s)
 make run         # buduje i uruchamia Bifold.app
 ```
