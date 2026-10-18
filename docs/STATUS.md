@@ -1,6 +1,6 @@
 # Stan realizacji (2026-10-17)
 
-Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **165** (wszystkie zielone) w
+Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **166** (wszystkie zielone) w
 pakiecie `BifoldKit` (`make test`) + test wydajności w Release (`make test-release`) + opcjonalny test
 E2E z prawdziwymi CLI agentów. Zgodnie z poleceniem „w pełni autonomicznie” punkty „pokaż i poczekaj
 na akceptację” zastąpiłem wpisami w [DECISIONS.md](DECISIONS.md).
@@ -42,6 +42,7 @@ Legenda: ✅ zweryfikowane testem automatycznym · 👁 sprawdzone ręcznie w dz
 | Archiwa: ZIP/7z/TAR/TAR.GZ/BZ2/XZ, polskie nazwy, hasła, wieloczęściowe, archiwum jak katalog, szukanie w archiwach | ✅ (RAR — rozpakowywanie przez 7zz, bez pliku testowego) |
 | Serwery: SFTP, FTP, WebDAV przez rclone (gniazdo Unix, konfiguracja w pamięci), przesyłanie, cofanie pobrań | ✅ z lokalnymi serwerami `rclone serve` |
 | SCP (`scp -O`) na serwerze bez SFTP, tylko ze starymi algorytmami (jak AIX 6.1); SFTP w trybie zgodności | ✅ z lokalnym `sshd` (bez roota, bez SFTP, tylko `diffie-hellman-group14-sha1`, `ssh-rsa`, `aes128-cbc`) |
+| Terminal SSH w drugim panelu (logowanie bez hasła, katalog z panelu, klawisze, rozłączenie) | ✅ test + 👁 na żywo z lokalnym `sshd` (Tab, F5, Ctrl+Tab, rozłączenie) |
 | Odrzucenie podstawionego serwera (zmieniony klucz) dla SFTP i SCP | ✅ |
 | Nazwy w ISO-8859-2 na serwerze SCP | ⚠️ kodowanie i parser testowane; brak serwera z takimi nazwami (APFS ich nie przechowa) |
 | Automatyczna aktualizacja (Sparkle) | ✅ ręcznie: kopia 1.0.14 pobrała z lokalnego kanału 1.0.15, sprawdziła podpis EdDSA i podmieniła się przy zamknięciu, ten sam podpis |

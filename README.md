@@ -103,6 +103,9 @@ Adres, port, użytkownik i katalog są w `~/Library/Application Support/Bifold/c
 - **Zgodność ze starymi serwerami** (SFTP i SCP) — włącza algorytmy, których nowy OpenSSH domyślnie
   nie używa: `diffie-hellman-group1/14-sha1`, klucze `ssh-rsa`, szyfry CBC. Potrzebne m.in. dla AIX 6.1.
   Klucze DSA nie są obsługiwane (OpenSSH 10 je usunął) — serwer musi mieć klucz RSA.
+- **Terminal SSH w panelu:** otwarcie połączenia SFTP/SCP pokazuje w drugim panelu terminal zalogowany na
+  serwer (przez to samo połączenie, bez ponownego hasła). Klawisze bez Cmd idą do serwera, Ctrl+Tab wraca
+  do drugiego panelu, ⌘W zamyka kartę. Można to wyłączyć w ustawieniach połączenia.
 - Klucz serwera jest zapamiętywany w `~/.ssh/known_hosts` przy pierwszym połączeniu i sprawdzany przy
   następnych; zmieniony klucz (możliwy podstawiony serwer) blokuje połączenie.
 

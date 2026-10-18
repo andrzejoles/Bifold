@@ -60,6 +60,8 @@ public final class RemoteManager {
 
     @ObservationIgnored private var socketDir: URL?
     @ObservationIgnored private var scpSessions: [String: ScpFS] = [:]
+    /// Sesje SSH dla terminali połączeń SFTP (SCP korzysta z sesji ScpFS).
+    @ObservationIgnored private var terminalSessions: [String: SSHSession] = [:]
     /// Testy: własna konfiguracja SSH zamiast ~/.ssh/config i ~/.ssh/known_hosts.
     @ObservationIgnored public var sshConfigFile: String?
     @ObservationIgnored public var sshKnownHostsFile: String?
@@ -113,11 +115,42 @@ public final class RemoteManager {
         return fs
     }
 
+    /// Terminal SSH dla połączenia SFTP/SCP: połączenie główne (hasło z Pęku kluczy, bez pytania),
+    /// potem `ssh -t` przez nie — w katalogu `directory`, jeśli powłoka serwera na to pozwala.
+    public func terminalSpec(_ alias: String, directory: String?) async throws -> TerminalSpec {
+        guard let c = connection(alias) else { throw RemoteError.unknownRemote(alias) }
+        guard c.kind.usesSSH else { throw RemoteError.ssh(L10n.tr("Terminal SSH działa dla połączeń SFTP i SCP")) }
+        let session: SSHSession
+        if let scp = scpSessions[alias] {
+            session = scp.session
+        } else if let existing = terminalSessions[alias] {
+            session = existing
+        } else {
+            let keychain = keychain
+            session = try SSHSession(
+                config: .init(host: c.host, port: c.port, user: c.user, keyFile: c.keyFile, legacyAlgorithms: c.legacyAlgorithms ?? false,
+                              encoding: c.nameEncoding ?? .utf8, configFile: sshConfigFile, knownHostsFile: sshKnownHostsFile),
+                runDirectory: try socketDirectory(), secret: { keychain.get(alias) })
+            terminalSessions[alias] = session
+        }
+        let shell = try await runBlocking(qos: .userInitiated) { () -> String in
+            try session.connect()
+            let r = try session.run("echo $SHELL")
+            return session.config.encoding.decode(r.output).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let command = SSHSession.loginCommand(directory: directory, shell: shell, encoding: session.config.encoding)
+        return TerminalSpec(alias: alias, executable: "/usr/bin/ssh", arguments: session.terminalArguments(remoteCommand: command))
+    }
+
     /// Zamyka połączenie: sesję SSH (SCP), zasób w pamięci rclone (SFTP, FTP, WebDAV, chmury),
     /// edycje plików z tego serwera. Karty przenosi wywołujący (komenda `remote.disconnect`).
     public func disconnect(_ alias: String) async {
         if let scp = scpSessions.removeValue(forKey: alias) {
             _ = try? await runBlocking(qos: .userInitiated) { scp.disconnect() }
+        }
+        // Zamknięcie połączenia głównego kończy też terminale SSH tego serwera.
+        if let terminal = terminalSessions.removeValue(forKey: alias) {
+            _ = try? await runBlocking(qos: .userInitiated) { terminal.disconnect() }
         }
         if let rclone, rclone.isRunning, connected.contains(alias) {
             _ = try? await rclone.call("config/delete", ["name": alias])
@@ -142,6 +175,8 @@ public final class RemoteManager {
     public func stop() {
         for fs in scpSessions.values { fs.disconnect() }
         scpSessions = [:]
+        for session in terminalSessions.values { session.disconnect() }
+        terminalSessions = [:]
         rclone?.stop()
         rclone = nil
         connected = []

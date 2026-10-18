@@ -267,3 +267,14 @@ Xcode rejestruje każdą zbudowaną aplikację w LaunchServices, a Spotlight zna
 `dist/` — w Launchpadzie było pięć „Bifoldów”. Katalog budowania to `build/DerivedData.noindex`, kopie
 robocze instalatora w `dist/staging.noindex`, a `make build`, instalator i `make unregister`
 wyrejestrowują wszystko poza `/Applications`.
+
+### D44 · 2026-10-19 — Terminal SSH jako karta panelu (decyzja właściciela)
+„Jak uruchamiasz z Menedżera połączeń połączenie ssh, to w drugim panelu zamiast listy plików otwiera się
+terminal”. Karta panelu może mieć `terminal` (`TerminalSpec`): panel pokazuje wtedy SwiftTerm z `ssh -t`
+przez połączenie główne (ControlPath) — hasło podało już połączenie główne z Pęku kluczy, w argumentach
+nie ma sekretów. Katalog startowy z panelu przez `cd … && exec $SHELL -l`, tylko dla powłok znających `-l`
+(ksh88 z AIX nie zna — wtedy zwykłe logowanie w katalogu domowym). Klawisze bez Cmd przejmuje widok
+terminala przed menu (F5 ma trafić do `mc` na serwerze, nie do kopiowania plików). Agent nie otwiera
+terminala ani nie widzi jego treści (`remote.terminal` — poziom „Brak”; `remote.open` od agenta pomija
+terminal). Karty-terminale nie wracają po ponownym uruchomieniu. Próby na żywo bez dotykania danych:
+`BIFOLD_DATA_DIR`, `BIFOLD_SSH_CONFIG`, `BIFOLD_SSH_KNOWN_HOSTS`.

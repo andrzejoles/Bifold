@@ -105,6 +105,10 @@ public final class Workspace {
         registry = CommandRegistry.standard()
         rebuildKeymap()
         remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "local.aoles.bifold") + (persists ? ".remote" : ".tests"))
+        // Próby z BIFOLD_DATA_DIR: własna konfiguracja SSH i known_hosts zamiast ~/.ssh.
+        let env = ProcessInfo.processInfo.environment
+        if let config = env["BIFOLD_SSH_CONFIG"] { remotes.sshConfigFile = config }
+        if let known = env["BIFOLD_SSH_KNOWN_HOSTS"] { remotes.sshKnownHostsFile = known }
         if !persists {
             // Testy nie dotykają ~/.ssh (known_hosts i konfiguracja w katalogu testu).
             // Osobny katalog tymczasowy — nie w katalogu danych (testy listują katalogi z nim w środku).

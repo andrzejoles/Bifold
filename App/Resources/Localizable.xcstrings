@@ -696,6 +696,35 @@
         }
       }
     },
+    "Agent nie ma dostępu do terminala": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent has no access to the terminal"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Agent hat keinen Zugriff auf das Terminal"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El agente no tiene acceso al terminal"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Агент не має доступу до термінала"
+          }
+        }
+      }
+    },
     "Aktualizacja (źródło → cel)": {
       "extractionState": "manual",
       "localizations": {
@@ -10382,6 +10411,35 @@
         }
       }
     },
+    "Otwiera w drugim panelu terminal zalogowany na serwer SFTP/SCP (przez to samo połączenie, bez ponownego hasła), w katalogu z aktywnego panelu.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens a terminal logged in to the SFTP/SCP server in the other panel (over the same connection, without the password again), in the folder of the active panel."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet im anderen Bereich ein am SFTP/SCP-Server angemeldetes Terminal (über dieselbe Verbindung, ohne erneutes Passwort), im Ordner des aktiven Bereichs."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre en el otro panel un terminal con sesión iniciada en el servidor SFTP/SCP (por la misma conexión, sin volver a pedir la contraseña), en la carpeta del panel activo."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкриває в іншій панелі термінал, у якому виконано вхід на сервер SFTP/SCP (через те саме з’єднання, без повторного пароля), у теці активної панелі."
+          }
+        }
+      }
+    },
     "Otwórz": {
       "extractionState": "manual",
       "localizations": {
@@ -13978,6 +14036,35 @@
         }
       }
     },
+    "Przy otwarciu: terminal SSH w drugim panelu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On open: SSH terminal in the other panel"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Öffnen: SSH-Terminal im anderen Bereich"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al abrir: terminal SSH en el otro panel"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Під час відкриття: термінал SSH в іншій панелі"
+          }
+        }
+      }
+    },
     "Przywróć domyślne": {
       "extractionState": "manual",
       "localizations": {
@@ -16874,6 +16961,209 @@
           "stringUnit": {
             "state": "translated",
             "value": "Термінал"
+          }
+        }
+      }
+    },
+    "Terminal SSH": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH Terminal"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH-Terminal"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal SSH"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Термінал SSH"
+          }
+        }
+      }
+    },
+    "Terminal SSH działa dla połączeń SFTP i SCP": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The SSH terminal works for SFTP and SCP connections"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das SSH-Terminal funktioniert für SFTP- und SCP-Verbindungen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El terminal SSH funciona con conexiones SFTP y SCP"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Термінал SSH працює для з’єднань SFTP і SCP"
+          }
+        }
+      }
+    },
+    "Terminal SSH w drugim panelu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH terminal in the other panel"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH-Terminal im anderen Bereich"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal SSH en el otro panel"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Термінал SSH в іншій панелі"
+          }
+        }
+      }
+    },
+    "Terminal SSH w drugim panelu (domyślnie wg ustawienia połączenia)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH terminal in the other panel (default: as set in the connection)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH-Terminal im anderen Bereich (Standard: laut Verbindungseinstellung)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal SSH en el otro panel (predeterminado: según la conexión)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Термінал SSH в іншій панелі (типово згідно з налаштуванням з’єднання)"
+          }
+        }
+      }
+    },
+    "Terminal SSH: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH terminal: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH-Terminal: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal SSH: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Термінал SSH: %@"
+          }
+        }
+      }
+    },
+    "Terminal SSH: %@ — klawisze idą do serwera; Ctrl+Tab — drugi panel, ⌘W — zamknij kartę": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH terminal: %@ — keys go to the server; Ctrl+Tab — other panel, ⌘W — close tab"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH-Terminal: %@ — Tasten gehen an den Server; Strg+Tab — anderer Bereich, ⌘W — Tab schließen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal SSH: %@ — las teclas van al servidor; Ctrl+Tab — otro panel, ⌘W — cerrar pestaña"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Термінал SSH: %@ — клавіші йдуть на сервер; Ctrl+Tab — інша панель, ⌘W — закрити вкладку"
+          }
+        }
+      }
+    },
+    "Terminal SSH…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH Terminal…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH-Terminal…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal SSH…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Термінал SSH…"
           }
         }
       }
@@ -23080,6 +23370,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Повертає завдання в черзі з поступом."
+          }
+        }
+      }
+    },
+    "[Sesja SSH zakończona — ⌘W zamyka kartę]": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[SSH session ended — ⌘W closes the tab]"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[SSH-Sitzung beendet — ⌘W schließt den Tab]"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Sesión SSH terminada — ⌘W cierra la pestaña]"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Сесію SSH завершено — ⌘W закриває вкладку]"
           }
         }
       }

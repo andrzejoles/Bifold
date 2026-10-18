@@ -49,6 +49,7 @@
 		C64F9BCD6A600794099ED5A0 /* GridListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E73F4F7492DA6533F57EBF /* GridListView.swift */; };
 		CBFAC2C52D0F3302C2C3EBCC /* PanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D246500F6F01002047D49D3 /* PanelViewController.swift */; };
 		D2EB9CD81B5D8F046DCD8F2A /* Observe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD02CC4ED89FD034F12C201B /* Observe.swift */; };
+		D2FDEEBD1583E96E7E956B1D /* PanelTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CB08591E98A5499AB796B63 /* PanelTerminalView.swift */; };
 		D3E381A8B4F4E9BAD0F6C4FA /* CommandLineBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A965284FB8898DEED1F6DBB1 /* CommandLineBar.swift */; };
 		E0F695F18834C4D3887439DE /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124D7F9BFF80AC1000CF1A73 /* main.swift */; };
 		E5647A5E26AF166E666D0804 /* BifoldHelperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8A8A1A26DE2536189EF28137 /* BifoldHelperKit */; };
@@ -133,6 +134,7 @@
 		6ACFDBB9F909F9FECBAB84F4 /* ColumnListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColumnListView.swift; sourceTree = "<group>"; };
 		6BC932422FFDBA0C36E9A0F4 /* JournalWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalWindowController.swift; sourceTree = "<group>"; };
 		7577258957A8726095CAAE02 /* QuickLookController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookController.swift; sourceTree = "<group>"; };
+		7CB08591E98A5499AB796B63 /* PanelTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelTerminalView.swift; sourceTree = "<group>"; };
 		7CFC1E9E3691CD6C88F3DC7D /* AdminHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHelper.swift; sourceTree = "<group>"; };
 		7D246500F6F01002047D49D3 /* PanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewController.swift; sourceTree = "<group>"; };
 		82470DF1E310E6F21EF3EFFE /* bifold-mcp */ = {isa = PBXFileReference; includeInIndex = 0; path = "bifold-mcp"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -225,6 +227,7 @@
 				4D61D5F6D18E125A9D49110F /* DirectoryTreeView.swift */,
 				F1E73F4F7492DA6533F57EBF /* GridListView.swift */,
 				C0D9F57CDB5D57A14204BEB1 /* PanelBars.swift */,
+				7CB08591E98A5499AB796B63 /* PanelTerminalView.swift */,
 				7D246500F6F01002047D49D3 /* PanelViewController.swift */,
 				5721F87D33E298BCB5021933 /* QuickViewPane.swift */,
 			);
@@ -611,6 +614,7 @@
 				1A4609D5778CE31D0F2B1958 /* MultiRenameWindow.swift in Sources */,
 				D2EB9CD81B5D8F046DCD8F2A /* Observe.swift in Sources */,
 				42D9ED7E4C2E3D22017229C4 /* PanelBars.swift in Sources */,
+				D2FDEEBD1583E96E7E956B1D /* PanelTerminalView.swift in Sources */,
 				CBFAC2C52D0F3302C2C3EBCC /* PanelViewController.swift in Sources */,
 				63EA5D8E2D2A15FB69EB3D6A /* QuickLookController.swift in Sources */,
 				C2B4CD356CEE4D299A1FC712 /* QuickViewPane.swift in Sources */,

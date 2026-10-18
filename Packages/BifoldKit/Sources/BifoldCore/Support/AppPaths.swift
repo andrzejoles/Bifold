@@ -9,7 +9,12 @@ public struct AppPaths: Sendable {
     }
 
     /// Katalog dla nazwy aplikacji (z `Info.plist`, patrz `Config/Brand.xcconfig`).
+    /// `BIFOLD_DATA_DIR` zastępuje katalog danych (próby bez dotykania prawdziwych danych, jak
+    /// `CANTATE_DATA_DIR` w CantatePresenter).
     public static func standard(appName: String) -> AppPaths {
+        if let dir = ProcessInfo.processInfo.environment["BIFOLD_DATA_DIR"], dir.hasPrefix("/") {
+            return AppPaths(root: URL(filePath: dir, directoryHint: .isDirectory))
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return AppPaths(root: base.appending(path: appName, directoryHint: .isDirectory))
     }

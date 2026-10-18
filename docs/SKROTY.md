@@ -82,7 +82,7 @@ Poziom agenta: Brak — narzędzie niewidoczne; Odczyt; Za zgodą — okno zatwi
 | Komenda | Id | Profil TC | Profil Cmd | Agent |
 |---|---|---|---|---|
 | Podgląd | `file.view` | F3 | F3 ⌘3 ⌥Spacja | Odczyt |
-| Edytuj | `file.edit` | F4 | F4 ⌘E ⌘4 | Brak |
+| Edytuj | `file.edit` | F4 | F4 ⌘4 ⌘E | Brak |
 | Nowy plik… | `file.newFile` | ⇧F4 | ⇧F4 ⌥⌘N | Za zgodą |
 | Kopiuj… | `file.copy` | F5 | F5 ⌘5 | Za zgodą |
 | Przenieś… | `file.move` | F6 | F6 ⌘6 | Za zgodą |
@@ -161,6 +161,7 @@ Poziom agenta: Brak — narzędzie niewidoczne; Odczyt; Za zgodą — okno zatwi
 | Komenda | Id | Profil TC | Profil Cmd | Agent |
 |---|---|---|---|---|
 | Menedżer połączeń… | `remote.connections` | ⌃F | ⌘K ⌃F | Brak |
+| Terminal SSH… | `remote.terminal` |  |  | Brak |
 | Rozłącz | `remote.disconnect` | ⌃⇧F | ⌃⌘K ⌃⇧F | Odczyt |
 | Otwórz połączenie… | `remote.open` |  | ⇧⌘K | Odczyt |
 | Lista połączeń | `remote.listConnections` |  |  | Odczyt |

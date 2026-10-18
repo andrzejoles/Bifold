@@ -62,6 +62,8 @@ struct ConnectionsView: View {
                             get: { draft.legacyAlgorithms ?? false }, set: { draft.legacyAlgorithms = $0 ? true : nil }))
                         Text(L10n.tr("Włącza algorytmy diffie-hellman-group1/14-sha1, ssh-rsa i szyfry CBC — tylko dla serwerów, które nie znają nowszych."))
                             .font(.caption).foregroundStyle(.secondary)
+                        Toggle(L10n.tr("Przy otwarciu: terminal SSH w drugim panelu"), isOn: Binding(
+                            get: { draft.openTerminal ?? true }, set: { draft.openTerminal = $0 ? nil : false }))
                     }
                     if draft.kind == .scp {
                         Picker(L10n.tr("Kodowanie nazw na serwerze"), selection: Binding(
@@ -86,6 +88,13 @@ struct ConnectionsView: View {
                         workspace.perform("remote.open", CommandArguments(["alias": .string(draft.alias)]))
                     }
                     .disabled(draft.alias.isEmpty)
+                    if draft.kind.usesSSH {
+                        Button(L10n.tr("Terminal SSH")) {
+                            save()
+                            workspace.perform("remote.terminal", CommandArguments(["alias": .string(draft.alias)]))
+                        }
+                        .disabled(draft.alias.isEmpty)
+                    }
                     if remotes.connected.contains(draft.alias) {
                         Button(L10n.tr("Rozłącz")) {
                             workspace.perform("remote.disconnect", CommandArguments(["alias": .string(draft.alias)]))

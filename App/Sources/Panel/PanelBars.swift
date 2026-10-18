@@ -111,11 +111,14 @@ final class PathBarView: NSView {
     var onVolumes: (() -> Void)?
     /// Rozłączenie serwera pokazywanego w panelu (przycisk ⏏ widoczny tylko dla połączeń).
     var onDisconnect: (() -> Void)?
+    /// Terminal SSH w drugim panelu (przycisk widoczny dla połączeń SFTP/SCP).
+    var onTerminal: (() -> Void)?
     var isActive = false { didSet { updateColors() } }
     private let pathControl = NSPathControl()
     /// Ścieżka spoza dysku (`alias:/katalog`, archiwum, telefon) — NSPathControl pokazuje tylko adresy plików.
     private let remoteLabel = NSTextField(labelWithString: "")
     private let disconnectButton = NSButton()
+    private let terminalButton = NSButton()
     private let spaceLabel = NSTextField(labelWithString: "")
     private let spinner = NSProgressIndicator()
     private let volumeButton = NSButton()
@@ -158,13 +161,21 @@ final class PathBarView: NSView {
         disconnectButton.toolTip = L10n.tr("Rozłącz serwer")
         disconnectButton.isHidden = true
 
+        terminalButton.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: L10n.tr("Terminal SSH"))
+        terminalButton.isBordered = false
+        terminalButton.target = self
+        terminalButton.action = #selector(openTerminal)
+        terminalButton.refusesFirstResponder = true
+        terminalButton.toolTip = L10n.tr("Terminal SSH w drugim panelu")
+        terminalButton.isHidden = true
+
         spinner.style = .spinning
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let stack = NSStackView(views: [volumeButton, pathControl, remoteLabel, spacer, spinner, spaceLabel, disconnectButton])
+        let stack = NSStackView(views: [volumeButton, pathControl, remoteLabel, spacer, spinner, spaceLabel, terminalButton, disconnectButton])
         stack.orientation = .horizontal
         stack.spacing = 4
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 8)
@@ -182,7 +193,8 @@ final class PathBarView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    func update(path: VFSPath, volume: VolumeInfo?, error: String?, loading: Bool) {
+    func update(path: VFSPath, volume: VolumeInfo?, error: String?, loading: Bool, sshTerminal: Bool = false) {
+        terminalButton.isHidden = !sshTerminal
         if let url = path.url {
             if pathControl.url != url { pathControl.url = url }
             pathControl.isHidden = false
@@ -196,7 +208,8 @@ final class PathBarView: NSView {
         if let error {
             spaceLabel.stringValue = "⚠︎ " + error
             spaceLabel.textColor = .systemRed
-        } else if let v = volume {
+        } else if let v = volume, v.totalCapacity > 0 {
+            // Serwery i telefony nie podają pojemności — wtedy bez „0 B wolne”.
             spaceLabel.stringValue = L10n.tr("\(Format.bytes(v.availableCapacity)) wolne")
             spaceLabel.textColor = .secondaryLabelColor
         } else {
@@ -216,4 +229,6 @@ final class PathBarView: NSView {
     @objc private func volumes() { onVolumes?() }
 
     @objc private func disconnect() { onDisconnect?() }
+
+    @objc private func openTerminal() { onTerminal?() }
 }
