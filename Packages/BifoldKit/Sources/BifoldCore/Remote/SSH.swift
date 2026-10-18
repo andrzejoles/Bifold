@@ -228,15 +228,21 @@ public final class SSHSession: Sendable {
             + plus("MACs", "mac", ["hmac-sha1", "hmac-md5"])
     }
 
+    /// Ścieżka jako wartość opcji `-o`: `ssh` czyta ją jak wiersz konfiguracji, więc spacja (np.
+    /// „Application Support”) ją rozcina — stąd cudzysłów; `%` to znacznik (`%h`), więc `%%`.
+    static func pathValue(_ path: String) -> String {
+        "\"" + path.replacingOccurrences(of: "%", with: "%%") + "\""
+    }
+
     /// Opcje wspólne `ssh` i `scp` (port podawany osobno: `-p` / `-P`).
     func commonOptions(master: Bool) -> [String] {
         var o: [String] = []
         if let f = config.configFile { o += ["-F", f] }
-        o += ["-o", "ControlPath=\(controlPath)", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30",
+        o += ["-o", "ControlPath=\(Self.pathValue(controlPath))", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30",
               "-o", "StrictHostKeyChecking=accept-new", "-o", "NumberOfPasswordPrompts=1"]
         // Połączenie główne pisze do pliku dziennika — tam potrzebne są komunikaty negocjacji (INFO).
         o += ["-o", master ? "LogLevel=INFO" : "LogLevel=ERROR"]
-        if let k = config.knownHostsFile { o += ["-o", "UserKnownHostsFile=\(k)"] }
+        if let k = config.knownHostsFile { o += ["-o", "UserKnownHostsFile=\(Self.pathValue(k))"] }
         if !config.keyFile.isEmpty { o += ["-i", expandTilde(config.keyFile), "-o", "IdentitiesOnly=yes"] }
         if config.legacyAlgorithms { o += Self.legacyOptions() }
         // Polecenia korzystają z połączenia głównego; bez niego nie pytają o nic (BatchMode).
@@ -331,7 +337,7 @@ public final class SSHSession: Sendable {
     public func recordHostKey() throws {
         try? FileManager.default.createDirectory(atPath: (knownHostsPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         // Pierwsze wystąpienie opcji wygrywa — własne ustawienia przed wspólnymi.
-        var args = ["-o", "PreferredAuthentications=none", "-o", "UserKnownHostsFile=\(knownHostsPath)"] + commonOptions(master: false)
+        var args = ["-o", "PreferredAuthentications=none", "-o", "UserKnownHostsFile=\(Self.pathValue(knownHostsPath))"] + commonOptions(master: false)
         if let port = config.port { args += ["-p", String(port)] }
         args += [destination, "exit"]
         let r = try Spawn.run(Self.ssh, args.map { Array($0.utf8) }, environment: environment, timeout: 30)
