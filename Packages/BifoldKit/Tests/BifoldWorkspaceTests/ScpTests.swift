@@ -227,6 +227,25 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         #expect(sshd.root.exists("po zmianie.txt"))
     }
 
+    /// Katalog danych aplikacji to „~/Library/Application Support/…” — ze spacją w ścieżce gniazda.
+    @Test func runDirectoryWithSpaces() async throws {
+        let sshd = try TestSSHD()
+        let dir = URL(filePath: "/private/tmp/bifold sp-\(UUID().uuidString.prefix(6))", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let c = sshd.connection("spacja")
+        let config = SSHSession.Config(host: c.host, port: c.port, user: c.user, keyFile: c.keyFile, legacyAlgorithms: true,
+                                       configFile: sshd.clientConfig, knownHostsFile: dir.appending(path: "known hosts").path)
+        let session = try SSHSession(config: config, runDirectory: dir, secret: { TestSSHD.passphrase })
+        defer { session.disconnect() }
+        try session.recordHostKey()
+        #expect(FileManager.default.fileExists(atPath: dir.appending(path: "known hosts").path))
+        try session.connect()
+        let r = try session.run("echo ok")
+        #expect(r.status == 0 && String(decoding: r.output, as: UTF8.self) == "ok\n", "\(r.errorText)")
+        #expect(SSHSession.pathValue("/a b/%h") == "\"/a b/%%h\"")
+    }
+
     @Test func modernClientWithoutLegacyModeFailsWithHint() async throws {
         let sshd = try TestSSHD()
         let (_, ws, _) = try await setup(sshd)

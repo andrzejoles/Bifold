@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — SCP/SFTP
+- Połączenie SCP (i zapamiętanie klucza serwera SFTP) kończyło się błędem „keyword controlpath extra arguments
+  at end of line”: ścieżka gniazda w „~/Library/Application Support” ma spację, a `ssh` rozcinał na niej opcję.
+
 ### Dodane — języki
 - Interfejs po angielsku, niemiecku, hiszpańsku i ukraińsku (obok polskiego), wybór w Ustawieniach.
 - Eksport pliku do tłumaczenia (JSON dla tłumacza lub AI) i import gotowego tłumaczenia, jak w CantatePresenter.
