@@ -246,6 +246,35 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         #expect(SSHSession.pathValue("/a b/%h") == "\"/a b/%%h\"")
     }
 
+    @Test func disconnectClosesSessionAndTabs() async throws {
+        let sshd = try TestSSHD(sftp: true)
+        let (tmp, ws, _) = try await setup(sshd)
+        defer { ws.remotes.stop() }
+        try sshd.root.file("a.txt", "a")
+        try ws.remotes.save(sshd.connection("aix"), secret: TestSSHD.passphrase)
+        try ws.remotes.save(sshd.connection("sftp", kind: .sftp), secret: TestSSHD.passphrase)
+        defer { ws.remotes.keychain.delete("aix"); ws.remotes.keychain.delete("sftp") }
+
+        try await ws.invoke("remote.open", CommandArguments(["alias": "aix"]))
+        try await ws.invoke("remote.open", CommandArguments(["alias": "sftp", "side": "right"]))
+        let scp = try #require(try await ws.remotes.provider("aix") as? ScpFS)
+        #expect(scp.session.isConnected && ws.remotes.connected == ["aix", "sftp"])
+
+        // Bez aliasu: serwer z aktywnego panelu (lewy = SCP).
+        try await ws.invoke("remote.disconnect")
+        #expect(ws.left.activeTab.path == tmp.path && ws.left.activeTab.customTitle == nil)
+        #expect(!scp.session.isConnected, "połączenie główne ssh zamknięte")
+        #expect(!ws.remotes.connected.contains("aix") && (try? ws.providers.provider(for: RemoteFS.providerID("aix"))) == nil)
+        #expect(RemoteFS.alias(of: ws.right.activeTab.path) == "sftp", "drugi serwer bez zmian")
+
+        // SFTP po aliasie; ponowne otwarcie działa.
+        try await ws.invoke("remote.disconnect", CommandArguments(["alias": "sftp"]))
+        #expect(ws.right.activeTab.path == tmp.path && ws.remotes.connected.isEmpty)
+        await #expect(throws: (any Error).self) { try await ws.invoke("remote.disconnect") }
+        try await ws.invoke("remote.open", CommandArguments(["alias": "sftp"]))
+        #expect(ws.left.activeTab.items.contains { $0.name == "a.txt" })
+    }
+
     @Test func modernClientWithoutLegacyModeFailsWithHint() async throws {
         let sshd = try TestSSHD()
         let (_, ws, _) = try await setup(sshd)

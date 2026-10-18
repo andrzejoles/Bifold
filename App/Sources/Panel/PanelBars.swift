@@ -109,8 +109,13 @@ private final class TabButton: NSView {
 final class PathBarView: NSView {
     var onNavigate: ((VFSPath) -> Void)?
     var onVolumes: (() -> Void)?
+    /// Rozłączenie serwera pokazywanego w panelu (przycisk ⏏ widoczny tylko dla połączeń).
+    var onDisconnect: (() -> Void)?
     var isActive = false { didSet { updateColors() } }
     private let pathControl = NSPathControl()
+    /// Ścieżka spoza dysku (`alias:/katalog`, archiwum, telefon) — NSPathControl pokazuje tylko adresy plików.
+    private let remoteLabel = NSTextField(labelWithString: "")
+    private let disconnectButton = NSButton()
     private let spaceLabel = NSTextField(labelWithString: "")
     private let spinner = NSProgressIndicator()
     private let volumeButton = NSButton()
@@ -140,11 +145,26 @@ final class PathBarView: NSView {
         spaceLabel.textColor = .secondaryLabelColor
         spaceLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
+        remoteLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        remoteLabel.lineBreakMode = .byTruncatingMiddle
+        remoteLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        remoteLabel.isHidden = true
+
+        disconnectButton.image = NSImage(systemSymbolName: "eject", accessibilityDescription: L10n.tr("Rozłącz"))
+        disconnectButton.isBordered = false
+        disconnectButton.target = self
+        disconnectButton.action = #selector(disconnect)
+        disconnectButton.refusesFirstResponder = true
+        disconnectButton.toolTip = L10n.tr("Rozłącz serwer")
+        disconnectButton.isHidden = true
+
         spinner.style = .spinning
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
 
-        let stack = NSStackView(views: [volumeButton, pathControl, spinner, spaceLabel])
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.init(1), for: .horizontal)
+        let stack = NSStackView(views: [volumeButton, pathControl, remoteLabel, spacer, spinner, spaceLabel, disconnectButton])
         stack.orientation = .horizontal
         stack.spacing = 4
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 8)
@@ -163,7 +183,16 @@ final class PathBarView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     func update(path: VFSPath, volume: VolumeInfo?, error: String?, loading: Bool) {
-        if let url = path.url, pathControl.url != url { pathControl.url = url }
+        if let url = path.url {
+            if pathControl.url != url { pathControl.url = url }
+            pathControl.isHidden = false
+            remoteLabel.isHidden = true
+        } else {
+            pathControl.isHidden = true
+            remoteLabel.isHidden = false
+            remoteLabel.stringValue = path.displayPath
+        }
+        disconnectButton.isHidden = RemoteFS.alias(of: path) == nil
         if let error {
             spaceLabel.stringValue = "⚠︎ " + error
             spaceLabel.textColor = .systemRed
@@ -185,4 +214,6 @@ final class PathBarView: NSView {
     }
 
     @objc private func volumes() { onVolumes?() }
+
+    @objc private func disconnect() { onDisconnect?() }
 }

@@ -93,7 +93,7 @@ znacznikami wartości (`%@`, `%lld`) są przy imporcie pomijane.
 
 ## Serwery: SFTP, SCP i stare systemy (np. AIX 6.1)
 
-Połączenia (⌘K / Ctrl+F): SFTP, **SCP**, FTP/FTPS, WebDAV, SMB, Google Drive, Dropbox, OneDrive.
+Połączenia (⌘K / Ctrl+F): otwieranie ⇧⌘K, **rozłączanie Ctrl+Shift+F / ⌃⌘K** albo ⏏ na pasku ścieżki. SFTP, **SCP**, FTP/FTPS, WebDAV, SMB, Google Drive, Dropbox, OneDrive.
 Adres, port, użytkownik i katalog są w `~/Library/Application Support/Bifold/connections.json`
 (uprawnienia 0600), hasła, hasła kluczy i tokeny wyłącznie w Pęku kluczy macOS. Agent AI zna tylko alias.
 

@@ -4,7 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — rozłączanie
+- „Rozłącz” (menu Sieć, paleta, Ctrl+Shift+F jak w Total Commanderze, ⌃⌘K w profilu Cmd, przycisk ⏏ na pasku
+  ścieżki, Menedżer połączeń): zamyka sesję SSH/rclone, karty z tym serwerem wracają do katalogu domowego.
+- Pasek ścieżki pokazuje `alias:/katalog` dla serwerów (wcześniej zostawała ostatnia ścieżka lokalna).
+
 ### Poprawione — SCP/SFTP
+- Pierwsze połączenie przez rclone (SFTP, FTP…) „zapominało” otwarte połączenia SCP; kolejne wejście na serwer
+  SCP logowało się od nowa i zamykało wspólne połączenie główne.
 - Połączenie SCP (i zapamiętanie klucza serwera SFTP) kończyło się błędem „keyword controlpath extra arguments
   at end of line”: ścieżka gniazda w „~/Library/Application Support” ma spację, a `ssh` rozcinał na niej opcję.
 
