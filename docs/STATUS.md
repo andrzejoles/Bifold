@@ -1,6 +1,6 @@
 # Stan realizacji (2026-10-17)
 
-Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **164** (wszystkie zielone) w
+Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **165** (wszystkie zielone) w
 pakiecie `BifoldKit` (`make test`) + test wydajności w Release (`make test-release`) + opcjonalny test
 E2E z prawdziwymi CLI agentów. Zgodnie z poleceniem „w pełni autonomicznie” punkty „pokaż i poczekaj
 na akceptację” zastąpiłem wpisami w [DECISIONS.md](DECISIONS.md).

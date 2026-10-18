@@ -21,6 +21,8 @@ public final class Workspace {
     public let left: Panel
     public let right: Panel
     public var activeSide: PanelSide = .left
+    /// Katalog domowy (tu wracają karty po rozłączeniu serwera).
+    public let homePath: VFSPath
     /// Szybki podgląd (Ctrl+Q): drugi panel pokazuje podgląd elementu pod kursorem.
     public var quickViewActive = false
     public private(set) var keymap: Keymap
@@ -55,6 +57,7 @@ public final class Workspace {
 
     /// - Parameter persists: `false` w testach — nic nie jest zapisywane na dysk.
     public init(paths: AppPaths, persists: Bool = true, home: VFSPath = .local(NSHomeDirectory())) {
+        homePath = home
         self.paths = paths
         self.persists = persists
         if persists { paths.ensureExists() }

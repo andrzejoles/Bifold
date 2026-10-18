@@ -98,7 +98,30 @@ var remoteCommands: [Command] { [
     },
 
     Command(CommandDescriptor(
-        id: "remote.open", title: L10n.tr("Otwórz połączenie…"), category: .network, tc: ["ctrl+shift+f"], cmd: ["cmd+shift+k"],
+        id: "remote.disconnect", title: L10n.tr("Rozłącz"), category: .network, tc: ["ctrl+shift+f"], cmd: ["cmd+ctrl+k"],
+        parameters: [CommandParameter("alias", .string, L10n.tr("Alias połączenia (domyślnie serwer w aktywnym panelu)"))],
+        agent: .read, effect: .uiState,
+        summary: L10n.tr("Zamyka połączenie z serwerem; karty pokazujące ten serwer wracają do katalogu domowego."))
+    ) { ctx in
+        let remotes = ctx.workspace.remotes!
+        let tabs = ctx.workspace.left.tabs + ctx.workspace.right.tabs
+        let open = Set(tabs.compactMap { RemoteFS.alias(of: $0.path) }).union(remotes.connected)
+        let alias = ctx.arguments.string("alias") ?? RemoteFS.alias(of: ctx.tab.path) ?? (open.count == 1 ? open.first : nil)
+        guard let alias else {
+            throw CommandError.notAvailable(open.isEmpty ? L10n.tr("Brak otwartych połączeń")
+                : L10n.tr("Wybierz panel z serwerem albo podaj alias: \(open.sorted().joined(separator: ", "))"))
+        }
+        guard open.contains(alias) else { throw CommandError.notAvailable(L10n.tr("Połączenie \(alias) nie jest otwarte")) }
+        for tab in tabs where RemoteFS.alias(of: tab.path) == alias {
+            try? await tab.navigate(to: ctx.workspace.homePath)
+            tab.customTitle = nil
+        }
+        await remotes.disconnect(alias)
+        return CommandResult(message: L10n.tr("Rozłączono \(alias)"))
+    },
+
+    Command(CommandDescriptor(
+        id: "remote.open", title: L10n.tr("Otwórz połączenie…"), category: .network, cmd: ["cmd+shift+k"],
         parameters: [CommandParameter("alias", .string, required: true, L10n.tr("Alias połączenia")), CommandParameter("path", .string, L10n.tr("Katalog na serwerze")), sideParam],
         agent: .read, effect: .uiState, summary: L10n.tr("Otwiera połączenie w aktywnym panelu (agent zna tylko aliasy)."))
     ) { ctx in

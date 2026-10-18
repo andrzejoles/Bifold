@@ -71,7 +71,8 @@ public final class RemoteManager {
         let r = Rclone(executable: exe, socket: socket)
         try r.start()
         rclone = r
-        connected = []
+        // Nowy proces rclone nie zna wcześniejszych zasobów — ale połączenia SCP (własne sesje SSH) zostają.
+        connected = connected.filter { scpSessions[$0] != nil }
         return r
     }
 
@@ -81,10 +82,13 @@ public final class RemoteManager {
         if connected.contains(alias), let p = try? workspace.providers.provider(for: RemoteFS.providerID(alias)) as? any RemoteFileProvider { return p }
         if c.kind == .scp {
             let keychain = keychain
+            // Stara sesja przed nową: obie używają tego samego gniazda połączenia głównego.
+            if let old = scpSessions.removeValue(forKey: alias) {
+                _ = try? await runBlocking(qos: .userInitiated) { old.disconnect() }
+            }
             let fs = try await ScpFS.connect(c, runDirectory: try socketDirectory(), sshConfigFile: sshConfigFile, knownHostsFile: sshKnownHostsFile) {
                 keychain.get(alias)
             }
-            scpSessions[alias]?.disconnect()
             scpSessions[alias] = fs
             workspace.providers.register(fs)
             connected.insert(alias)
@@ -107,6 +111,24 @@ public final class RemoteManager {
         workspace.providers.register(fs)
         connected.insert(alias)
         return fs
+    }
+
+    /// Zamyka połączenie: sesję SSH (SCP), zasób w pamięci rclone (SFTP, FTP, WebDAV, chmury),
+    /// edycje plików z tego serwera. Karty przenosi wywołujący (komenda `remote.disconnect`).
+    public func disconnect(_ alias: String) async {
+        if let scp = scpSessions.removeValue(forKey: alias) {
+            _ = try? await runBlocking(qos: .userInitiated) { scp.disconnect() }
+        }
+        if let rclone, rclone.isRunning, connected.contains(alias) {
+            _ = try? await rclone.call("config/delete", ["name": alias])
+            _ = try? await rclone.call("fscache/clear", [:])
+        }
+        for (key, session) in editSessions where RemoteFS.alias(of: session.remote) == alias {
+            session.stop()
+            editSessions[key] = nil
+        }
+        workspace.providers.unregister(RemoteFS.providerID(alias))
+        connected.remove(alias)
     }
 
     /// Zasób przez rclone (synchronizacja, wyszukiwanie, przesyłanie między serwerami).

@@ -25,7 +25,8 @@ struct ConnectionsView: View {
                         Image(systemName: c.kind.usesOAuth ? "cloud" : "server.rack")
                         VStack(alignment: .leading) {
                             Text(c.alias)
-                            Text(c.kind.displayName + (c.kind.agentLevelIsApproval ? L10n.tr(" · agent: za zgodą") : L10n.tr(" · agent: odczyt")))
+                            Text(c.kind.displayName + (c.kind.agentLevelIsApproval ? L10n.tr(" · agent: za zgodą") : L10n.tr(" · agent: odczyt"))
+                                 + (remotes.connected.contains(c.alias) ? L10n.tr(" · połączono") : ""))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -85,6 +86,12 @@ struct ConnectionsView: View {
                         workspace.perform("remote.open", CommandArguments(["alias": .string(draft.alias)]))
                     }
                     .disabled(draft.alias.isEmpty)
+                    if remotes.connected.contains(draft.alias) {
+                        Button(L10n.tr("Rozłącz")) {
+                            workspace.perform("remote.disconnect", CommandArguments(["alias": .string(draft.alias)]))
+                            status = L10n.tr("Rozłączono \(draft.alias)")
+                        }
+                    }
                     if draft.kind == .smb {
                         Button(L10n.tr("Zamontuj (NetFS)")) {
                             save()

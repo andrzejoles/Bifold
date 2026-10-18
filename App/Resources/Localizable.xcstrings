@@ -63,6 +63,35 @@
         }
       }
     },
+    " · połączono": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · connected"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · verbunden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · conectado"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · з’єднано"
+          }
+        }
+      }
+    },
     "%@ (domyślna)": {
       "extractionState": "manual",
       "localizations": {
@@ -808,6 +837,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Псевдонім з’єднання"
+          }
+        }
+      }
+    },
+    "Alias połączenia (domyślnie serwer w aktywnym panelu)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection alias (default: the server in the active panel)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindungsalias (Standard: der Server im aktiven Bereich)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alias de la conexión (predeterminado: el servidor del panel activo)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Псевдонім з’єднання (типово сервер в активній панелі)"
           }
         }
       }
@@ -1591,6 +1649,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "У пакеті програми немає мосту bifold-mcp (%@)."
+          }
+        }
+      }
+    },
+    "Brak otwartych połączeń": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No open connections"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine offenen Verbindungen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay conexiones abiertas"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Немає відкритих з’єднань"
           }
         }
       }
@@ -12876,6 +12963,35 @@
         }
       }
     },
+    "Połączenie %@ nie jest otwarte": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection %@ is not open"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Verbindung %@ ist nicht geöffnet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La conexión %@ no está abierta"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "З’єднання %@ не відкрите"
+          }
+        }
+      }
+    },
     "Połączenie %lld części → %@": {
       "extractionState": "manual",
       "localizations": {
@@ -14670,6 +14786,93 @@
           "stringUnit": {
             "state": "translated",
             "value": "Розширення"
+          }
+        }
+      }
+    },
+    "Rozłącz": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trennen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Від’єднати"
+          }
+        }
+      }
+    },
+    "Rozłącz serwer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect the server"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server trennen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar el servidor"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Від’єднати сервер"
+          }
+        }
+      }
+    },
+    "Rozłączono %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnected %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ getrennt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se desconectó %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Від’єднано %@"
           }
         }
       }
@@ -19314,6 +19517,35 @@
         }
       }
     },
+    "Wybierz panel z serwerem albo podaj alias: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a panel with a server or give an alias: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einen Bereich mit einem Server wählen oder einen Alias angeben: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige un panel con un servidor o indica un alias: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Виберіть панель із сервером або вкажіть псевдонім: %@"
+          }
+        }
+      }
+    },
     "Wybierz pierwszą część (.001)": {
       "extractionState": "manual",
       "localizations": {
@@ -20412,6 +20644,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Закриває вкладку (остання вкладка панелі залишається)."
+          }
+        }
+      }
+    },
+    "Zamyka połączenie z serwerem; karty pokazujące ten serwer wracają do katalogu domowego.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closes the connection to the server; tabs showing this server go back to the home folder."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließt die Verbindung zum Server; Tabs mit diesem Server wechseln zurück in den Benutzerordner."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cierra la conexión con el servidor; las pestañas que lo muestran vuelven a la carpeta de inicio."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закриває з’єднання із сервером; вкладки з цим сервером повертаються до домашньої теки."
           }
         }
       }

@@ -70,6 +70,11 @@ final class PanelViewController: NSViewController {
             self?.activate()
             self?.workspace.perform("tools.volumes")
         }
+        pathBar.onDisconnect = { [weak self] in
+            guard let self, let alias = RemoteFS.alias(of: self.tab.path) else { return }
+            self.activate()
+            self.workspace.perform("remote.disconnect", CommandArguments(["alias": .string(alias)]))
+        }
 
         filterField.placeholderString = L10n.tr("Filtr: fragment nazwy lub maska (*.jpg)")
         filterField.sendsSearchStringImmediately = true

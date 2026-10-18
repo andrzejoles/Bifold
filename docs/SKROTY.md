@@ -161,7 +161,8 @@ Poziom agenta: Brak — narzędzie niewidoczne; Odczyt; Za zgodą — okno zatwi
 | Komenda | Id | Profil TC | Profil Cmd | Agent |
 |---|---|---|---|---|
 | Menedżer połączeń… | `remote.connections` | ⌃F | ⌘K ⌃F | Brak |
-| Otwórz połączenie… | `remote.open` | ⌃⇧F | ⇧⌘K ⌃⇧F | Odczyt |
+| Rozłącz | `remote.disconnect` | ⌃⇧F | ⌃⌘K ⌃⇧F | Odczyt |
+| Otwórz połączenie… | `remote.open` |  | ⇧⌘K | Odczyt |
 | Lista połączeń | `remote.listConnections` |  |  | Odczyt |
 | Zawartość katalogu na serwerze | `remote.list` |  |  | Odczyt |
 | Odczyt pliku z serwera | `remote.read` |  |  | Odczyt |

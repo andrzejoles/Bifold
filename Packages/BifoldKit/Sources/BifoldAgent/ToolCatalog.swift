@@ -74,6 +74,7 @@ public enum ToolCatalog {
         Entry("archive_test", "archive.test"),
         Entry("remote_connections", "remote.listConnections"),
         Entry("remote_open", "remote.open"),
+        Entry("remote_disconnect", "remote.disconnect"),
         Entry("remote_list", "remote.list"),
         Entry("remote_read", "remote.read"),
         Entry("remote_search", "remote.search"),
