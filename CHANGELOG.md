@@ -4,6 +4,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane — terminal SSH w panelu
+- Otwarcie połączenia SFTP/SCP (np. z Menedżera połączeń) pokazuje pliki serwera w aktywnym panelu, a w drugim
+  panelu kartę-terminal zalogowaną na ten serwer — przez to samo połączenie, bez ponownego hasła, w katalogu
+  z panelu (ustawienie „Przy otwarciu: terminal SSH w drugim panelu”, domyślnie włączone).
+- „Terminal SSH…” (menu Sieć, paleta, przycisk na pasku ścieżki, Menedżer połączeń).
+- W terminalu wszystkie klawisze bez Cmd idą do serwera (F-klawisze, Tab, Esc); Ctrl+Tab — drugi panel,
+  ⌘W — zamknięcie karty; rozłączenie zamyka terminale serwera.
+
+### Poprawione
+- Serwery i telefony pokazywały „0 B wolne”.
+
 ### Dodane — rozłączanie
 - „Rozłącz” (menu Sieć, paleta, Ctrl+Shift+F jak w Total Commanderze, ⌃⌘K w profilu Cmd, przycisk ⏏ na pasku
   ścieżki, Menedżer połączeń): zamyka sesję SSH/rclone, karty z tym serwerem wracają do katalogu domowego.

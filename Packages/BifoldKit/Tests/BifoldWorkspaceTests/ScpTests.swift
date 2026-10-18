@@ -82,6 +82,11 @@ final class TestSSHD {
     }
 }
 
+/// Bramka agenta przepuszczająca wszystko (test sprawdza samą komendę, nie politykę).
+final class AllowAllGate: AgentInvocationGate {
+    func authorize(_ command: Command, context: CommandContext) async throws {}
+}
+
 let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd") && FileManager.default.isExecutableFile(atPath: "/usr/bin/scp")
 
 @Suite struct ScpParserTests {
@@ -255,8 +260,8 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         try ws.remotes.save(sshd.connection("sftp", kind: .sftp), secret: TestSSHD.passphrase)
         defer { ws.remotes.keychain.delete("aix"); ws.remotes.keychain.delete("sftp") }
 
-        try await ws.invoke("remote.open", CommandArguments(["alias": "aix"]))
-        try await ws.invoke("remote.open", CommandArguments(["alias": "sftp", "side": "right"]))
+        try await ws.invoke("remote.open", CommandArguments(["alias": "aix", "terminal": false]))
+        try await ws.invoke("remote.open", CommandArguments(["alias": "sftp", "side": "right", "terminal": false]))
         let scp = try #require(try await ws.remotes.provider("aix") as? ScpFS)
         #expect(scp.session.isConnected && ws.remotes.connected == ["aix", "sftp"])
 
@@ -271,8 +276,46 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         try await ws.invoke("remote.disconnect", CommandArguments(["alias": "sftp"]))
         #expect(ws.right.activeTab.path == tmp.path && ws.remotes.connected.isEmpty)
         await #expect(throws: (any Error).self) { try await ws.invoke("remote.disconnect") }
-        try await ws.invoke("remote.open", CommandArguments(["alias": "sftp"]))
+        try await ws.invoke("remote.open", CommandArguments(["alias": "sftp", "terminal": false]))
         #expect(ws.left.activeTab.items.contains { $0.name == "a.txt" })
+    }
+
+    /// Połączenie SSH z Menedżera: pliki w aktywnym panelu, terminal w drugim (przez połączenie główne).
+    @Test func sshTerminalInOtherPanel() async throws {
+        let sshd = try TestSSHD()
+        let (_, ws, _) = try await setup(sshd)
+        defer { ws.remotes.stop() }
+        try sshd.root.dir("logi dzienne")
+        try ws.remotes.save(sshd.connection("aix"), secret: TestSSHD.passphrase)
+        defer { ws.remotes.keychain.delete("aix") }
+
+        try await ws.invoke("remote.open", CommandArguments(["alias": "aix", "path": "/logi dzienne", "terminal": true]))
+        #expect(ws.left.activeTab.terminal == nil && ws.left.activeTab.path.path == "/logi dzienne")
+        let term = ws.right.activeTab
+        let spec = try #require(term.terminal)
+        #expect(spec.alias == "aix" && spec.executable == "/usr/bin/ssh" && term.customTitle == "⌨ aix")
+        #expect(spec.arguments.contains("-t") && !spec.arguments.contains("BatchMode=yes"))
+        let dir = sshd.root.url.path + "/logi dzienne"
+        #expect(spec.arguments.last?.hasPrefix("cd '\(dir)' && exec ") == true, "\(spec.arguments.last ?? "")")
+
+        // Te same argumenty działają bez hasła (połączenie główne) — tu bez terminala, z poleceniem testowym.
+        var args = spec.arguments.dropLast().map { $0 == "-t" ? "-T" : $0 }
+        args.append("cd '\(dir)' && pwd")
+        let r = try Spawn.run(spec.executable, args.map { Array($0.utf8) }, environment: ["HOME": NSHomeDirectory(), "PATH": "/usr/bin:/bin"], timeout: 20)
+        #expect(r.status == 0 && String(decoding: r.output, as: UTF8.self).hasSuffix("logi dzienne\n"), "\(r.errorText)")
+
+        // Karta-terminal nie trafia do zapisu sesji; rozłączenie ją zamyka.
+        #expect(!ws.right.snapshot.tabs.contains { $0.path == term.path && ws.right.tabs.count == 1 })
+        #expect(ws.right.snapshot.tabs.count == ws.right.tabs.count - 1)
+        try await ws.invoke("remote.disconnect", CommandArguments(["alias": "aix"]))
+        #expect(!ws.right.tabs.contains { $0.terminal != nil })
+
+        // Agent nie otwiera terminala, nawet przy połączeniu z włączonym terminalem.
+        let gate = AllowAllGate()
+        ws.agentGate = gate
+        let before = ws.right.tabs.count
+        _ = try await ws.invoke("remote.open", CommandArguments(["alias": "aix"]), invoker: .agent(sessionID: "test", agentName: "test"))
+        #expect(ws.right.tabs.count == before && !ws.right.tabs.contains { $0.terminal != nil })
     }
 
     @Test func modernClientWithoutLegacyModeFailsWithHint() async throws {

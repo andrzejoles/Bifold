@@ -74,6 +74,9 @@
   przez jednorazową kolejkę FIFO (D38) — nigdy w argumentach ani środowisku. Gniazda połączeń głównych
   (ControlMaster) w katalogu 0700. Host i użytkownik sprawdzane, żeby nie dało się wstrzyknąć opcji
   `ssh`. SCP dla agenta — odczyt, jak SFTP.
+- **Terminal SSH w panelu**: `ssh -t` przez gniazdo połączenia głównego (katalog 0700), bez haseł w
+  argumentach; środowisko bez `BIFOLD_AGENT_TOKEN`. Agent nie ma do niego dostępu (komenda „Brak”, a
+  `remote.open` wywołane przez agenta nigdy nie otwiera terminala — test).
 - **Archiwa z hasłem**: hasło podaje tylko użytkownik (pole maskowane), trafia do `7zz` przez stdin,
   nie jest zapisywane. Agent dostaje `password_required`.
 - **Urządzenia**: tylko odczyt; dla agenta poziom „Odczyt”.

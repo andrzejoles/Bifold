@@ -15,6 +15,29 @@ extension CommandContext {
         return try await workspace.remotes.provider(alias)
     }
 
+    /// Katalog na serwerze dla ścieżki panelu (absolutny albo względem katalogu domowego).
+    func remoteDirectory(_ path: VFSPath) async -> String? {
+        guard let fs = try? await remoteFS(path) else { return nil }
+        if let scp = fs as? ScpFS { return scp.remotePath(path) }
+        if let r = fs as? RemoteFS {
+            let p = r.remotePath(path)
+            return r.connection.path.hasPrefix("/") ? "/" + p : (p.isEmpty ? nil : p)
+        }
+        return nil
+    }
+
+    /// Otwiera kartę-terminal SSH w panelu `side` (domyślnie drugim). Agent nie ma dostępu do terminala.
+    @discardableResult
+    func openTerminal(_ alias: String, directory: String?, in panel: Panel) async throws -> Tab {
+        guard !isAgent else { throw CommandError.notAvailable(L10n.tr("Agent nie ma dostępu do terminala")) }
+        let spec = try await workspace.remotes.terminalSpec(alias, directory: directory)
+        let start = VFSPath(provider: RemoteFS.providerID(alias), path: "/")
+        let tab = panel.newTab(at: start)
+        tab.terminal = spec
+        tab.customTitle = "⌨ " + alias
+        return tab
+    }
+
     func rcloneFS(_ path: VFSPath) async throws -> RemoteFS? {
         guard let alias = RemoteFS.alias(of: path) else { return nil }
         return try await workspace.remotes.rcloneProvider(alias)
@@ -98,6 +121,25 @@ var remoteCommands: [Command] { [
     },
 
     Command(CommandDescriptor(
+        id: "remote.terminal", title: L10n.tr("Terminal SSH…"), category: .network,
+        parameters: [CommandParameter("alias", .string, L10n.tr("Alias połączenia (domyślnie serwer w aktywnym panelu)")), sideParam],
+        agent: .none, effect: .external,
+        summary: L10n.tr("Otwiera w drugim panelu terminal zalogowany na serwer SFTP/SCP (przez to samo połączenie, bez ponownego hasła), w katalogu z aktywnego panelu."))
+    ) { ctx in
+        let ssh = ctx.workspace.remotes.connections.filter(\.kind.usesSSH).map(\.alias)
+        var alias = ctx.arguments.string("alias") ?? RemoteFS.alias(of: ctx.tab.path)
+        if alias == nil || !ssh.contains(alias!) {
+            alias = try await ctx.text("alias", title: L10n.tr("Terminal SSH"), message: ssh.joined(separator: ", "), default: ssh.first ?? "")
+        }
+        guard let alias, ssh.contains(alias) else { throw CommandError.notAvailable(L10n.tr("Terminal SSH działa dla połączeń SFTP i SCP")) }
+        let directory = RemoteFS.alias(of: ctx.tab.path) == alias ? await ctx.remoteDirectory(ctx.tab.path) : nil
+        let panel = ctx.arguments.string("side").map { $0 == "left" ? ctx.workspace.left : ctx.workspace.right }
+            ?? (ctx.workspace.activeSide == .left ? ctx.workspace.right : ctx.workspace.left)
+        try await ctx.openTerminal(alias, directory: directory, in: panel)
+        return CommandResult(message: L10n.tr("Terminal SSH: \(alias)"))
+    },
+
+    Command(CommandDescriptor(
         id: "remote.disconnect", title: L10n.tr("Rozłącz"), category: .network, tc: ["ctrl+shift+f"], cmd: ["cmd+ctrl+k"],
         parameters: [CommandParameter("alias", .string, L10n.tr("Alias połączenia (domyślnie serwer w aktywnym panelu)"))],
         agent: .read, effect: .uiState,
@@ -112,7 +154,13 @@ var remoteCommands: [Command] { [
                 : L10n.tr("Wybierz panel z serwerem albo podaj alias: \(open.sorted().joined(separator: ", "))"))
         }
         guard open.contains(alias) else { throw CommandError.notAvailable(L10n.tr("Połączenie \(alias) nie jest otwarte")) }
-        for tab in tabs where RemoteFS.alias(of: tab.path) == alias {
+        for panel in [ctx.workspace.left, ctx.workspace.right] {
+            for tab in panel.tabs where tab.terminal?.alias == alias {
+                if let i = panel.tabs.firstIndex(where: { $0 === tab }), panel.closeTab(at: i) { continue }
+                tab.terminal = nil
+            }
+        }
+        for tab in ctx.workspace.left.tabs + ctx.workspace.right.tabs where RemoteFS.alias(of: tab.path) == alias {
             try? await tab.navigate(to: ctx.workspace.homePath)
             tab.customTitle = nil
         }
@@ -122,7 +170,8 @@ var remoteCommands: [Command] { [
 
     Command(CommandDescriptor(
         id: "remote.open", title: L10n.tr("Otwórz połączenie…"), category: .network, cmd: ["cmd+shift+k"],
-        parameters: [CommandParameter("alias", .string, required: true, L10n.tr("Alias połączenia")), CommandParameter("path", .string, L10n.tr("Katalog na serwerze")), sideParam],
+        parameters: [CommandParameter("alias", .string, required: true, L10n.tr("Alias połączenia")), CommandParameter("path", .string, L10n.tr("Katalog na serwerze")), sideParam,
+                     CommandParameter("terminal", .boolean, L10n.tr("Terminal SSH w drugim panelu (domyślnie wg ustawienia połączenia)"))],
         agent: .read, effect: .uiState, summary: L10n.tr("Otwiera połączenie w aktywnym panelu (agent zna tylko aliasy)."))
     ) { ctx in
         let names = ctx.workspace.remotes.connections.map(\.alias)
@@ -132,6 +181,15 @@ var remoteCommands: [Command] { [
         let target = VFSPath(provider: fs.id, path: ctx.arguments.string("path") ?? "/")
         try await tab.navigate(to: target)
         tab.customTitle = "🌐 " + alias
+        // Połączenie SSH: terminal w drugim panelu (ustawienie połączenia; agent — nigdy).
+        if !ctx.isAgent, ctx.arguments.bool("terminal") ?? ctx.workspace.remotes.connection(alias)?.opensTerminal ?? false {
+            let other = ctx.workspace.left.tabs.contains { $0 === tab } ? ctx.workspace.right : ctx.workspace.left
+            do {
+                try await ctx.openTerminal(alias, directory: await ctx.remoteDirectory(target), in: other)
+            } catch {
+                ctx.ui?.showError(L10n.tr("Terminal SSH: \(error.localizedDescription)"))
+            }
+        }
         return CommandResult(message: target.displayPath)
     },
 

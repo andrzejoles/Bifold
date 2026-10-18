@@ -57,6 +57,8 @@ public final class Tab: Identifiable {
 
     /// Tytuł karty wyników wyszukiwania.
     public var customTitle: String?
+    /// Karta-terminal (SSH): zamiast listy plików panel pokazuje terminal z tym procesem.
+    public var terminal: TerminalSpec?
     public var title: String { customTitle ?? (path.isRoot ? "/" : path.name) }
     /// Karta pokazuje wyniki wyszukiwania (elementy z różnych katalogów).
     public var isSearchResults: Bool { SearchResultsFS.isSearchResults(path) }
@@ -331,5 +333,19 @@ public final class Tab: Identifiable {
         let shown = visibleItems.filter { !$0.isParentLink }
         let files = shown.filter { !$0.isNavigable }
         return (files.count, shown.count - files.count, files.reduce(0) { $0 + max(0, $1.size) })
+    }
+}
+
+/// Proces terminala w karcie panelu (`ssh` do zapisanego połączenia). Bez sekretów: hasło podaje
+/// połączenie główne SSH, `ssh` w terminalu korzysta z niego przez ControlPath.
+public struct TerminalSpec: Sendable, Equatable {
+    public var alias: String
+    public var executable: String
+    public var arguments: [String]
+
+    public init(alias: String, executable: String, arguments: [String]) {
+        self.alias = alias
+        self.executable = executable
+        self.arguments = arguments
     }
 }

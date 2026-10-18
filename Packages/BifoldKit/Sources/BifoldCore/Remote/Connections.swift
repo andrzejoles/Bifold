@@ -50,6 +50,11 @@ public struct RemoteConnection: Codable, Sendable, Hashable, Identifiable {
     public var legacyAlgorithms: Bool?
     /// SCP: kodowanie nazw plików na serwerze (domyślnie UTF-8).
     public var nameEncoding: NameEncoding?
+    /// SFTP/SCP: przy otwarciu połączenia terminal SSH w drugim panelu (domyślnie tak).
+    public var openTerminal: Bool?
+
+    /// Czy otwarcie połączenia otwiera też terminal SSH w drugim panelu.
+    public var opensTerminal: Bool { kind.usesSSH && openTerminal != false }
 
     public init(alias: String, kind: RemoteKind, host: String = "", port: Int? = nil, user: String = "", path: String = "", keyFile: String = "",
                 options: [String: String] = [:], legacyAlgorithms: Bool? = nil, nameEncoding: NameEncoding? = nil) {

@@ -235,7 +235,7 @@ public final class SSHSession: Sendable {
     }
 
     /// Opcje wspólne `ssh` i `scp` (port podawany osobno: `-p` / `-P`).
-    func commonOptions(master: Bool) -> [String] {
+    func commonOptions(master: Bool, batch: Bool = true) -> [String] {
         var o: [String] = []
         if let f = config.configFile { o += ["-F", f] }
         o += ["-o", "ControlPath=\(Self.pathValue(controlPath))", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=30",
@@ -246,7 +246,7 @@ public final class SSHSession: Sendable {
         if !config.keyFile.isEmpty { o += ["-i", expandTilde(config.keyFile), "-o", "IdentitiesOnly=yes"] }
         if config.legacyAlgorithms { o += Self.legacyOptions() }
         // Polecenia korzystają z połączenia głównego; bez niego nie pytają o nic (BatchMode).
-        o += master ? ["-o", "ControlMaster=yes", "-o", "ControlPersist=900"] : ["-o", "ControlMaster=no", "-o", "BatchMode=yes"]
+        o += master ? ["-o", "ControlMaster=yes", "-o", "ControlPersist=900"] : ["-o", "ControlMaster=no"] + (batch ? ["-o", "BatchMode=yes"] : [])
         return o
     }
 
@@ -362,6 +362,27 @@ public final class SSHSession: Sendable {
             for a in algorithms where !out.contains(a) { out.append(a) }
         }
         return out
+    }
+
+    /// Argumenty `ssh` dla terminala w panelu: przez połączenie główne (bez ponownego logowania),
+    /// z terminalem (-t). Gdy połączenie główne wygaśnie, `ssh` zapyta o hasło w terminalu (bez BatchMode).
+    public func terminalArguments(remoteCommand: String?) -> [String] {
+        var args = commonOptions(master: false, batch: false) + ["-t"]
+        if let port = config.port { args += ["-p", String(port)] }
+        args.append(destination)
+        if let remoteCommand { args.append(remoteCommand) }
+        return args
+    }
+
+    /// Polecenie startowe terminala: przejście do katalogu i powłoka logowania. Tylko dla powłok,
+    /// które znają `-l` (ksh88 z AIX nie zna — wtedy zwykłe logowanie w katalogu domowym) i dla
+    /// ścieżek, które da się przekazać (nazwy ISO-8859-2 z polskimi znakami — nie).
+    public static func loginCommand(directory: String?, shell: String, encoding: NameEncoding) -> String? {
+        guard let directory, !directory.isEmpty else { return nil }
+        let name = (shell as NSString).lastPathComponent
+        guard ["bash", "zsh", "ksh93", "mksh", "dash", "fish"].contains(name) else { return nil }
+        if encoding != .utf8, directory.unicodeScalars.contains(where: { !$0.isASCII }) { return nil }
+        return "cd \(shellQuote(directory)) && exec \(shellQuote(shell)) -l"
     }
 
     public func disconnect() {

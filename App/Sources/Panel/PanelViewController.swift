@@ -28,6 +28,9 @@ final class PanelViewController: NSViewController {
     private let fileContainer = NSView()
     private let tree: DirectoryTreeView
     private var currentView: (any FileListView)?
+    /// Terminale kart-terminali (proces działa także, gdy karta nie jest widoczna).
+    private var terminals: [UUID: PanelTerminalView] = [:]
+    private var shownTerminal: PanelTerminalView?
     private var currentMode: ViewMode?
     private var previewView: QuickViewPane?
     private let quickSearch = QuickSearchOverlay()
@@ -69,6 +72,11 @@ final class PanelViewController: NSViewController {
         pathBar.onVolumes = { [weak self] in
             self?.activate()
             self?.workspace.perform("tools.volumes")
+        }
+        pathBar.onTerminal = { [weak self] in
+            guard let self, let alias = RemoteFS.alias(of: self.tab.path) else { return }
+            self.activate()
+            self.workspace.perform("remote.terminal", CommandArguments(["alias": .string(alias)]))
         }
         pathBar.onDisconnect = { [weak self] in
             guard let self, let alias = RemoteFS.alias(of: self.tab.path) else { return }
@@ -134,6 +142,13 @@ final class PanelViewController: NSViewController {
             guard let self else { return }
             let panel = self.panel
             self.tabBar.update(titles: panel.tabs.map(\.title), active: panel.activeTabIndex)
+            // Zamknięta karta-terminal kończy swój proces ssh.
+            let ids = Set(panel.tabs.map(\.id))
+            for (id, view) in self.terminals where !ids.contains(id) {
+                view.stop()
+                view.removeFromSuperview()
+                self.terminals[id] = nil
+            }
         }
         // Widok, katalog, listing
         observations.add { [weak self] in
@@ -142,6 +157,11 @@ final class PanelViewController: NSViewController {
             let mode = tab.viewMode
             let generation = tab.generation
             let quickView = self.workspace.quickViewActive && self.workspace.activeSide != self.side
+            if let spec = tab.terminal {
+                self.showTerminal(tab: tab, spec: spec)
+                return
+            }
+            self.hideTerminal()
             self.updateContent(tab: tab, mode: mode, generation: generation, quickView: quickView)
         }
         // Kursor
@@ -165,7 +185,8 @@ final class PanelViewController: NSViewController {
         observations.add { [weak self] in
             guard let self else { return }
             let tab = self.tab
-            self.pathBar.update(path: tab.path, volume: tab.volume, error: tab.loadError, loading: tab.isLoading)
+            let ssh = RemoteFS.alias(of: tab.path).flatMap { self.workspace.remotes.connection($0) }?.kind.usesSSH ?? false
+            self.pathBar.update(path: tab.path, volume: tab.volume, error: tab.loadError, loading: tab.isLoading, sshTerminal: ssh && tab.terminal == nil)
             self.updateStatus(tab)
         }
         // Drzewo
@@ -225,6 +246,32 @@ final class PanelViewController: NSViewController {
         }
     }
 
+    private func showTerminal(tab: Tab, spec: TerminalSpec) {
+        let view: PanelTerminalView
+        if let existing = terminals[tab.id], existing.spec == spec {
+            view = existing
+        } else {
+            terminals[tab.id]?.stop()
+            view = PanelTerminalView(spec: spec)
+            view.onSwitchPanel = { [weak self] in self?.workspace.perform("panel.switch") }
+            terminals[tab.id] = view
+        }
+        guard shownTerminal !== view else { return }
+        currentView = nil
+        currentMode = nil
+        previewView = nil
+        install(view)
+        shownTerminal = view
+        filterField.isHidden = true
+        if isActive { DispatchQueue.main.async { self.view.window?.makeFirstResponder(view.terminal) } }
+    }
+
+    private func hideTerminal() {
+        guard shownTerminal != nil else { return }
+        shownTerminal = nil
+        fileContainer.subviews.forEach { $0.removeFromSuperview() }
+    }
+
     private func install(_ v: NSView) {
         fileContainer.subviews.forEach { $0.removeFromSuperview() }
         v.translatesAutoresizingMaskIntoConstraints = false
@@ -238,11 +285,15 @@ final class PanelViewController: NSViewController {
     }
 
     private func updateStatus(_ tab: Tab) {
+        if let spec = tab.terminal {
+            statusBar.stringValue = L10n.tr("Terminal SSH: \(spec.alias) — klawisze idą do serwera; Ctrl+Tab — drugi panel, ⌘W — zamknij kartę")
+            return
+        }
         let sel = tab.selectionSummary
         let total = tab.totalSummary
         var parts: [String] = []
         parts.append(L10n.tr("Zaznaczono \(sel.count) z \(total.files + total.directories), \(Format.bytes(sel.bytes)) z \(Format.bytes(total.bytes))"))
-        if let v = tab.volume {
+        if let v = tab.volume, v.totalCapacity > 0 {
             parts.append(L10n.tr("Wolne: \(Format.bytes(v.availableCapacity)) z \(Format.bytes(v.totalCapacity))"))
         }
         if !tab.quickFilter.isEmpty { parts.append(L10n.tr("Filtr: \(tab.quickFilter)")) }
@@ -262,7 +313,12 @@ final class PanelViewController: NSViewController {
     }
 
     func focus() {
-        if let currentView { view.window?.makeFirstResponder(currentView); currentView.focus() }
+        if let shownTerminal {
+            view.window?.makeFirstResponder(shownTerminal.terminal)
+        } else if let currentView {
+            view.window?.makeFirstResponder(currentView)
+            currentView.focus()
+        }
     }
 
     // MARK: Klawiatura
