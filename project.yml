@@ -88,6 +88,13 @@ targets:
         basedOnDependencyAnalysis: false
         outputFiles:
           - $(SRCROOT)/ThirdParty/build/HexFiend.framework/HexFiend
+      - name: bifold-mtp
+        script: "\"$SRCROOT/scripts/build-mtp-helper.sh\""
+        basedOnDependencyAnalysis: false
+    postBuildScripts:
+      - name: Wbuduj bifold-mtp
+        script: "\"$SRCROOT/scripts/embed-mtp-helper.sh\""
+        basedOnDependencyAnalysis: false
   bifold-mcp:
     type: tool
     platform: macOS

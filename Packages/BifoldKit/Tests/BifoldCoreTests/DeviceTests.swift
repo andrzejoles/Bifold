@@ -19,48 +19,83 @@ import Testing
         #expect(cal.component(.month, from: items[1].modified!) == 3)
     }
 
-    @Test func mtpParsers() {
-        let folders = """
-        Friendly name: Pixel
-        Storage: Internal shared storage
-        3\tDCIM
-        4\t  Camera
-        9\tDownload
-        """
-        let f = MTPDeviceFS.parseFolders(folders)
-        #expect(f.map(\.name) == ["DCIM", "Camera", "Download"])
-        #expect(f[1].parent == 3 && f[0].parent == 0)
-        let files = """
-        File ID: 101
-           Filename: PXL_2026.jpg
-           File size 3456 (0x0000000000000D80) bytes
-           Parent ID: 4
-           Storage ID: 0x00010001
-           Filetype: JPEG file
-        File ID: 102
-           Filename: dokument.pdf
-           File size 99 (0x63) bytes
-           Parent ID: 9
-        """
-        let parsed = MTPDeviceFS.parseFiles(files)
-        #expect(parsed.count == 2 && parsed[0].size == 3456 && parsed[0].parent == 4 && parsed[1].name == "dokument.pdf")
-        let detect = """
-        libmtp version: 1.1.23
+    @Test func mtpDetectJSON() {
+        let json = Data(#"[{"index":0,"vendor":"Samsung","product":"Galaxy models (MTP)","vid":1256,"pid":26720,"bus":2,"dev":5}]"#.utf8)
+        #expect(DeviceDetector.parseMTPDetect(json) == [DeviceInfo(id: "0", kind: .android, name: "Samsung Galaxy models")])
+        #expect(DeviceDetector.parseMTPDetect(Data("[]".utf8)).isEmpty)
+    }
 
-        Listing raw device(s)
-        Device 0 (VID=18d1 and PID=4ee1) is a Google Inc Nexus/Pixel (MTP).
-           Found 1 device(s):
-           Google Inc: Nexus/Pixel (MTP) (18d1:4ee1) @ bus 0, dev 1
-        Attempting to connect device(s)
-        MTP-specific device properties:
-           Model: Pixel 9
+    /// Fałszywy `bifold-mtp`: protokół jak prawdziwy pomocnik; nośnik pojawia się dopiero po „Zezwól”
+    /// (plik `allowed`), folder DCIM ma podfolder i plik.
+    func fakeHelper(_ tmp: TempDir) throws -> String {
+        let path = tmp.url.appending(path: "bifold-mtp").path
+        let script = """
+        #!/bin/bash
+        D="$(dirname "$0")"
+        if [ "$1" = detect ]; then echo '[{"index":0,"vendor":"Samsung","product":"Galaxy models (MTP)"}]'; exit 0; fi
+        storages() { if [ -f "$D/allowed" ]; then echo '[{"id":65537,"name":"Pamięć wewnętrzna","total":256000000000,"free":100000000000}]'; else echo '[]'; fi; }
+        echo '{"ok":true,"model":"SM-F776B","name":"Galaxy","storages":'"$(storages)"'}'
+        while read -r cmd a b; do
+          echo "$cmd $a $b" >> "$D/log"
+          case "$cmd" in
+            storages) echo '{"ok":true,"storages":'"$(storages)"'}' ;;
+            list)
+              if [ "$b" = 4294967295 ]; then echo '{"ok":true,"items":[{"id":10,"name":"DCIM","size":0,"mtime":0,"folder":true},{"id":11,"name":"notatka ąę.txt","size":5,"mtime":1760000000,"folder":false}]}'
+              elif [ "$b" = 10 ]; then echo '{"ok":true,"items":[{"id":20,"name":"Camera","size":0,"mtime":0,"folder":true},{"id":21,"name":"IMG_1.jpg","size":3,"mtime":1760000000,"folder":false}]}'
+              else echo '{"ok":true,"items":[]}'; fi ;;
+            get) printf 'plik-%s' "$a" > "$b"; echo '{"ok":true}' ;;
+            quit) exit 0 ;;
+            *) echo '{"ok":false,"error":"Nieznane polecenie"}' ;;
+          esac
+        done
         """
-        #expect(DeviceDetector.parseMTPDetect(detect).map(\.name) == ["Pixel 9"])
-        #expect(DeviceDetector.parseMTPDetect("No raw devices found.").isEmpty)
+        try Data(script.utf8).write(to: URL(filePath: path))
+        chmod(path, 0o755)
+        return path
+    }
+
+    @Test func mtpFolderByFolderWithPermissionPrompt() async throws {
+        let tmp = try TempDir()
+        let helper = try fakeHelper(tmp)
+        #expect(DeviceDetector.androids(helper: helper).map(\.name) == ["Samsung Galaxy models"])
+        let fs = try MTPDeviceFS(device: DeviceInfo(id: "0", kind: .android, name: "Samsung"), helperPath: helper)
+        defer { fs.close() }
+        #expect(fs.model == "SM-F776B")
+
+        // Bez „Zezwól” na telefonie: jasny komunikat zamiast pustego panelu; sesja zostaje.
+        do {
+            _ = try await fs.list(fs.root, options: ListOptions())
+            Issue.record("bez zgody na telefonie listing powinien zgłosić błąd")
+        } catch {
+            #expect(error.localizedDescription.contains("Zezwól"))
+        }
+        FileManager.default.createFile(atPath: tmp.url.path + "/allowed", contents: Data())
+        let root = try await fs.list(fs.root, options: ListOptions())
+        #expect(root.map(\.name) == ["Pamięć wewnętrzna"] && root[0].isDirectory)
+
+        // Folder po folderze — bez wczytywania całego telefonu.
+        let storage = fs.root.appending("Pamięć wewnętrzna")
+        let top = try await fs.list(storage, options: ListOptions())
+        #expect(top.map(\.name) == ["DCIM", "notatka ąę.txt"] && top[1].size == 5)
+        let dcim = try await fs.list(storage.appending("DCIM"), options: ListOptions())
+        #expect(dcim.map(\.name) == ["Camera", "IMG_1.jpg"])
+        let log = try tmp.read("log")
+        #expect(log.contains("list 65537 4294967295") && log.contains("list 65537 10") && !log.contains("list 65537 20"))
+
+        // Pobieranie (katalogi rekurencyjnie) i wolne miejsce nośnika.
+        let (temp, items) = try fs.extract([storage.appending("DCIM")], toTemporaryIn: tmp.path, isCancelled: { false })
+        #expect(try String(contentsOfFile: items[0].path + "/IMG_1.jpg", encoding: .utf8) == "plik-21")
+        #expect(FileManager.default.fileExists(atPath: items[0].path + "/Camera"))
+        try? FileManager.default.removeItem(atPath: temp.path)
+        let v = try await fs.volumeInfo(for: storage)
+        #expect(v.totalCapacity == 256_000_000_000 && v.availableCapacity == 100_000_000_000)
+
+        fs.close()
+        #expect(try tmp.read("log").hasSuffix("quit  \n") || !fs.helper.isRunning)
     }
 
     @Test func noDevicesConnectedIsHandled() {
         #expect(DeviceDetector.iPhones(toolsDirectory: "/nonexistent").isEmpty)
-        #expect(DeviceDetector.androids(toolsDirectory: "/nonexistent").isEmpty)
+        #expect(DeviceDetector.androids(helper: "/nonexistent").isEmpty)
     }
 }

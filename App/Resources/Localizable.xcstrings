@@ -10759,6 +10759,35 @@
         }
       }
     },
+    "Pamięć %u": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Storage %u"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speicher %u"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Almacenamiento %u"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пам’ять %u"
+          }
+        }
+      }
+    },
     "Panel": {
       "extractionState": "manual",
       "localizations": {
@@ -13104,6 +13133,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "З’єднання SMB з паролем у Зв’язці ключів"
+          }
+        }
+      }
+    },
+    "Połączenie z telefonem zostało przerwane (odłączony kabel?)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection to the phone was interrupted (cable unplugged?)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Verbindung zum Telefon wurde unterbrochen (Kabel getrennt?)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se interrumpió la conexión con el teléfono (¿cable desconectado?)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "З’єднання з телефоном перервано (від’єднано кабель?)"
           }
         }
       }
@@ -16874,6 +16932,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "Текст у вмісті файлів (ripgrep)"
+          }
+        }
+      }
+    },
+    "Telefon nie odpowiada": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The phone is not responding"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Telefon antwortet nicht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El teléfono no responde"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Телефон не відповідає"
+          }
+        }
+      }
+    },
+    "Telefon nie udostępnia plików: odblokuj go i na ekranie telefonu stuknij „Zezwól” (dostęp do danych telefonu), potem odśwież panel (Ctrl+R).": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The phone is not sharing its files: unlock it and tap “Allow” (access to phone data) on its screen, then refresh the panel (Ctrl+R)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Telefon gibt keine Dateien frei: entsperren und auf dem Telefon „Zulassen“ (Zugriff auf Telefondaten) tippen, dann den Bereich aktualisieren (Strg+R)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El teléfono no comparte sus archivos: desbloquéalo y toca «Permitir» (acceso a los datos del teléfono) en su pantalla; luego actualiza el panel (Ctrl+R)."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Телефон не надає доступ до файлів: розблокуйте його й торкніться «Дозволити» (доступ до даних телефону) на його екрані, потім оновіть панель (Ctrl+R)."
           }
         }
       }
@@ -20851,6 +20967,35 @@
         }
       }
     },
+    "Zamknięto telefon": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phone closed"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefon geschlossen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teléfono cerrado"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Телефон закрито"
+          }
+        }
+      }
+    },
     "Zamontuj (NetFS)": {
       "extractionState": "manual",
       "localizations": {
@@ -20938,31 +21083,31 @@
         }
       }
     },
-    "Zamyka połączenie z serwerem; karty pokazujące ten serwer wracają do katalogu domowego.": {
+    "Zamyka połączenie z serwerem albo telefon z aktywnego panelu; karty z nim wracają do katalogu domowego.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Closes the connection to the server; tabs showing this server go back to the home folder."
+            "value": "Closes the connection to the server or the phone in the active panel; its tabs go back to the home folder."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schließt die Verbindung zum Server; Tabs mit diesem Server wechseln zurück in den Benutzerordner."
+            "value": "Schließt die Verbindung zum Server oder das Telefon im aktiven Bereich; seine Tabs wechseln zurück in den Benutzerordner."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cierra la conexión con el servidor; las pestañas que lo muestran vuelven a la carpeta de inicio."
+            "value": "Cierra la conexión con el servidor o el teléfono del panel activo; sus pestañas vuelven a la carpeta de inicio."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Закриває з’єднання із сервером; вкладки з цим сервером повертаються до домашньої теки."
+            "value": "Закриває з’єднання із сервером або телефон в активній панелі; його вкладки повертаються до домашньої теки."
           }
         }
       }

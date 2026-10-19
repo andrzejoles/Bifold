@@ -1,6 +1,6 @@
 # Stan realizacji (2026-10-17)
 
-Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **166** (wszystkie zielone) w
+Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **167** (wszystkie zielone) w
 pakiecie `BifoldKit` (`make test`) + test wydajności w Release (`make test-release`) + opcjonalny test
 E2E z prawdziwymi CLI agentów. Zgodnie z poleceniem „w pełni autonomicznie” punkty „pokaż i poczekaj
 na akceptację” zastąpiłem wpisami w [DECISIONS.md](DECISIONS.md).
@@ -52,10 +52,14 @@ Legenda: ✅ zweryfikowane testem automatycznym · 👁 sprawdzone ręcznie w dz
 | SMB/NFS (NetFS), Google Drive / Dropbox / OneDrive (OAuth) | ⚠️ brak serwera SMB i kont chmurowych w środowisku testowym |
 | Edycja plików zdalnych (wysyłka po zapisie) | ⚠️ bez testu automatycznego |
 | Porównanie plików (tekst/binarne), katalogów, synchronizacja 3 tryby z podglądem i Koszem | ✅ |
-| Android (MTP), iPhone (AFC) | ⚠️ parsery przetestowane na przykładowych wyjściach; brak telefonu do testu na żywo |
+| Android (MTP) | ✅ protokół na fałszywym pomocniku + na żywo Samsung SM-F776B: nośnik, folder główny 0,14 s, DCIM 0,09 s, DCIM/Camera (1507 zdjęć) 34 s, pobranie pliku |
+| iPhone (AFC) | ⚠️ parser przetestowany na przykładowych wyjściach; brak iPhone’a do testu na żywo |
 | Pomocnik administratora (SMAppService + XPC + autoryzacja) | ⚠️ logika i walidacja testowane; rejestracja demona wymaga podpisu z zespołem (D36) |
 
 ## Znane ograniczenia
+
+- **Android:** foldery z tysiącami plików (np. DCIM/Camera) wczytują się kilkadziesiąt sekund — libmtp pyta
+  telefon o każdy plik osobno. Telefon obsługuje jedną sesję MTP naraz (zamknij inne programy).
 
 - **Gatekeeper**: aplikacja ma stały podpis z własnym certyfikatem, ale nie jest notaryzowana — na innym
   Macu pierwsze uruchomienie wymaga „Otwórz mimo to” (Developer ID kosztuje 99 USD rocznie).

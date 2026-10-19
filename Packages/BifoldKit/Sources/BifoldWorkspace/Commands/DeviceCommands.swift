@@ -4,19 +4,35 @@ import Foundation
 extension Workspace {
     public func connectedDevices() async -> [DeviceInfo] {
         let dir = expandTilde(settings.toolsDirectory)
-        return await (try? runBlocking(qos: .userInitiated) { DeviceDetector.iPhones(toolsDirectory: dir) + DeviceDetector.androids(toolsDirectory: dir) }) ?? []
+        let helper = DeviceDetector.mtpHelperPath
+        return await (try? runBlocking(qos: .userInitiated) { DeviceDetector.iPhones(toolsDirectory: dir) + DeviceDetector.androids(helper: helper) }) ?? []
+    }
+
+    /// Zamyka telefon: sesję MTP (telefon wolny dla innych programów), dostawcę i karty z nim.
+    public func closeDevice(_ provider: ProviderID) async {
+        if let mtp = try? providers.provider(for: provider) as? MTPDeviceFS {
+            _ = try? await runBlocking(qos: .userInitiated) { mtp.close() }
+        }
+        providers.unregister(provider)
+        for tab in left.tabs + right.tabs where tab.path.provider == provider {
+            try? await tab.navigate(to: homePath)
+            tab.customTitle = nil
+        }
     }
 
     /// Dostawca dla urządzenia (iPhone: media albo Documents aplikacji `appContainer`).
-    public func deviceProvider(_ device: DeviceInfo, appContainer: String? = nil) throws -> any ExtractingProvider {
-        let dir = expandTilde(settings.toolsDirectory)
+    public func deviceProvider(_ device: DeviceInfo, appContainer: String? = nil) async throws -> any ExtractingProvider {
         switch device.kind {
         case .iPhone:
             guard let afc = settings.toolPath("afcclient") else { throw CommandError.notAvailable(L10n.tr("iPhone wymaga libimobiledevice (brew install libimobiledevice)")) }
             return AFCDeviceFS(device: device, afcclient: afc, appContainer: appContainer)
         case .android:
-            guard settings.toolPath("mtp-files") != nil else { throw CommandError.notAvailable(L10n.tr("Android wymaga libmtp (brew install libmtp)")) }
-            return MTPDeviceFS(device: device, toolsDirectory: dir)
+            // Telefon obsługuje jedną sesję MTP naraz — otwarta sesja jest używana ponownie.
+            if let open = try? providers.provider(for: ProviderID("device:mtp-\(device.id)")) as? MTPDeviceFS { return open }
+            guard let helper = DeviceDetector.mtpHelperPath else {
+                throw CommandError.notAvailable(L10n.tr("Android wymaga libmtp (brew install libmtp)"))
+            }
+            return try await runBlocking(qos: .userInitiated) { try MTPDeviceFS(device: device, helperPath: helper) }
         }
     }
 }
@@ -41,11 +57,12 @@ var deviceCommands: [Command] { [
         let devices = await ctx.workspace.connectedDevices()
         guard !devices.isEmpty else { throw CommandError.notAvailable(L10n.tr("Nie wykryto telefonu. Podłącz go kablem, odblokuj i zaakceptuj „Ufaj temu komputerowi” (iPhone) albo wybierz tryb „Przesyłanie plików” (Android).")) }
         let device = ctx.arguments.string("id").flatMap { id in devices.first { $0.id == id } } ?? devices[0]
-        let provider = try ctx.workspace.deviceProvider(device, appContainer: ctx.arguments.string("app"))
+        let provider = try await ctx.workspace.deviceProvider(device, appContainer: ctx.arguments.string("app"))
         ctx.workspace.providers.register(provider)
         let tab = try ctx.tab(forSide: "side")
+        // Bez „Zezwól” na telefonie: sesja zostaje otwarta — po zgodzie wystarczy otworzyć telefon ponownie.
         try await tab.navigate(to: VFSPath(provider: provider.id, path: "/"))
-        tab.customTitle = (device.kind == .iPhone ? "📱 " : "🤖 ") + device.name
+        tab.customTitle = (device.kind == .iPhone ? "📱 " : "🤖 ") + ((provider as? MTPDeviceFS)?.model ?? device.name)
         if device.kind == .iPhone, !ctx.isAgent { ctx.ui?.showMessage(AFCDeviceFS.limitation) }
         return CommandResult(message: device.kind == .iPhone ? AFCDeviceFS.limitation : device.name)
     },
