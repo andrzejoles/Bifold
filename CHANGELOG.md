@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — panel agenta
+- „Zakończ” nie kończyło CLI, które przechwytuje SIGTERM, i zostawiało otwarty panel. Teraz SIGHUP do całej
+  grupy procesów (jak zamknięcie okna terminala), po 2 s SIGKILL; bez działających sesji panel się chowa
+  (zakończona sesja zostaje na liście z dziennikiem i cofaniem — Ctrl+Alt+0).
+
 ### Dodane — terminal SSH w panelu
 - Otwarcie połączenia SFTP/SCP (np. z Menedżera połączeń) pokazuje pliki serwera w aktywnym panelu, a w drugim
   panelu kartę-terminal zalogowaną na ten serwer — przez to samo połączenie, bez ponownego hasła, w katalogu

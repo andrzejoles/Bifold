@@ -177,6 +177,8 @@ final class AgentUIController: ApprovalPresenter {
     func endSession(_ id: String) {
         pane.terminateSession(id)
         controller.closeSession(id)
+        // Bez działających sesji panel znika; zakończona sesja zostaje na liście (dziennik, cofnięcie) — Ctrl+Alt+0.
+        if !pane.hasRunningSessions(excluding: id) { mainWindow?.setAgentPane(visible: false) }
     }
 
     func undoSession(_ id: String) {

@@ -135,9 +135,27 @@ final class AgentPane: NSView {
         return tv
     }
 
+    /// Kończy CLI jak zamknięcie okna terminala: SIGHUP do całej grupy procesów (powłoka i CLI —
+    /// część CLI przechwytuje SIGTERM), po 2 s SIGKILL, jeśli coś jeszcze działa.
     func terminateSession(_ id: String) {
         guard let s = sessions.first(where: { $0.id == id }), !s.ended else { return }
-        s.terminal.terminate()
+        let pid = s.terminal.process.shellPid
+        guard pid > 0 else {
+            s.terminal.terminate()
+            return
+        }
+        kill(-pid, SIGHUP)
+        kill(pid, SIGHUP)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            guard kill(pid, 0) == 0 else { return }
+            kill(-pid, SIGKILL)
+            kill(pid, SIGKILL)
+        }
+    }
+
+    /// Czy działa jeszcze jakaś sesja poza `excluding`.
+    func hasRunningSessions(excluding id: String? = nil) -> Bool {
+        sessions.contains { !$0.ended && $0.id != id }
     }
 
     private func rebuildPicker() {
