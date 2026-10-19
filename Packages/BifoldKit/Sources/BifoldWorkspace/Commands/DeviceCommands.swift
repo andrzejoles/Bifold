@@ -60,8 +60,14 @@ var deviceCommands: [Command] { [
         let provider = try await ctx.workspace.deviceProvider(device, appContainer: ctx.arguments.string("app"))
         ctx.workspace.providers.register(provider)
         let tab = try ctx.tab(forSide: "side")
-        // Bez „Zezwól” na telefonie: sesja zostaje otwarta — po zgodzie wystarczy otworzyć telefon ponownie.
-        try await tab.navigate(to: VFSPath(provider: provider.id, path: "/"))
+        let target = VFSPath(provider: provider.id, path: "/")
+        do {
+            try await tab.navigate(to: target)
+        } catch let error as MTPDeviceFS.MTPError {
+            // Bez „Zezwól” na telefonie: karta na telefonie z komunikatem — Ctrl+R po zgodzie ponawia próbę.
+            await tab.showUnavailable(target, error: error.localizedDescription)
+            if !ctx.isAgent { ctx.ui?.showMessage(error.localizedDescription) }
+        }
         tab.customTitle = (device.kind == .iPhone ? "📱 " : "🤖 ") + ((provider as? MTPDeviceFS)?.model ?? device.name)
         if device.kind == .iPhone, !ctx.isAgent { ctx.ui?.showMessage(AFCDeviceFS.limitation) }
         return CommandResult(message: device.kind == .iPhone ? AFCDeviceFS.limitation : device.name)

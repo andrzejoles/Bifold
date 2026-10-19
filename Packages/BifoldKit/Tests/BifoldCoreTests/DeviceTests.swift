@@ -33,7 +33,10 @@ import Testing
         #!/bin/bash
         D="$(dirname "$0")"
         if [ "$1" = detect ]; then echo '[{"index":0,"vendor":"Samsung","product":"Galaxy models (MTP)"}]'; exit 0; fi
-        storages() { if [ -f "$D/allowed" ]; then echo '[{"id":65537,"name":"Pamięć wewnętrzna","total":256000000000,"free":100000000000}]'; else echo '[]'; fi; }
+        # Jak Samsung: nośniki widzi tylko sesja otwarta po „Zezwól” (telefon łączy się z USB od nowa).
+        if [ -f "$D/allowed" ]; then ALLOWED=1; else ALLOWED=0; fi
+        echo session >> "$D/sessions"
+        storages() { if [ $ALLOWED = 1 ]; then echo '[{"id":65537,"name":"Pamięć wewnętrzna","total":256000000000,"free":100000000000}]'; else echo '[]'; fi; }
         echo '{"ok":true,"model":"SM-F776B","name":"Galaxy","storages":'"$(storages)"'}'
         while read -r cmd a b; do
           echo "$cmd $a $b" >> "$D/log"
@@ -70,7 +73,9 @@ import Testing
             #expect(error.localizedDescription.contains("Zezwól"))
         }
         FileManager.default.createFile(atPath: tmp.url.path + "/allowed", contents: Data())
+        // Odświeżenie po zgodzie otwiera nową sesję (stara nigdy nie zobaczy nośników).
         let root = try await fs.list(fs.root, options: ListOptions())
+        #expect(try tmp.read("sessions").split(separator: "\n").count >= 3)
         #expect(root.map(\.name) == ["Pamięć wewnętrzna"] && root[0].isDirectory)
 
         // Folder po folderze — bez wczytywania całego telefonu.
@@ -91,7 +96,8 @@ import Testing
         #expect(v.totalCapacity == 256_000_000_000 && v.availableCapacity == 100_000_000_000)
 
         fs.close()
-        #expect(try tmp.read("log").hasSuffix("quit  \n") || !fs.helper.isRunning)
+        let finalLog = try tmp.read("log")
+        #expect(!fs.isSessionRunning || finalLog.hasSuffix("quit  \n"))
     }
 
     @Test func noDevicesConnectedIsHandled() {

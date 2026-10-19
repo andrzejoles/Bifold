@@ -147,7 +147,12 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
     public let id: ProviderID
     public let device: DeviceInfo
     public let model: String
-    let helper: MTPHelper
+    let helperPath: String
+    let index: Int
+    /// Sesja MTP; po „Zezwól” Samsung łączy się z USB od nowa, więc stara sesja nie widzi nośników —
+    /// wtedy otwierana jest nowa.
+    private let session = NSLock()
+    nonisolated(unsafe) private var current: MTPHelper
     public let capabilities: ProviderCapabilities = [.read]
     /// Zawartość odczytanych folderów (ścieżka → elementy), do zamiany ścieżek na identyfikatory MTP.
     private let cache = Mutex<[String: [Entry]]>([:])
@@ -182,13 +187,36 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
         self.device = device
         guard let index = Int(device.id) else { throw MTPError.helper("index") }
         let (helper, hello) = try MTPHelper.open(helperPath, index: index)
-        self.helper = helper
+        self.helperPath = helperPath
+        self.index = index
+        current = helper
         model = (hello["model"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? device.name
         id = ProviderID("device:mtp-\(device.id)")
     }
 
     public var displayName: String { model }
     public var root: VFSPath { VFSPath(provider: id, path: "/") }
+
+    var helper: MTPHelper { session.withLock { current } }
+
+    /// Nowa sesja w miejsce starej (po ponownym podłączeniu telefonu do USB).
+    func reopen() throws {
+        session.lock()
+        defer { session.unlock() }
+        current.close()
+        current = try MTPHelper.open(helperPath, index: index).0
+        cache.withLock { $0 = [:] }
+    }
+
+    /// Polecenie; gdy sesja przestała odpowiadać (telefon odłączony i podłączony ponownie) — raz w nowej sesji.
+    func request(_ command: String, timeout: TimeInterval) throws -> [String: Any] {
+        do {
+            return try helper.request(command, timeout: timeout)
+        } catch MTPError.helper(let message) where !helper.isRunning || message == L10n.tr("Telefon nie odpowiada") {
+            try reopen()
+            return try helper.request(command, timeout: timeout)
+        }
+    }
 
     static func entries(_ items: Any?, storage: UInt32) -> [Entry] {
         ((items as? [[String: Any]]) ?? []).compactMap { e in
@@ -201,7 +229,12 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
 
     /// Nośniki („Pamięć wewnętrzna”, karta SD) jako foldery w korzeniu.
     func storages() throws -> [Entry] {
-        let r = try helper.request("storages", timeout: 60)
+        var r = try request("storages", timeout: 60)
+        if (r["storages"] as? [Any])?.isEmpty ?? true {
+            // Sesja sprzed „Zezwól” nie zobaczy nośników — nowa sesja.
+            try reopen()
+            r = try request("storages", timeout: 60)
+        }
         let list = ((r["storages"] as? [[String: Any]]) ?? []).compactMap { s -> Entry? in
             guard let id = (s["id"] as? NSNumber)?.uint32Value else { return nil }
             let name = (s["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? L10n.tr("Pamięć \(id)")
@@ -220,7 +253,7 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
         } else {
             let target = try resolve(dir)
             guard target.isFolder else { throw VFSError.notADirectory(VFSPath(provider: id, path: dir)) }
-            let r = try helper.request("list \(target.storage) \(target.id)", timeout: 600)
+            let r = try request("list \(target.storage) \(target.id)", timeout: 600)
             items = Self.entries(r["items"], storage: target.storage)
         }
         cache.withLock { $0[dir] = items }
@@ -280,7 +313,7 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
                 try FileManager.default.createDirectory(atPath: local.path, withIntermediateDirectories: true)
                 for child in try entries(devicePath) { try fetch(devicePath + "/" + child.name, to: local.appending(child.name)) }
             } else {
-                _ = try helper.request("get \(e.id) \(local.path)", timeout: 3600)
+                _ = try request("get \(e.id) \(local.path)", timeout: 3600)
             }
         }
         var items: [VFSPath] = []
@@ -299,6 +332,9 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
 
     /// Kończy sesję MTP (telefon wolny dla innych programów).
     public func close() { helper.close() }
+
+    /// Do testów: czy proces sesji działa.
+    var isSessionRunning: Bool { helper.isRunning }
 }
 
 /// Proces `bifold-mtp serve N`: polecenie w wierszu na stdin, odpowiedź JSON w wierszu na stdout.
