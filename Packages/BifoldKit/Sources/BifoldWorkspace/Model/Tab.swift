@@ -67,6 +67,18 @@ public final class Tab: Identifiable {
     // MARK: Nawigacja
 
     /// Wczytuje katalog. Przy błędzie karta zostaje w poprzednim katalogu, a błąd jest rzucany.
+    /// Karta na niedostępnym jeszcze miejscu (np. telefon bez „Zezwól”): pusta lista z komunikatem —
+    /// odświeżenie (Ctrl+R) ponawia próbę w tym miejscu, a nie w poprzednim katalogu.
+    public func showUnavailable(_ target: VFSPath, error: String) async {
+        navigationGeneration += 1
+        path = target
+        items = []
+        selection = []
+        loadError = error
+        volume = nil
+        await processNow()
+    }
+
     public func navigate(to target: VFSPath, focus: String? = nil, recordHistory: Bool = true) async throws {
         navigationGeneration += 1
         let provider = try providers.provider(for: target)

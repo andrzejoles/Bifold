@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 ## [Unreleased]
 
 ### Poprawione — telefony z Androidem
+- Po „Zezwól” Samsung łączy się z USB od nowa, a sesja otwarta wcześniej nigdy nie widziała nośników —
+  Bifold używał jej dalej (pusty panel). Teraz brak nośników albo zerwana sesja = nowa sesja.
+- Bez zgody karta przechodzi na telefon z komunikatem; Ctrl+R po „Zezwól” ponawia próbę na telefonie.
+
+### Poprawione — telefony z Androidem
 - Pusty panel po otwarciu telefonu: narzędzia mtp-files/mtp-folders wczytywały cały telefon naraz (minuty
   przy tysiącach zdjęć). Nowy pomocnik `bifold-mtp` (libmtp) czyta folder po folderze w jednej sesji MTP.
 - Telefon bez „Zezwól” (dostęp do danych) na ekranie: komunikat z instrukcją zamiast pustego panelu;
