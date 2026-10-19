@@ -138,111 +138,123 @@ public final class AFCDeviceFS: ExtractingProvider {
     }
 }
 
-// MARK: - Android (MTP przez narzędzia libmtp)
+// MARK: - Android (MTP przez pomocnika bifold-mtp)
 
-/// Telefon z Androidem przez MTP. MTP adresuje pliki identyfikatorami, więc drzewo jest
-/// budowane z `mtp-files` (jedno wywołanie — telefon obsługuje naraz tylko jedną sesję MTP).
-public final class MTPDeviceFS: ExtractingProvider {
+/// Telefon z Androidem przez MTP. Pomocnik `bifold-mtp` (C, libmtp z Homebrew) trzyma jedną sesję
+/// i czyta foldery pojedynczo — narzędzia mtp-files/mtp-folders wczytywały cały telefon naraz
+/// (minuty przy tysiącach zdjęć). Telefon obsługuje tylko jedną sesję MTP naraz.
+public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
     public let id: ProviderID
     public let device: DeviceInfo
-    let tools: String
+    public let model: String
+    let helper: MTPHelper
     public let capabilities: ProviderCapabilities = [.read]
-    private let tree = Mutex<[String: [Entry]]?>(nil)
-    private let byPath = Mutex<[String: Entry]>([:])
+    /// Zawartość odczytanych folderów (ścieżka → elementy), do zamiany ścieżek na identyfikatory MTP.
+    private let cache = Mutex<[String: [Entry]]>([:])
+    static let root: UInt32 = 0xFFFF_FFFF
 
     public struct Entry: Sendable, Hashable {
-        public var id: Int
-        public var parent: Int
+        public var id: UInt32
+        public var storage: UInt32
         public var name: String
         public var size: Int64
+        public var modified: Date?
         public var isFolder: Bool
+        public var total: Int64 = 0
+        public var free: Int64 = 0
     }
 
-    public init(device: DeviceInfo, toolsDirectory: String) {
+    public enum MTPError: Error, LocalizedError {
+        case noStorage
+        case helper(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case .noStorage:
+                L10n.tr("Telefon nie udostępnia plików: odblokuj go i na ekranie telefonu stuknij „Zezwól” (dostęp do danych telefonu), potem odśwież panel (Ctrl+R).")
+            case .helper(let m): m
+            }
+        }
+    }
+
+    /// Otwiera sesję MTP (kilka sekund — telefon odpowiada wolno).
+    public init(device: DeviceInfo, helperPath: String) throws {
         self.device = device
-        tools = toolsDirectory
+        guard let index = Int(device.id) else { throw MTPError.helper("index") }
+        let (helper, hello) = try MTPHelper.open(helperPath, index: index)
+        self.helper = helper
+        model = (hello["model"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? device.name
         id = ProviderID("device:mtp-\(device.id)")
     }
 
-    public var displayName: String { device.name }
+    public var displayName: String { model }
     public var root: VFSPath { VFSPath(provider: id, path: "/") }
 
-    /// Parser `mtp-files` (bloki „File ID: …”) i `mtp-folders` (wcięte „ID<tab>nazwa”).
-    public static func parseFiles(_ text: String) -> [Entry] {
-        var out: [Entry] = []
+    static func entries(_ items: Any?, storage: UInt32) -> [Entry] {
+        ((items as? [[String: Any]]) ?? []).compactMap { e in
+            guard let id = (e["id"] as? NSNumber)?.uint32Value, let name = e["name"] as? String, !name.isEmpty else { return nil }
+            let mtime = (e["mtime"] as? NSNumber)?.doubleValue ?? 0
+            return Entry(id: id, storage: storage, name: name, size: (e["size"] as? NSNumber)?.int64Value ?? 0,
+                         modified: mtime > 0 ? Date(timeIntervalSince1970: mtime) : nil, isFolder: e["folder"] as? Bool ?? false)
+        }
+    }
+
+    /// Nośniki („Pamięć wewnętrzna”, karta SD) jako foldery w korzeniu.
+    func storages() throws -> [Entry] {
+        let r = try helper.request("storages", timeout: 60)
+        let list = ((r["storages"] as? [[String: Any]]) ?? []).compactMap { s -> Entry? in
+            guard let id = (s["id"] as? NSNumber)?.uint32Value else { return nil }
+            let name = (s["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? L10n.tr("Pamięć \(id)")
+            return Entry(id: Self.root, storage: id, name: name, size: -1, modified: nil, isFolder: true,
+                         total: (s["total"] as? NSNumber)?.int64Value ?? 0, free: (s["free"] as? NSNumber)?.int64Value ?? 0)
+        }
+        guard !list.isEmpty else { throw MTPError.noStorage }
+        return list
+    }
+
+    /// Zawartość folderu (zawsze świeża — odświeżenie panelu pyta telefon ponownie).
+    func entries(_ dir: String) throws -> [Entry] {
+        let items: [Entry]
+        if dir == "/" {
+            items = try storages()
+        } else {
+            let target = try resolve(dir)
+            guard target.isFolder else { throw VFSError.notADirectory(VFSPath(provider: id, path: dir)) }
+            let r = try helper.request("list \(target.storage) \(target.id)", timeout: 600)
+            items = Self.entries(r["items"], storage: target.storage)
+        }
+        cache.withLock { $0[dir] = items }
+        return items
+    }
+
+    /// Ścieżka → obiekt MTP (z zapamiętanych folderów, brakujące czytane po drodze).
+    func resolve(_ path: String) throws -> Entry {
+        let comps = path.split(separator: "/").map(String.init)
+        var dir = "/"
         var current: Entry?
-        for raw in text.split(separator: "\n") {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("File ID:") {
-                if let c = current { out.append(c) }
-                current = Entry(id: Int(line.dropFirst(8).trimmingCharacters(in: .whitespaces)) ?? -1, parent: 0, name: "", size: 0, isFolder: false)
-            } else if line.hasPrefix("Filename:") {
-                current?.name = String(line.dropFirst(9)).trimmingCharacters(in: .whitespaces)
-            } else if line.hasPrefix("File size") {
-                current?.size = Int64(line.dropFirst(9).trimmingCharacters(in: .whitespaces).split(separator: " ").first ?? "") ?? 0
-            } else if line.hasPrefix("Parent ID:") {
-                current?.parent = Int(line.dropFirst(10).trimmingCharacters(in: .whitespaces)) ?? 0
-            }
+        for name in comps {
+            let listing = try cache.withLock({ $0[dir] }) ?? entries(dir)
+            guard let next = listing.first(where: { $0.name == name }) else { throw VFSError.notFound(VFSPath(provider: id, path: path)) }
+            current = next
+            dir = dir == "/" ? "/" + name : dir + "/" + name
         }
-        if let c = current { out.append(c) }
-        return out.filter { $0.id >= 0 && !$0.name.isEmpty }
+        guard let current else { throw VFSError.notFound(VFSPath(provider: id, path: path)) }
+        return current
     }
 
-    public static func parseFolders(_ text: String) -> [Entry] {
-        var out: [Entry] = []
-        var stack: [(depth: Int, id: Int)] = []
-        for raw in text.split(separator: "\n") {
-            let line = String(raw)
-            guard let tab = line.firstIndex(of: "\t") else { continue }
-            let head = line[..<tab]
-            guard let fid = Int(head.trimmingCharacters(in: .whitespaces)) else { continue }
-            let rest = line[line.index(after: tab)...]
-            let depth = rest.prefix { $0 == " " }.count
-            let name = rest.trimmingCharacters(in: .whitespaces)
-            while let last = stack.last, last.depth >= depth { stack.removeLast() }
-            out.append(Entry(id: fid, parent: stack.last?.id ?? 0, name: name, size: 0, isFolder: true))
-            stack.append((depth, fid))
-        }
-        return out
-    }
-
-    func load() throws -> [String: [Entry]] {
-        if let t = tree.withLock({ $0 }) { return t }
-        let folders = Self.parseFolders(try ToolRunner.run(tools + "/mtp-folders", [], timeout: 120).output)
-        let files = Self.parseFiles(try ToolRunner.run(tools + "/mtp-files", [], timeout: 600).output)
-        let all = folders + files.filter { f in !folders.contains { $0.id == f.id } }
-        let byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        func path(_ e: Entry) -> String {
-            var comps = [e.name]
-            var p = e.parent
-            var guardCount = 0
-            while p != 0, let parent = byID[p], guardCount < 64 { comps.insert(parent.name, at: 0); p = parent.parent; guardCount += 1 }
-            return "/" + comps.joined(separator: "/")
-        }
-        var t: [String: [Entry]] = [:]
-        var paths: [String: Entry] = [:]
-        for e in all {
-            let full = path(e)
-            paths[full] = e
-            t[(full as NSString).deletingLastPathComponent, default: []].append(e)
-        }
-        tree.withLock { $0 = t }
-        byPath.withLock { $0 = paths }
-        return t
+    func item(_ e: Entry, in dir: VFSPath) -> FileItem {
+        FileItem(path: dir.appending(e.name), kind: e.isFolder ? .directory : .file, size: e.isFolder ? -1 : e.size, modified: e.modified)
     }
 
     public func list(_ directory: VFSPath, options: ListOptions) async throws -> [FileItem] {
-        let t = try await runBlocking(qos: .userInitiated) { try self.load() }
-        return (t[directory.path] ?? []).map {
-            FileItem(path: directory.appending($0.name), kind: $0.isFolder ? .directory : .file, size: $0.isFolder ? -1 : $0.size)
-        }
+        let items = try await runBlocking(qos: .userInitiated) { try self.entries(directory.path) }.map { item($0, in: directory) }
+        return options.includeHidden ? items : items.filter { !$0.isHidden }
     }
 
     public func item(at path: VFSPath) async throws -> FileItem {
-        if path.isRoot { return FileItem(path: root, name: device.name, kind: .directory) }
-        _ = try await runBlocking(qos: .userInitiated) { try self.load() }
-        guard let e = byPath.withLock({ $0[path.path] }) else { throw VFSError.notFound(path) }
-        return FileItem(path: path, kind: e.isFolder ? .directory : .file, size: e.isFolder ? -1 : e.size)
+        if path.isRoot { return FileItem(path: root, name: model, kind: .directory) }
+        let e = try await runBlocking(qos: .userInitiated) { try self.resolve(path.path) }
+        return FileItem(path: path, kind: e.isFolder ? .directory : .file, size: e.isFolder ? -1 : e.size, modified: e.modified)
     }
 
     public func readContents(_ path: VFSPath, range: Range<Int64>?) async throws -> Data {
@@ -252,23 +264,23 @@ public final class MTPDeviceFS: ExtractingProvider {
     }
 
     public func volumeInfo(for path: VFSPath) async throws -> VolumeInfo {
-        VolumeInfo(path: root, name: device.name, totalCapacity: 0, availableCapacity: 0, fileSystem: "mtp", isRemovable: true, isInternal: false)
+        let storageName = path.path.split(separator: "/").first.map(String.init)
+        let s = storageName.flatMap { name in cache.withLock { $0["/"] }?.first { $0.name == name } }
+        return VolumeInfo(path: root, name: model, totalCapacity: s?.total ?? 0, availableCapacity: s?.free ?? 0, fileSystem: "mtp", isRemovable: true, isInternal: false)
     }
 
-    /// Pobiera pliki (katalogi rekurencyjnie) przez `mtp-getfile <id> <plik>`.
+    /// Pobiera pliki (katalogi rekurencyjnie) do nowego katalogu tymczasowego.
     public func extract(_ paths: [VFSPath], toTemporaryIn directory: VFSPath, isCancelled: @escaping @Sendable () -> Bool) throws -> (temp: VFSPath, items: [VFSPath]) {
-        let t = try load()
         let temp = directory.appending(".bifold-device-\(UUID().uuidString.prefix(8))")
         try FileManager.default.createDirectory(atPath: temp.path, withIntermediateDirectories: true)
         func fetch(_ devicePath: String, to local: VFSPath) throws {
             if isCancelled() { throw VFSError.cancelled }
-            guard let e = byPath.withLock({ $0[devicePath] }) else { throw VFSError.notFound(VFSPath(provider: id, path: devicePath)) }
+            let e = try resolve(devicePath)
             if e.isFolder {
                 try FileManager.default.createDirectory(atPath: local.path, withIntermediateDirectories: true)
-                for child in t[devicePath] ?? [] { try fetch(devicePath + "/" + child.name, to: local.appending(child.name)) }
+                for child in try entries(devicePath) { try fetch(devicePath + "/" + child.name, to: local.appending(child.name)) }
             } else {
-                let (status, output) = try ToolRunner.run(tools + "/mtp-getfile", [String(e.id), local.path], timeout: 3600)
-                guard status == 0 else { throw VFSError.unsupported(output) }
+                _ = try helper.request("get \(e.id) \(local.path)", timeout: 3600)
             }
         }
         var items: [VFSPath] = []
@@ -284,6 +296,83 @@ public final class MTPDeviceFS: ExtractingProvider {
         }
         return (temp, items)
     }
+
+    /// Kończy sesję MTP (telefon wolny dla innych programów).
+    public func close() { helper.close() }
+}
+
+/// Proces `bifold-mtp serve N`: polecenie w wierszu na stdin, odpowiedź JSON w wierszu na stdout.
+final class MTPHelper: @unchecked Sendable {
+    private let process: Process
+    private let input: FileHandle
+    private let output: Int32
+    private let lock = NSLock()
+    private var buffer = Data()
+
+    private init(process: Process, input: FileHandle, output: Int32) {
+        self.process = process
+        self.input = input
+        self.output = output
+    }
+
+    static func open(_ executable: String, index: Int) throws -> (MTPHelper, [String: Any]) {
+        let p = Process()
+        p.executableURL = URL(filePath: executable)
+        p.arguments = ["serve", String(index)]
+        let stdin = Pipe(), stdout = Pipe()
+        p.standardInput = stdin
+        p.standardOutput = stdout
+        p.standardError = FileHandle.nullDevice
+        try p.run()
+        let helper = MTPHelper(process: p, input: stdin.fileHandleForWriting, output: stdout.fileHandleForReading.fileDescriptor)
+        let hello = try helper.readReply(timeout: 60)
+        return (helper, hello)
+    }
+
+    func request(_ command: String, timeout: TimeInterval) throws -> [String: Any] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard process.isRunning else { throw MTPDeviceFS.MTPError.helper(L10n.tr("Połączenie z telefonem zostało przerwane (odłączony kabel?)")) }
+        try input.write(contentsOf: Data((command + "\n").utf8))
+        return try readReply(timeout: timeout)
+    }
+
+    private func readReply(timeout: TimeInterval) throws -> [String: Any] {
+        let deadline = Date().addingTimeInterval(timeout)
+        while true {
+            if let nl = buffer.firstIndex(of: 0x0A) {
+                let line = buffer[buffer.startIndex..<nl]
+                buffer.removeSubrange(buffer.startIndex...nl)
+                guard let obj = try JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] else { throw MTPDeviceFS.MTPError.helper("JSON") }
+                guard obj["ok"] as? Bool == true else { throw MTPDeviceFS.MTPError.helper(obj["error"] as? String ?? "MTP") }
+                return obj
+            }
+            let left = deadline.timeIntervalSinceNow
+            guard left > 0 else { throw MTPDeviceFS.MTPError.helper(L10n.tr("Telefon nie odpowiada")) }
+            var pfd = pollfd(fd: output, events: Int16(POLLIN), revents: 0)
+            let ready = poll(&pfd, 1, Int32(min(left, 1) * 1000))
+            if ready <= 0 { continue }
+            var chunk = [UInt8](repeating: 0, count: 65536)
+            let n = read(output, &chunk, chunk.count)
+            if n <= 0 { throw MTPDeviceFS.MTPError.helper(L10n.tr("Połączenie z telefonem zostało przerwane (odłączony kabel?)")) }
+            buffer.append(chunk, count: n)
+        }
+    }
+
+    var isRunning: Bool { process.isRunning }
+
+    func close() {
+        lock.lock()
+        defer { lock.unlock() }
+        if process.isRunning {
+            try? input.write(contentsOf: Data("quit\n".utf8))
+            let deadline = Date().addingTimeInterval(3)
+            while process.isRunning, Date() < deadline { usleep(50_000) }
+            if process.isRunning { process.terminate() }
+        }
+    }
+
+    deinit { if process.isRunning { process.terminate() } }
 }
 
 /// Wykrywanie podłączonych urządzeń.
@@ -297,27 +386,35 @@ public enum DeviceDetector {
         }
     }
 
-    /// `mtp-detect`: „Found N device(s)” i nazwy modeli.
-    public static func parseMTPDetect(_ text: String) -> [DeviceInfo] {
-        guard text.contains("Found") else { return [] }
-        var devices: [DeviceInfo] = []
-        var index = 0
-        for line in text.split(separator: "\n") {
-            let l = line.trimmingCharacters(in: .whitespaces)
-            if l.hasPrefix("Model:") {
-                devices.append(DeviceInfo(id: String(index), kind: .android, name: String(l.dropFirst(6)).trimmingCharacters(in: .whitespaces)))
-                index += 1
-            }
+    /// Telefony z Androidem: `bifold-mtp detect` (bez otwierania sesji — szybko i bez blokowania telefonu).
+    public static func parseMTPDetect(_ json: Data) -> [DeviceInfo] {
+        guard let list = try? JSONSerialization.jsonObject(with: json) as? [[String: Any]] else { return [] }
+        return list.compactMap { d in
+            guard let index = (d["index"] as? NSNumber)?.intValue else { return nil }
+            let vendor = d["vendor"] as? String ?? "", product = (d["product"] as? String ?? "").replacingOccurrences(of: " (MTP)", with: "")
+            let name = [vendor, product].filter { !$0.isEmpty }.joined(separator: " ")
+            return DeviceInfo(id: String(index), kind: .android, name: name.isEmpty ? "Android" : name)
         }
-        if devices.isEmpty, let n = text.range(of: #"Found (\d+) device"#, options: .regularExpression).map({ Int(text[$0].filter(\.isNumber)) ?? 0 }), n > 0 {
-            devices = (0..<n).map { DeviceInfo(id: String($0), kind: .android, name: "Android") }
-        }
-        return devices
     }
 
-    public static func androids(toolsDirectory: String) -> [DeviceInfo] {
-        let detect = toolsDirectory + "/mtp-detect"
-        guard FileManager.default.isExecutableFile(atPath: detect), let (_, out) = try? ToolRunner.run(detect, [], timeout: 30) else { return [] }
-        return parseMTPDetect(out)
+    public static func androids(helper: String?) -> [DeviceInfo] {
+        guard let helper, FileManager.default.isExecutableFile(atPath: helper) else { return [] }
+        let p = Process()
+        p.executableURL = URL(filePath: helper)
+        p.arguments = ["detect"]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return [] }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return parseMTPDetect(data)
+    }
+
+    /// Pomocnik MTP: obok programu w pakiecie aplikacji albo `BIFOLD_MTP_HELPER` (testy).
+    public static var mtpHelperPath: String? {
+        if let env = ProcessInfo.processInfo.environment["BIFOLD_MTP_HELPER"] { return env }
+        let bundled = Bundle.main.executableURL?.deletingLastPathComponent().appending(path: "bifold-mtp").path
+        return bundled.flatMap { FileManager.default.isExecutableFile(atPath: $0) ? $0 : nil }
     }
 }

@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — telefony z Androidem
+- Pusty panel po otwarciu telefonu: narzędzia mtp-files/mtp-folders wczytywały cały telefon naraz (minuty
+  przy tysiącach zdjęć). Nowy pomocnik `bifold-mtp` (libmtp) czyta folder po folderze w jednej sesji MTP.
+- Telefon bez „Zezwól” (dostęp do danych) na ekranie: komunikat z instrukcją zamiast pustego panelu;
+  sesja zostaje, po zgodzie wystarczy odświeżyć.
+- Telefon da się zamknąć: ⏏ na pasku ścieżki i „Rozłącz” (Ctrl+Shift+F) zwalniają telefon.
+
 ### Poprawione — panel agenta
 - „Zakończ” nie kończyło CLI, które przechwytuje SIGTERM, i zostawiało otwarty panel. Teraz SIGHUP do całej
   grupy procesów (jak zamknięcie okna terminala), po 2 s SIGKILL; bez działających sesji panel się chowa

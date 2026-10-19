@@ -435,12 +435,14 @@
 			buildConfigurationList = 4A34072C5245B321DE28DF9A /* Build configuration list for PBXNativeTarget "Bifold" */;
 			buildPhases = (
 				28D0485FD396F32D3DFDD1B3 /* HexFiend.framework */,
+				7B2B77491366E988C9DDE511 /* bifold-mtp */,
 				86FE6F1AFD80F9FD79711E18 /* Sources */,
 				E471D1D9C62E22A8663C78FD /* Resources */,
 				60680F34B2EF99B1C26B2EEC /* CopyFiles */,
 				240A0832D34AA705A8108A48 /* Frameworks */,
 				4864755688993698B1EFD1BF /* Embed Frameworks */,
 				1B791F5FCCF282D5FAA808C0 /* Embed Dependencies */,
+				16664DB03ED60BF7A084F1A4 /* Wbuduj bifold-mtp */,
 			);
 			buildRules = (
 			);
@@ -548,6 +550,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		16664DB03ED60BF7A084F1A4 /* Wbuduj bifold-mtp */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Wbuduj bifold-mtp";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/scripts/embed-mtp-helper.sh\"";
+		};
 		28D0485FD396F32D3DFDD1B3 /* HexFiend.framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -567,6 +588,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"$SRCROOT/scripts/build-hexfiend.sh\"";
+		};
+		7B2B77491366E988C9DDE511 /* bifold-mtp */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "bifold-mtp";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/scripts/build-mtp-helper.sh\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 

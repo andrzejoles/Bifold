@@ -143,8 +143,14 @@ var remoteCommands: [Command] { [
         id: "remote.disconnect", title: L10n.tr("Rozłącz"), category: .network, tc: ["ctrl+shift+f"], cmd: ["cmd+ctrl+k"],
         parameters: [CommandParameter("alias", .string, L10n.tr("Alias połączenia (domyślnie serwer w aktywnym panelu)"))],
         agent: .read, effect: .uiState,
-        summary: L10n.tr("Zamyka połączenie z serwerem; karty pokazujące ten serwer wracają do katalogu domowego."))
+        summary: L10n.tr("Zamyka połączenie z serwerem albo telefon z aktywnego panelu; karty z nim wracają do katalogu domowego."))
     ) { ctx in
+        // Telefon w aktywnym panelu: zamknięcie urządzenia (sesja MTP, karty).
+        if ctx.arguments.string("alias") == nil, ctx.tab.path.provider.rawValue.hasPrefix("device:") {
+            let provider = ctx.tab.path.provider
+            await ctx.workspace.closeDevice(provider)
+            return CommandResult(message: L10n.tr("Zamknięto telefon"))
+        }
         let remotes = ctx.workspace.remotes!
         let tabs = ctx.workspace.left.tabs + ctx.workspace.right.tabs
         let open = Set(tabs.compactMap { RemoteFS.alias(of: $0.path) }).union(remotes.connected)

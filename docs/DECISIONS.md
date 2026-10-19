@@ -278,3 +278,12 @@ terminala przed menu (F5 ma trafić do `mc` na serwerze, nie do kopiowania plik�
 terminala ani nie widzi jego treści (`remote.terminal` — poziom „Brak”; `remote.open` od agenta pomija
 terminal). Karty-terminale nie wracają po ponownym uruchomieniu. Próby na żywo bez dotykania danych:
 `BIFOLD_DATA_DIR`, `BIFOLD_SSH_CONFIG`, `BIFOLD_SSH_KNOWN_HOSTS`.
+
+### D45 · 2026-10-19 — Android przez własnego pomocnika na libmtp (zmiana D35)
+Narzędzia CLI libmtp nie czytają pojedynczego folderu: `mtp-files`/`mtp-folders` wyliczają cały telefon,
+co na prawdziwym Samsungu trwało ponad 2 minuty bez wyniku (panel pusty). `Tools/bifold-mtp/bifold-mtp.c`
+(budowany przez `scripts/build-mtp-helper.sh`, linkowany dynamicznie z libmtp z Homebrew — biblioteka nie
+trafia do aplikacji) otwiera urządzenie bez pamięci podręcznej (`LIBMTP_Open_Raw_Device_Uncached`) i
+odpowiada na `storages`/`list`/`get` w jednej sesji. Samsung nie pokazuje nośników, dopóki na telefonie
+nie wybrano „Zezwól” — wtedy komunikat i ponowna próba bez zamykania sesji. Testy na fałszywym pomocniku
+(skrypt z tym samym protokołem).

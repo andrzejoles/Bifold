@@ -79,9 +79,11 @@ final class PanelViewController: NSViewController {
             self.workspace.perform("remote.terminal", CommandArguments(["alias": .string(alias)]))
         }
         pathBar.onDisconnect = { [weak self] in
-            guard let self, let alias = RemoteFS.alias(of: self.tab.path) else { return }
+            guard let self else { return }
             self.activate()
-            self.workspace.perform("remote.disconnect", CommandArguments(["alias": .string(alias)]))
+            // Bez aliasu komenda zamyka serwer albo telefon z aktywnego panelu.
+            let args = RemoteFS.alias(of: self.tab.path).map { CommandArguments(["alias": .string($0)]) } ?? .empty
+            self.workspace.perform("remote.disconnect", args)
         }
 
         filterField.placeholderString = L10n.tr("Filtr: fragment nazwy lub maska (*.jpg)")
