@@ -213,7 +213,7 @@ var toolCommands: [Command] { [
 
     Command(CommandDescriptor(
         id: "tools.volumes", title: L10n.tr("Dyski i woluminy…"), category: .tools, tc: ["alt+f1"], cmd: ["cmd+d"],
-        agent: .read, effect: .uiState, summary: L10n.tr("Lista woluminów z wolnym miejscem."))
+        agent: .read, effect: .uiState, summary: L10n.tr("Menu dysków aktywnej karty: woluminy z wolnym miejscem, telefon, połączenia (agent: lista woluminów)."))
     ) { ctx in
         ctx.workspace.refreshVolumes()
         if ctx.isAgent {

@@ -15,9 +15,14 @@ let pathsParam = CommandParameter("paths", .paths, L10n.tr("Ścieżki elementów
 extension CommandContext {
     /// Karta wskazana argumentem `side` albo aktywna.
     func tab(forSide key: String = "side") throws -> Tab {
-        guard let raw = arguments.string(key) else { return tab }
+        try panel(forSide: key).activeTab
+    }
+
+    /// Panel wskazany argumentem `side` albo aktywny.
+    func panel(forSide key: String = "side") throws -> Panel {
+        guard let raw = arguments.string(key) else { return workspace.activePanel }
         guard let side = PanelSide(rawValue: raw) else { throw CommandError.invalidArgument(key, "left | right") }
-        return workspace.panel(side).activeTab
+        return workspace.panel(side)
     }
 }
 
@@ -63,24 +68,25 @@ var navigationCommands: [Command] { [
     Command(CommandDescriptor(
         id: "panel.navigate", title: L10n.tr("Przejdź do katalogu…"), category: .panel, tc: ["cmd+shift+g"],
         parameters: [pathParam, sideParam], agent: .full, effect: .uiState,
-        summary: L10n.tr("Otwiera katalog w aktywnym (lub wskazanym) panelu. Ścieżka do pliku otwiera jego katalog i ustawia na nim kursor."))
+        summary: L10n.tr("Otwiera katalog w aktywnym (lub wskazanym) panelu; inny serwer albo telefon — w nowej karcie. Ścieżka do pliku otwiera jego katalog i ustawia na nim kursor."))
     ) { ctx in
-        let tab = try ctx.tab(forSide: "side")
+        let panel = try ctx.panel(forSide: "side")
+        let tab = panel.activeTab
         let raw = try await ctx.text("path", title: L10n.tr("Przejdź do katalogu"), default: tab.path.displayPath)
         let target = ctx.workspace.parsePath(raw.trimmingCharacters(in: .whitespaces), relativeTo: tab.path)
         if let alias = RemoteFS.alias(of: target) {
-            let fs = try await ctx.workspace.remotes.provider(alias)
-            try await tab.navigate(to: target)
-            tab.customTitle = "🌐 " + fs.connection.alias
+            _ = try await ctx.workspace.remotes.provider(alias)
+            try await ctx.workspace.open(target, in: panel)
             return CommandResult(message: target.displayPath)
         }
         let item = try LocalFS().itemSync(at: target)
+        var opened = tab
         if item.isNavigable {
-            try await tab.navigate(to: target)
+            opened = try await ctx.workspace.open(target, in: panel)
         } else if let parent = target.parent {
-            try await tab.navigate(to: parent, focus: target.name)
+            opened = try await ctx.workspace.open(parent, in: panel, focus: target.name)
         }
-        return CommandResult(message: tab.path.description)
+        return CommandResult(message: opened.path.description)
     },
 
     Command(CommandDescriptor(
@@ -96,7 +102,7 @@ var navigationCommands: [Command] { [
         agent: .full, effect: .uiState, summary: L10n.tr("Przechodzi do katalogu głównego woluminu."))
     ) { ctx in
         let root = ctx.tab.volume?.path ?? .root
-        try await ctx.tab.navigate(to: ctx.tab.path == root ? .root : root)
+        try await ctx.workspace.open(ctx.tab.path == root ? .root : root, in: ctx.workspace.activePanel)
         return .ok
     },
 
@@ -104,7 +110,7 @@ var navigationCommands: [Command] { [
         id: "panel.home", title: L10n.tr("Katalog domowy"), category: .panel, tc: ["cmd+shift+h"],
         agent: .full, effect: .uiState, summary: L10n.tr("Przechodzi do katalogu domowego."))
     ) { ctx in
-        try await ctx.tab.navigate(to: .local(NSHomeDirectory()))
+        try await ctx.workspace.open(ctx.workspace.homePath, in: ctx.workspace.activePanel)
         return .ok
     },
 
@@ -137,7 +143,7 @@ var navigationCommands: [Command] { [
         id: "panel.otherToSame", title: L10n.tr("Ten sam katalog w drugim panelu"), category: .panel, tc: ["ctrl+="], cmd: ["cmd+alt+="],
         agent: .full, effect: .uiState, summary: L10n.tr("Otwiera w drugim panelu katalog aktywnego panelu."))
     ) { ctx in
-        try await ctx.otherTab.navigate(to: ctx.tab.path)
+        try await ctx.workspace.open(ctx.tab.path, in: ctx.workspace.otherPanel)
         return .ok
     },
 
@@ -147,9 +153,9 @@ var navigationCommands: [Command] { [
     ) { ctx in
         guard let item = ctx.tab.cursorItem else { return .ok }
         if item.isNavigable {
-            try await ctx.otherTab.navigate(to: item.path)
+            try await ctx.workspace.open(item.path, in: ctx.workspace.otherPanel)
         } else if let parent = item.path.parent {
-            try await ctx.otherTab.navigate(to: parent, focus: item.name)
+            try await ctx.workspace.open(parent, in: ctx.workspace.otherPanel, focus: item.name)
         }
         return .ok
     },
@@ -159,6 +165,7 @@ var navigationCommands: [Command] { [
         agent: .full, effect: .uiState, summary: L10n.tr("Zamienia katalogi aktywnych kart obu paneli."))
     ) { ctx in
         let a = ctx.workspace.left.activeTab, b = ctx.workspace.right.activeTab
+        guard a.terminal == nil, b.terminal == nil else { throw CommandError.notAvailable(L10n.tr("Karta z terminalem SSH nie pokazuje plików — otwórz je w nowej karcie")) }
         let pa = a.path, pb = b.path
         try await a.navigate(to: pb)
         try await b.navigate(to: pa)
@@ -212,15 +219,18 @@ var tabCommands: [Command] { [
         agent: .full, effect: .uiState, summary: L10n.tr("Otwiera nową kartę w panelu."))
     ) { ctx in
         let panel = ctx.arguments.string("side").flatMap(PanelSide.init(rawValue:)).map(ctx.workspace.panel) ?? ctx.workspace.activePanel
-        let path = ctx.arguments.path("path", relativeTo: ctx.tab.path)
+        // Z karty-terminala nowa karta z plikami lokalnymi (katalog domowy).
+        let path = ctx.arguments.path("path", relativeTo: ctx.tab.path) ?? (panel.activeTab.terminal != nil ? ctx.workspace.homePath : nil)
+        let tab: Tab
         if let cursor = ctx.tab.cursorItem, path == nil, cursor.isNavigable, !cursor.isParentLink, !ctx.isAgent {
             // Jak w TC: Ctrl+T na katalogu otwiera ten katalog w nowej karcie.
-            let tab = panel.newTab(at: cursor.path)
+            tab = panel.newTab(at: cursor.path)
             try await tab.navigate(to: cursor.path)
         } else {
-            let tab = panel.newTab(at: path)
+            tab = panel.newTab(at: path)
             try await tab.navigate(to: path ?? tab.path)
         }
+        if let alias = RemoteFS.alias(of: tab.path) { tab.customTitle = "🌐 " + alias }
         return CommandResult(value: .int(Int64(panel.activeTabIndex)))
     },
 

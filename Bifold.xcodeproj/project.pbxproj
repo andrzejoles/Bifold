@@ -40,6 +40,7 @@
 		7A06665F94711A8D0D5752F5 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABD05211A430CB6EA0D86E31 /* main.swift */; };
 		7C881BA0E23EB63531E0F987 /* bifold-helper in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 2512DF4CE97526DD996F0483 /* bifold-helper */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8EFCA2002DDED0C061D7998E /* BifoldHelperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 104A5ACB8728548369333D62 /* BifoldHelperKit */; };
+		8FA866F68238F68D1F5DDA5D /* DriveMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3212432A405AE3EDAD095A /* DriveMenu.swift */; };
 		9306DDA37626CB57CC35A1A0 /* bifold-mcp in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 82470DF1E310E6F21EF3EFFE /* bifold-mcp */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A4FBDF513DDBE32FC3249FBF /* BifoldWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 579F3D1388B56082940BBC02 /* BifoldWorkspace */; };
 		A67F6B604B123F60570E0384 /* BifoldCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4CC90F7E29DD2F171CB9E812 /* BifoldCore */; };
@@ -143,6 +144,7 @@
 		A72C1AF97505CC6C756CB98C /* ConnectionsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsWindow.swift; sourceTree = "<group>"; };
 		A965284FB8898DEED1F6DBB1 /* CommandLineBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineBar.swift; sourceTree = "<group>"; };
 		ABD05211A430CB6EA0D86E31 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		AC3212432A405AE3EDAD095A /* DriveMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveMenu.swift; sourceTree = "<group>"; };
 		B6703DF26152DBB41A25AAC0 /* LanguageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageService.swift; sourceTree = "<group>"; };
 		B8666EA3361722B64A277E45 /* TerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPane.swift; sourceTree = "<group>"; };
 		BA1ED275D245D8F3D7E0213E /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -225,6 +227,7 @@
 				6ACFDBB9F909F9FECBAB84F4 /* ColumnListView.swift */,
 				88ABDCB99093D29357D17D10 /* DetailsListView.swift */,
 				4D61D5F6D18E125A9D49110F /* DirectoryTreeView.swift */,
+				AC3212432A405AE3EDAD095A /* DriveMenu.swift */,
 				F1E73F4F7492DA6533F57EBF /* GridListView.swift */,
 				C0D9F57CDB5D57A14204BEB1 /* PanelBars.swift */,
 				7CB08591E98A5499AB796B63 /* PanelTerminalView.swift */,
@@ -643,6 +646,7 @@
 				70D45E25D20DA35EB9734E46 /* ConnectionsWindow.swift in Sources */,
 				6564EC6E82A2441BAC0AE591 /* DetailsListView.swift in Sources */,
 				A77C7E34F28113AD1CFE031F /* DirectoryTreeView.swift in Sources */,
+				8FA866F68238F68D1F5DDA5D /* DriveMenu.swift in Sources */,
 				300765AD292F3784E8D9AB86 /* FullDiskAccess.swift in Sources */,
 				C64F9BCD6A600794099ED5A0 /* GridListView.swift in Sources */,
 				6BEA616D6A1D4DCF6EB50421 /* JobsBar.swift in Sources */,

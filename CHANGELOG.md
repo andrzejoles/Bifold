@@ -4,6 +4,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Zmienione — każda karta ma swoją „maszynę”
+- Karta jest związana z dyskiem lokalnym, serwerem albo telefonem, a nie cały panel. Otwarcie połączenia
+  (Menedżer połączeń, „Otwórz połączenie…”, ścieżka `alias:/…`) i telefonu (Ctrl+Alt+P) otwiera nową kartę
+  zamiast podmieniać bieżącą; ten sam serwer w aktywnej karcie — ta sama karta.
+- Karta-terminal SSH zostaje terminalem: nowa karta z niej (Ctrl+T) to pliki lokalne (katalog domowy),
+  a katalogi otwierane z niej (drzewo, dom, „Przejdź do katalogu”) trafiają do nowej karty. Kilka terminali
+  naraz — każdy w swojej karcie, do tego samego albo różnych serwerów.
+- „Rozłącz” zamyka karty serwera/telefonu (ostatnia karta panelu wraca do katalogu domowego).
+
+### Dodane
+- Wybór dysku w karcie jak w TC: przycisk z nazwą dysku przed ścieżką (oraz Alt+F1 / ⌘D) — woluminy
+  z wolnym miejscem (dysk wewnętrzny, USB, udziały), katalog domowy, telefon, zapisane połączenia, Menedżer
+  połączeń i wysuwanie woluminów.
+- Typ terminala (TERM) w ustawieniach połączenia SFTP/SCP (np. `xterm` dla starego AIX); domyślnie
+  `xterm-256color`.
+
 ### Poprawione — telefony z Androidem
 - Po „Zezwól” Samsung łączy się z USB od nowa, a sesja otwarta wcześniej nigdy nie widziała nośników —
   Bifold używał jej dalej (pusty panel). Teraz brak nośników albo zerwana sesja = nowa sesja.

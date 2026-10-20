@@ -30,6 +30,7 @@ import Testing
 
         try await ws.invoke("device.open", CommandArguments(["id": "0"]))
         let tab = ws.left.activeTab
+        #expect(ws.left.tabs.count == 2 && ws.left.tabs[0].path == tmp.path, "telefon w nowej karcie")
         #expect(tab.path.provider.rawValue == "device:mtp-0" && tab.items.isEmpty)
         #expect(tab.loadError?.contains("Zezwól") == true && tab.customTitle == "🤖 SM-F776B")
 
@@ -38,7 +39,8 @@ import Testing
         #expect(tab.items.map(\.name).contains("Pamięć wewnętrzna") && tab.loadError == nil)
 
         try await ws.invoke("remote.disconnect")
-        #expect(tab.path == tmp.path && (try? ws.providers.provider(for: ProviderID("device:mtp-0"))) == nil)
+        #expect(ws.left.tabs.count == 1 && ws.left.activeTab.path == tmp.path, "karta telefonu zamknięta")
+        #expect((try? ws.providers.provider(for: ProviderID("device:mtp-0"))) == nil)
         #expect(tmp.exists("quit"), "sesja MTP zamknięta")
     }
 }

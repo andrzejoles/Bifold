@@ -7,6 +7,12 @@ extension VFSPath {
         if let alias = RemoteFS.alias(of: self) { return alias + ":" + path }
         return path
     }
+
+    /// „Maszyna” ścieżki: dysk lokalny (także archiwa i wyniki wyszukiwania), serwer albo telefon.
+    public var machine: String {
+        let raw = provider.rawValue
+        return raw.hasPrefix("remote:") || raw.hasPrefix("device:") ? raw : "local"
+    }
 }
 
 extension CommandContext {
@@ -143,7 +149,7 @@ var remoteCommands: [Command] { [
         id: "remote.disconnect", title: L10n.tr("Rozłącz"), category: .network, tc: ["ctrl+shift+f"], cmd: ["cmd+ctrl+k"],
         parameters: [CommandParameter("alias", .string, L10n.tr("Alias połączenia (domyślnie serwer w aktywnym panelu)"))],
         agent: .read, effect: .uiState,
-        summary: L10n.tr("Zamyka połączenie z serwerem albo telefon z aktywnego panelu; karty z nim wracają do katalogu domowego."))
+        summary: L10n.tr("Zamyka połączenie z serwerem albo telefon z aktywnego panelu wraz z jego kartami (ostatnia karta panelu wraca do katalogu domowego)."))
     ) { ctx in
         // Telefon w aktywnym panelu: zamknięcie urządzenia (sesja MTP, karty).
         if ctx.arguments.string("alias") == nil, ctx.tab.path.provider.rawValue.hasPrefix("device:") {
@@ -160,16 +166,7 @@ var remoteCommands: [Command] { [
                 : L10n.tr("Wybierz panel z serwerem albo podaj alias: \(open.sorted().joined(separator: ", "))"))
         }
         guard open.contains(alias) else { throw CommandError.notAvailable(L10n.tr("Połączenie \(alias) nie jest otwarte")) }
-        for panel in [ctx.workspace.left, ctx.workspace.right] {
-            for tab in panel.tabs where tab.terminal?.alias == alias {
-                if let i = panel.tabs.firstIndex(where: { $0 === tab }), panel.closeTab(at: i) { continue }
-                tab.terminal = nil
-            }
-        }
-        for tab in ctx.workspace.left.tabs + ctx.workspace.right.tabs where RemoteFS.alias(of: tab.path) == alias {
-            try? await tab.navigate(to: ctx.workspace.homePath)
-            tab.customTitle = nil
-        }
+        await ctx.workspace.closeTabs { $0.terminal?.alias == alias || RemoteFS.alias(of: $0.path) == alias }
         await remotes.disconnect(alias)
         return CommandResult(message: L10n.tr("Rozłączono \(alias)"))
     },
@@ -178,15 +175,13 @@ var remoteCommands: [Command] { [
         id: "remote.open", title: L10n.tr("Otwórz połączenie…"), category: .network, cmd: ["cmd+shift+k"],
         parameters: [CommandParameter("alias", .string, required: true, L10n.tr("Alias połączenia")), CommandParameter("path", .string, L10n.tr("Katalog na serwerze")), sideParam,
                      CommandParameter("terminal", .boolean, L10n.tr("Terminal SSH w drugim panelu (domyślnie wg ustawienia połączenia)"))],
-        agent: .read, effect: .uiState, summary: L10n.tr("Otwiera połączenie w aktywnym panelu (agent zna tylko aliasy)."))
+        agent: .read, effect: .uiState, summary: L10n.tr("Otwiera połączenie w nowej karcie aktywnego panelu (agent zna tylko aliasy)."))
     ) { ctx in
         let names = ctx.workspace.remotes.connections.map(\.alias)
         let alias = try await ctx.text("alias", title: L10n.tr("Połączenie"), message: names.joined(separator: ", "), default: names.first ?? "")
         let fs = try await ctx.workspace.remotes.provider(alias)
-        let tab = try ctx.tab(forSide: "side")
         let target = VFSPath(provider: fs.id, path: ctx.arguments.string("path") ?? "/")
-        try await tab.navigate(to: target)
-        tab.customTitle = "🌐 " + alias
+        let tab = try await ctx.workspace.open(target, in: try ctx.panel(forSide: "side"))
         // Połączenie SSH: terminal w drugim panelu (ustawienie połączenia; agent — nigdy).
         if !ctx.isAgent, ctx.arguments.bool("terminal") ?? ctx.workspace.remotes.connection(alias)?.opensTerminal ?? false {
             let other = ctx.workspace.left.tabs.contains { $0 === tab } ? ctx.workspace.right : ctx.workspace.left
@@ -299,7 +294,7 @@ var remoteCommands: [Command] { [
         }
         let address = try await ctx.text("url", title: L10n.tr("Udział sieciowy"), message: "smb://serwer/udział", default: url ?? "smb://")
         let mountPoint = try await ctx.workspace.remotes.mount(address, user: user, password: password)
-        try await ctx.tab.navigate(to: mountPoint)
+        try await ctx.workspace.open(mountPoint, in: ctx.workspace.activePanel)
         return CommandResult(message: mountPoint.path)
     },
 ] }

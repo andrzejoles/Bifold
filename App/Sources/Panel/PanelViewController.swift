@@ -69,9 +69,9 @@ final class PanelViewController: NSViewController {
             self.activate()
             Task { try? await self.tab.navigate(to: path) }
         }
-        pathBar.onVolumes = { [weak self] in
+        pathBar.onDrives = { [weak self] in
             self?.activate()
-            self?.workspace.perform("tools.volumes")
+            self?.showDriveMenu()
         }
         pathBar.onTerminal = { [weak self] in
             guard let self, let alias = RemoteFS.alias(of: self.tab.path) else { return }
@@ -106,7 +106,7 @@ final class PanelViewController: NSViewController {
         tree.onNavigate = { [weak self] path in
             guard let self else { return }
             self.activate()
-            Task { try? await self.tab.navigate(to: path) }
+            Task { try? await self.workspace.open(path, in: self.panel) }
         }
 
         let statusRow = NSStackView(views: [statusBar])
@@ -189,6 +189,8 @@ final class PanelViewController: NSViewController {
             let tab = self.tab
             let ssh = RemoteFS.alias(of: tab.path).flatMap { self.workspace.remotes.connection($0) }?.kind.usesSSH ?? false
             self.pathBar.update(path: tab.path, volume: tab.volume, error: tab.loadError, loading: tab.isLoading, sshTerminal: ssh && tab.terminal == nil)
+            let drive = DriveMenu.label(for: tab, workspace: self.workspace)
+            self.pathBar.updateDrive(title: drive.title, image: drive.image)
             self.updateStatus(tab)
         }
         // Drzewo
@@ -300,6 +302,12 @@ final class PanelViewController: NSViewController {
         }
         if !tab.quickFilter.isEmpty { parts.append(L10n.tr("Filtr: \(tab.quickFilter)")) }
         statusBar.stringValue = parts.joined(separator: "   ·   ")
+    }
+
+    /// Menu dysków karty (przycisk dysku, Alt+F1 / ⌘D).
+    func showDriveMenu() {
+        DriveMenuTarget.shared.workspace = workspace
+        pathBar.popUpDriveMenu(DriveMenu.menu(for: side, workspace: workspace))
     }
 
     // MARK: Aktywacja i fokus

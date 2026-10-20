@@ -119,6 +119,31 @@ import Testing
         #expect(ws.activeTab.selection.contains(tmp.path.appending("d.txt")))
     }
 
+    /// Karta-terminal zostaje terminalem: nowa karta i katalogi lokalne otwierają się obok niej.
+    @Test func terminalTabKeepsItsMachine() async throws {
+        let tmp = try TempDir()
+        try tmp.dir("sub")
+        let (ws, _) = try await makeWorkspace(tmp)
+        let term = ws.left.newTab(at: VFSPath(provider: RemoteFS.providerID("aix"), path: "/"))
+        term.terminal = TerminalSpec(alias: "aix", executable: "/usr/bin/ssh", arguments: [], term: "xterm")
+        try await ws.invoke("tab.new")
+        #expect(ws.left.tabs.count == 3 && ws.activeTab.terminal == nil && ws.activeTab.path == tmp.path)
+
+        ws.left.selectTab(id: term.id)
+        try await ws.invoke("panel.navigate", CommandArguments(["path": .string(tmp.url.path + "/sub")]))
+        #expect(ws.left.tabs.count == 4 && ws.activeTab.path == tmp.path.appending("sub"))
+        #expect(term.terminal != nil && term.path.provider == RemoteFS.providerID("aix"))
+        await #expect(throws: (any Error).self) { try await term.navigate(to: tmp.path) }
+        ws.left.selectTab(id: term.id)
+        try await ws.invoke("panel.home")
+        #expect(ws.left.tabs.count == 5 && ws.activeTab.path == tmp.path)
+
+        // Ta sama maszyna (dysk lokalny) — ta sama karta.
+        ws.left.selectTab(0)
+        try await ws.invoke("panel.navigate", CommandArguments(["path": .string(tmp.url.path + "/sub")]))
+        #expect(ws.left.tabs.count == 5 && ws.left.activeTabIndex == 0 && ws.activeTab.path == tmp.path.appending("sub"))
+    }
+
     @Test func tabsAndViews() async throws {
         let tmp = try TempDir()
         try tmp.dir("sub")

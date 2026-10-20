@@ -180,6 +180,48 @@ public final class Workspace {
         return tab
     }
 
+    /// Otwiera katalog w panelu. Karta jest związana ze swoją maszyną (dysk lokalny, serwer, telefon):
+    /// aktywna karta przechodzi do `target` tylko na tej samej maszynie; inny serwer, telefon albo
+    /// karta-terminal — nowa karta obok (zamykana, jeśli katalogu nie da się wczytać).
+    @discardableResult
+    public func open(_ target: VFSPath, in panel: Panel, focus: String? = nil) async throws -> Tab {
+        try await open(target, in: panel) { try await $0.navigate(to: target, focus: focus) }
+    }
+
+    @discardableResult
+    public func open(_ target: VFSPath, in panel: Panel, load: (Tab) async throws -> Void) async throws -> Tab {
+        let current = panel.activeTab
+        let tab: Tab
+        if current.terminal == nil, current.path.machine == target.machine {
+            tab = current
+            try await load(tab)
+        } else {
+            tab = panel.newTab(at: target)
+            do {
+                try await load(tab)
+            } catch {
+                if let i = panel.tabs.firstIndex(where: { $0 === tab }) { panel.closeTab(at: i) }
+                panel.selectTab(id: current.id)
+                throw error
+            }
+        }
+        if let alias = RemoteFS.alias(of: target), tab.customTitle == nil { tab.customTitle = "🌐 " + alias }
+        return tab
+    }
+
+    /// Zamyka karty danej maszyny (rozłączony serwer, zamknięty telefon); ostatnia karta panelu
+    /// wraca do katalogu domowego.
+    public func closeTabs(where predicate: (Tab) -> Bool) async {
+        for panel in [left, right] {
+            for tab in panel.tabs where predicate(tab) {
+                if let i = panel.tabs.firstIndex(where: { $0 === tab }), panel.closeTab(at: i) { continue }
+                tab.terminal = nil
+                tab.customTitle = nil
+                try? await tab.navigate(to: homePath)
+            }
+        }
+    }
+
     public func panel(_ side: PanelSide) -> Panel { side == .left ? left : right }
     public var activePanel: Panel { panel(activeSide) }
     public var otherPanel: Panel { panel(activeSide.other) }
