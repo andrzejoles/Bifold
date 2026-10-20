@@ -242,7 +242,7 @@ final class PathBarView: NSView {
 
     /// Menu dysków pod przyciskiem dysku.
     func popUpDriveMenu(_ menu: NSMenu) {
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: driveButton.bounds.height + 2), in: driveButton)
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: driveButton.isFlipped ? driveButton.bounds.maxY + 2 : -2), in: driveButton)
     }
 
     @objc private func drives() { onDrives?() }
