@@ -254,32 +254,7 @@ final class AppUIServices: UIServices {
     }
 
     func showVolumes() {
-        guard let view = mainWindow?.activePanel.view else { return }
-        workspace.refreshVolumes()
-        let menu = NSMenu()
-        for v in workspace.volumes {
-            let item = NSMenuItem(title: "\(v.name) — \(Format.bytes(v.availableCapacity)) / \(Format.bytes(v.totalCapacity))", action: #selector(VolumeTarget.open(_:)), keyEquivalent: "")
-            let image = NSWorkspace.shared.icon(forFile: v.path.path)
-            image.size = NSSize(width: 16, height: 16)
-            item.image = image
-            item.representedObject = v.path.path
-            item.target = VolumeTarget.shared
-            VolumeTarget.shared.workspace = workspace
-            if v.isEjectable || v.isRemovable || v.isNetwork {
-                let sub = NSMenu()
-                let open = NSMenuItem(title: L10n.tr("Otwórz"), action: #selector(VolumeTarget.open(_:)), keyEquivalent: "")
-                open.representedObject = v.path.path
-                open.target = VolumeTarget.shared
-                let eject = NSMenuItem(title: L10n.tr("Wysuń"), action: #selector(VolumeTarget.eject(_:)), keyEquivalent: "")
-                eject.representedObject = v.path.path
-                eject.target = VolumeTarget.shared
-                sub.addItem(open)
-                sub.addItem(eject)
-                item.submenu = sub
-            }
-            menu.addItem(item)
-        }
-        menu.popUp(positioning: nil, at: NSPoint(x: 8, y: view.bounds.height - 50), in: view)
+        mainWindow?.activePanel.showDriveMenu()
     }
 
     func showSettings() {
@@ -440,20 +415,5 @@ final class OpenWithTarget: NSObject {
     @objc func open(_ sender: NSMenuItem) {
         guard let p = sender.representedObject as? Payload else { return }
         NSWorkspace.shared.open(p.files, withApplicationAt: p.app, configuration: NSWorkspace.OpenConfiguration())
-    }
-}
-
-final class VolumeTarget: NSObject {
-    static let shared = VolumeTarget()
-    weak var workspace: Workspace?
-
-    @objc func open(_ sender: NSMenuItem) {
-        guard let path = sender.representedObject as? String else { return }
-        workspace?.perform("panel.navigate", CommandArguments(["path": .string(path)]))
-    }
-
-    @objc func eject(_ sender: NSMenuItem) {
-        guard let path = sender.representedObject as? String else { return }
-        workspace?.perform("volume.eject", CommandArguments(["path": .string(path)]))
     }
 }

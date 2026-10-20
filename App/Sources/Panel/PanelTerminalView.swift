@@ -31,7 +31,7 @@ final class PanelTerminalView: NSView, LocalProcessTerminalViewDelegate {
             terminal.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         var env = ProcessInfo.processInfo.environment
-        env["TERM"] = "xterm-256color"
+        env["TERM"] = spec.term
         env["LANG"] = env["LANG"] ?? "pl_PL.UTF-8"
         env.removeValue(forKey: "BIFOLD_AGENT_TOKEN")
         terminal.startProcess(executable: spec.executable, args: spec.arguments, environment: env.map { "\($0.key)=\($0.value)" },

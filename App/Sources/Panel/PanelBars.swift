@@ -105,10 +105,11 @@ private final class TabButton: NSView {
     @objc private func closeTab() { onClose?() }
 }
 
-/// Ścieżka bieżącego katalogu (komponenty klikalne) i wolne miejsce.
+/// Dysk karty (menu jak w TC), ścieżka bieżącego katalogu (komponenty klikalne) i wolne miejsce.
 final class PathBarView: NSView {
     var onNavigate: ((VFSPath) -> Void)?
-    var onVolumes: (() -> Void)?
+    /// Kliknięcie przycisku dysku — menu dysków karty.
+    var onDrives: (() -> Void)?
     /// Rozłączenie serwera pokazywanego w panelu (przycisk ⏏ widoczny tylko dla połączeń).
     var onDisconnect: (() -> Void)?
     /// Terminal SSH w drugim panelu (przycisk widoczny dla połączeń SFTP/SCP).
@@ -121,7 +122,7 @@ final class PathBarView: NSView {
     private let terminalButton = NSButton()
     private let spaceLabel = NSTextField(labelWithString: "")
     private let spinner = NSProgressIndicator()
-    private let volumeButton = NSButton()
+    private let driveButton = NSButton()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -129,12 +130,18 @@ final class PathBarView: NSView {
         translatesAutoresizingMaskIntoConstraints = false
         heightAnchor.constraint(equalToConstant: 24).isActive = true
 
-        volumeButton.image = NSImage(systemSymbolName: "internaldrive", accessibilityDescription: L10n.tr("Woluminy"))
-        volumeButton.isBordered = false
-        volumeButton.target = self
-        volumeButton.action = #selector(volumes)
-        volumeButton.refusesFirstResponder = true
-        volumeButton.toolTip = L10n.tr("Dyski i woluminy")
+        driveButton.image = NSImage(systemSymbolName: "internaldrive", accessibilityDescription: L10n.tr("Dysk"))
+        driveButton.imagePosition = .imageLeading
+        driveButton.bezelStyle = .accessoryBarAction
+        driveButton.controlSize = .small
+        driveButton.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+        driveButton.target = self
+        driveButton.action = #selector(drives)
+        driveButton.refusesFirstResponder = true
+        driveButton.toolTip = L10n.tr("Dysk karty: wolumin, telefon albo serwer")
+        (driveButton.cell as? NSButtonCell)?.lineBreakMode = .byTruncatingTail
+        driveButton.widthAnchor.constraint(lessThanOrEqualToConstant: 170).isActive = true
+        driveButton.setContentCompressionResistancePriority(.defaultLow + 1, for: .horizontal)
 
         pathControl.pathStyle = .standard
         pathControl.controlSize = .small
@@ -175,7 +182,7 @@ final class PathBarView: NSView {
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let stack = NSStackView(views: [volumeButton, pathControl, remoteLabel, spacer, spinner, spaceLabel, terminalButton, disconnectButton])
+        let stack = NSStackView(views: [driveButton, pathControl, remoteLabel, spacer, spinner, spaceLabel, terminalButton, disconnectButton])
         stack.orientation = .horizontal
         stack.spacing = 4
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 8)
@@ -227,7 +234,18 @@ final class PathBarView: NSView {
         if let url = sender.clickedPathItem?.url { onNavigate?(.local(url)) }
     }
 
-    @objc private func volumes() { onVolumes?() }
+    func updateDrive(title: String, image: NSImage?) {
+        let label = title + " ▾"
+        if driveButton.title != label { driveButton.title = label }
+        driveButton.image = image
+    }
+
+    /// Menu dysków pod przyciskiem dysku.
+    func popUpDriveMenu(_ menu: NSMenu) {
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: driveButton.isFlipped ? driveButton.bounds.maxY + 2 : -2), in: driveButton)
+    }
+
+    @objc private func drives() { onDrives?() }
 
     @objc private func disconnect() { onDisconnect?() }
 

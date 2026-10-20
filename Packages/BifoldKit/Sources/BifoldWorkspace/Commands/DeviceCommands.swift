@@ -14,10 +14,7 @@ extension Workspace {
             _ = try? await runBlocking(qos: .userInitiated) { mtp.close() }
         }
         providers.unregister(provider)
-        for tab in left.tabs + right.tabs where tab.path.provider == provider {
-            try? await tab.navigate(to: homePath)
-            tab.customTitle = nil
-        }
+        await closeTabs { $0.path.provider == provider }
     }
 
     /// Dostawca dla urządzenia (iPhone: media albo Documents aplikacji `appContainer`).
@@ -52,21 +49,23 @@ var deviceCommands: [Command] { [
         parameters: [CommandParameter("id", .string, L10n.tr("Identyfikator urządzenia (domyślnie pierwsze)")),
                      CommandParameter("app", .string, L10n.tr("iPhone: bundle id aplikacji z udostępnianiem plików (Documents)")), sideParam],
         agent: .read, effect: .uiState,
-        summary: L10n.tr("Otwiera telefon w panelu (tylko odczyt). iPhone: tylko zdjęcia/nagrania (DCIM) i katalogi aplikacji z udostępnianiem plików."))
+        summary: L10n.tr("Otwiera telefon w nowej karcie panelu (tylko odczyt). iPhone: tylko zdjęcia/nagrania (DCIM) i katalogi aplikacji z udostępnianiem plików."))
     ) { ctx in
         let devices = await ctx.workspace.connectedDevices()
         guard !devices.isEmpty else { throw CommandError.notAvailable(L10n.tr("Nie wykryto telefonu. Podłącz go kablem, odblokuj i zaakceptuj „Ufaj temu komputerowi” (iPhone) albo wybierz tryb „Przesyłanie plików” (Android).")) }
         let device = ctx.arguments.string("id").flatMap { id in devices.first { $0.id == id } } ?? devices[0]
         let provider = try await ctx.workspace.deviceProvider(device, appContainer: ctx.arguments.string("app"))
         ctx.workspace.providers.register(provider)
-        let tab = try ctx.tab(forSide: "side")
         let target = VFSPath(provider: provider.id, path: "/")
-        do {
-            try await tab.navigate(to: target)
-        } catch let error as MTPDeviceFS.MTPError {
-            // Bez „Zezwól” na telefonie: karta na telefonie z komunikatem — Ctrl+R po zgodzie ponawia próbę.
-            await tab.showUnavailable(target, error: error.localizedDescription)
-            if !ctx.isAgent { ctx.ui?.showMessage(error.localizedDescription) }
+        // Telefon w nowej karcie (chyba że aktywna karta już go pokazuje).
+        let tab = try await ctx.workspace.open(target, in: try ctx.panel(forSide: "side")) { tab in
+            do {
+                try await tab.navigate(to: target)
+            } catch let error as MTPDeviceFS.MTPError {
+                // Bez „Zezwól” na telefonie: karta na telefonie z komunikatem — Ctrl+R po zgodzie ponawia próbę.
+                await tab.showUnavailable(target, error: error.localizedDescription)
+                if !ctx.isAgent { ctx.ui?.showMessage(error.localizedDescription) }
+            }
         }
         tab.customTitle = (device.kind == .iPhone ? "📱 " : "🤖 ") + ((provider as? MTPDeviceFS)?.model ?? device.name)
         if device.kind == .iPhone, !ctx.isAgent { ctx.ui?.showMessage(AFCDeviceFS.limitation) }

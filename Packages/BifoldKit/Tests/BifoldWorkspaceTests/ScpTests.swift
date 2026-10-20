@@ -267,14 +267,14 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
 
         // Bez aliasu: serwer z aktywnego panelu (lewy = SCP).
         try await ws.invoke("remote.disconnect")
-        #expect(ws.left.activeTab.path == tmp.path && ws.left.activeTab.customTitle == nil)
+        #expect(ws.left.tabs.count == 1 && ws.left.activeTab.path == tmp.path.appending("L"), "karta serwera zamknięta")
         #expect(!scp.session.isConnected, "połączenie główne ssh zamknięte")
         #expect(!ws.remotes.connected.contains("aix") && (try? ws.providers.provider(for: RemoteFS.providerID("aix"))) == nil)
         #expect(RemoteFS.alias(of: ws.right.activeTab.path) == "sftp", "drugi serwer bez zmian")
 
         // SFTP po aliasie; ponowne otwarcie działa.
         try await ws.invoke("remote.disconnect", CommandArguments(["alias": "sftp"]))
-        #expect(ws.right.activeTab.path == tmp.path && ws.remotes.connected.isEmpty)
+        #expect(ws.right.tabs.count == 1 && ws.right.activeTab.path == tmp.path.appending("R") && ws.remotes.connected.isEmpty)
         await #expect(throws: (any Error).self) { try await ws.invoke("remote.disconnect") }
         try await ws.invoke("remote.open", CommandArguments(["alias": "sftp", "terminal": false]))
         #expect(ws.left.activeTab.items.contains { $0.name == "a.txt" })
@@ -316,6 +316,41 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         let before = ws.right.tabs.count
         _ = try await ws.invoke("remote.open", CommandArguments(["alias": "aix"]), invoker: .agent(sessionID: "test", agentName: "test"))
         #expect(ws.right.tabs.count == before && !ws.right.tabs.contains { $0.terminal != nil })
+    }
+
+    /// Każda karta ma swoją maszynę: połączenia otwierają się w nowych kartach, terminale do różnych
+    /// serwerów działają obok siebie, każdy z własnym typem terminala.
+    @Test func tabsPerMachineAndSeveralTerminals() async throws {
+        let sshd = try TestSSHD()
+        let (tmp, ws, _) = try await setup(sshd)
+        defer { ws.remotes.stop() }
+        var aix = sshd.connection("aix")
+        aix.terminalType = "xterm"
+        try ws.remotes.save(aix, secret: TestSSHD.passphrase)
+        var bad = sshd.connection("drugi")
+        bad.terminalType = "xterm; rm -rf /"
+        try ws.remotes.save(bad, secret: TestSSHD.passphrase)
+        defer { ws.remotes.keychain.delete("aix"); ws.remotes.keychain.delete("drugi") }
+
+        try await ws.invoke("remote.open", CommandArguments(["alias": "aix", "terminal": true]))
+        #expect(ws.left.tabs.count == 2 && ws.left.tabs[0].path == tmp.path.appending("L"), "karta lokalna została")
+        #expect(ws.left.activeTab.customTitle == "🌐 aix")
+        try await ws.invoke("remote.open", CommandArguments(["alias": "drugi", "terminal": true]))
+        #expect(ws.left.tabs.count == 3 && RemoteFS.alias(of: ws.left.activeTab.path) == "drugi")
+        // Drugi raz ten sam serwer w jego karcie — bez nowej karty z plikami.
+        try await ws.invoke("remote.open", CommandArguments(["alias": "drugi", "terminal": false]))
+        #expect(ws.left.tabs.count == 3)
+
+        let terminals = ws.right.tabs.compactMap(\.terminal)
+        #expect(terminals.map(\.alias) == ["aix", "drugi"] && ws.right.tabs[0].path == tmp.path.appending("R"))
+        #expect(terminals.map(\.term) == ["xterm", "xterm-256color"], "niebezpieczny TERM zastąpiony domyślnym")
+        try await ws.invoke("remote.terminal", CommandArguments(["alias": "aix"]))
+        #expect(ws.right.tabs.compactMap(\.terminal?.alias) == ["aix", "drugi", "aix"])
+
+        // Rozłączenie zamyka karty tylko tego serwera.
+        try await ws.invoke("remote.disconnect", CommandArguments(["alias": "aix"]))
+        #expect(ws.right.tabs.compactMap(\.terminal?.alias) == ["drugi"] && ws.left.tabs.count == 2)
+        #expect(!ws.left.tabs.contains { RemoteFS.alias(of: $0.path) == "aix" })
     }
 
     @Test func modernClientWithoutLegacyModeFailsWithHint() async throws {

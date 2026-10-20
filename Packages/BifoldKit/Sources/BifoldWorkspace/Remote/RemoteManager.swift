@@ -139,7 +139,7 @@ public final class RemoteManager {
             return session.config.encoding.decode(r.output).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         let command = SSHSession.loginCommand(directory: directory, shell: shell, encoding: session.config.encoding)
-        return TerminalSpec(alias: alias, executable: "/usr/bin/ssh", arguments: session.terminalArguments(remoteCommand: command))
+        return TerminalSpec(alias: alias, executable: "/usr/bin/ssh", arguments: session.terminalArguments(remoteCommand: command), term: c.effectiveTerminalType)
     }
 
     /// Zamyka połączenie: sesję SSH (SCP), zasób w pamięci rclone (SFTP, FTP, WebDAV, chmury),

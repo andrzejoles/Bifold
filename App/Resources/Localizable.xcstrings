@@ -3045,31 +3045,60 @@
         }
       }
     },
-    "Dyski i woluminy": {
+    "Dysk": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Disks and volumes"
+            "value": "Drive"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Laufwerke und Volumes"
+            "value": "Laufwerk"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Discos y volúmenes"
+            "value": "Unidad"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Диски та томи"
+            "value": "Диск"
+          }
+        }
+      }
+    },
+    "Dysk karty: wolumin, telefon albo serwer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab drive: volume, phone or server"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laufwerk des Tabs: Volume, Telefon oder Server"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unidad de la pestaña: volumen, teléfono o servidor"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Диск вкладки: том, телефон або сервер"
           }
         }
       }
@@ -3973,6 +4002,35 @@
         }
       }
     },
+    "Gdy programy na serwerze (mc, vi, smitty) źle rysują ekran, nie mają kolorów albo nie reagują na klawisze F1–F10, wybierz typ, który serwer zna — na starym AIX zwykle xterm. Zmiana działa od następnego otwarcia terminala.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If programs on the server (mc, vi, smitty) draw the screen incorrectly, have no colors or ignore the F1–F10 keys, choose a type the server knows — on old AIX usually xterm. The change applies the next time a terminal is opened."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn Programme auf dem Server (mc, vi, smitty) den Bildschirm falsch zeichnen, keine Farben haben oder nicht auf F1–F10 reagieren, wähle einen Typ, den der Server kennt — auf altem AIX meist xterm. Die Änderung gilt ab dem nächsten Öffnen des Terminals."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si los programas del servidor (mc, vi, smitty) dibujan mal la pantalla, no tienen colores o no responden a las teclas F1–F10, elige un tipo que el servidor conozca: en AIX antiguo normalmente xterm. El cambio se aplica la próxima vez que se abra el terminal."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Якщо програми на сервері (mc, vi, smitty) неправильно малюють екран, не мають кольорів або не реагують на клавіші F1–F10, виберіть тип, який знає сервер — на старому AIX зазвичай xterm. Зміна діє з наступного відкриття термінала."
+          }
+        }
+      }
+    },
     "Grupa": {
       "extractionState": "manual",
       "localizations": {
@@ -4694,6 +4752,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Мова інтерфейсу"
+          }
+        }
+      }
+    },
+    "Karta z terminalem SSH nie pokazuje plików — otwórz je w nowej karcie": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An SSH terminal tab does not show files — open them in a new tab"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein SSH-Terminal-Tab zeigt keine Dateien — öffne sie in einem neuen Tab"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una pestaña de terminal SSH no muestra archivos: ábrelos en una pestaña nueva"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вкладка з терміналом SSH не показує файли — відкрийте їх у новій вкладці"
           }
         }
       }
@@ -6728,35 +6815,6 @@
         }
       }
     },
-    "Lista woluminów z wolnym miejscem.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lists volumes with free space."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Listet die Volumes mit freiem Speicher auf."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lista los volúmenes con su espacio libre."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Список томів із вільним місцем."
-          }
-        }
-      }
-    },
     "Lista zadań": {
       "extractionState": "manual",
       "localizations": {
@@ -7333,6 +7391,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Меню Поширити macOS для вибраних елементів."
+          }
+        }
+      }
+    },
+    "Menu dysków aktywnej karty: woluminy z wolnym miejscem, telefon, połączenia (agent: lista woluminów).": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drive menu of the active tab: volumes with free space, phone, connections (agent: list of volumes)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laufwerksmenü des aktiven Tabs: Volumes mit freiem Speicher, Telefon, Verbindungen (Agent: Liste der Volumes)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menú de unidades de la pestaña activa: volúmenes con espacio libre, teléfono, conexiones (agente: lista de volúmenes)."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Меню дисків активної вкладки: томи з вільним місцем, телефон, з'єднання (агент: список томів)."
           }
         }
       }
@@ -10208,31 +10295,31 @@
         }
       }
     },
-    "Otwiera katalog w aktywnym (lub wskazanym) panelu. Ścieżka do pliku otwiera jego katalog i ustawia na nim kursor.": {
+    "Otwiera katalog w aktywnym (lub wskazanym) panelu; inny serwer albo telefon — w nowej karcie. Ścieżka do pliku otwiera jego katalog i ustawia na nim kursor.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opens a folder in the active (or given) panel. A path to a file opens its folder and puts the cursor on it."
+            "value": "Opens a folder in the active (or given) panel; another server or a phone opens in a new tab. A file path opens its folder and puts the cursor on it."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Öffnet einen Ordner im aktiven (oder angegebenen) Bereich. Ein Pfad zu einer Datei öffnet ihren Ordner und setzt den Cursor darauf."
+            "value": "Öffnet einen Ordner im aktiven (oder angegebenen) Bereich; ein anderer Server oder ein Telefon öffnet sich in einem neuen Tab. Ein Dateipfad öffnet dessen Ordner und setzt den Cursor darauf."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abre una carpeta en el panel activo (o indicado). Una ruta a un archivo abre su carpeta y coloca el cursor sobre él."
+            "value": "Abre una carpeta en el panel activo (o indicado); otro servidor o un teléfono se abre en una pestaña nueva. Una ruta de archivo abre su carpeta y coloca el cursor sobre él."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відкриває теку в активній (або вказаній) панелі. Шлях до файлу відкриває його теку й ставить на нього курсор."
+            "value": "Відкриває теку в активній (або вказаній) панелі; інший сервер або телефон — у новій вкладці. Шлях до файлу відкриває його теку й ставить на нього курсор."
           }
         }
       }
@@ -10324,60 +10411,60 @@
         }
       }
     },
-    "Otwiera połączenie w aktywnym panelu (agent zna tylko aliasy).": {
+    "Otwiera połączenie w nowej karcie aktywnego panelu (agent zna tylko aliasy).": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opens the connection in the active panel (the agent knows aliases only)."
+            "value": "Opens the connection in a new tab of the active panel (the agent only knows aliases)."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Öffnet die Verbindung im aktiven Bereich (der Agent kennt nur Aliasse)."
+            "value": "Öffnet die Verbindung in einem neuen Tab des aktiven Bereichs (der Agent kennt nur Aliase)."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abre la conexión en el panel activo (el agente solo conoce los alias)."
+            "value": "Abre la conexión en una pestaña nueva del panel activo (el agente solo conoce alias)."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відкриває з’єднання в активній панелі (агент знає лише псевдоніми)."
+            "value": "Відкриває з'єднання в новій вкладці активної панелі (агент знає лише псевдоніми)."
           }
         }
       }
     },
-    "Otwiera telefon w panelu (tylko odczyt). iPhone: tylko zdjęcia/nagrania (DCIM) i katalogi aplikacji z udostępnianiem plików.": {
+    "Otwiera telefon w nowej karcie panelu (tylko odczyt). iPhone: tylko zdjęcia/nagrania (DCIM) i katalogi aplikacji z udostępnianiem plików.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Opens the phone in the panel (read-only). iPhone: only photos/videos (DCIM) and folders of apps with file sharing."
+            "value": "Opens the phone in a new panel tab (read-only). iPhone: only photos/videos (DCIM) and folders of apps with file sharing."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Öffnet das Telefon im Bereich (nur Lesen). iPhone: nur Fotos/Videos (DCIM) und Ordner von Apps mit Dateifreigabe."
+            "value": "Öffnet das Telefon in einem neuen Tab des Bereichs (nur Lesen). iPhone: nur Fotos/Videos (DCIM) und Ordner von Apps mit Dateifreigabe."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abre el teléfono en el panel (solo lectura). iPhone: solo fotos/vídeos (DCIM) y carpetas de apps con archivos compartidos."
+            "value": "Abre el teléfono en una pestaña nueva del panel (solo lectura). iPhone: solo fotos/vídeos (DCIM) y carpetas de apps con uso compartido de archivos."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відкриває телефон у панелі (лише читання). iPhone: лише фото/відео (DCIM) і теки програм зі спільним доступом до файлів."
+            "value": "Відкриває телефон у новій вкладці панелі (лише читання). iPhone: лише фото/відео (DCIM) і теки застосунків зі спільним доступом до файлів."
           }
         }
       }
@@ -16936,6 +17023,64 @@
         }
       }
     },
+    "Telefon": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phone"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefon"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teléfono"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Телефон"
+          }
+        }
+      }
+    },
+    "Telefon (USB)…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phone (USB)…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telefon (USB)…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teléfono (USB)…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Телефон (USB)…"
+          }
+        }
+      }
+    },
     "Telefon nie odpowiada": {
       "extractionState": "manual",
       "localizations": {
@@ -17802,6 +17947,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Лише зміни"
+          }
+        }
+      }
+    },
+    "Typ terminala (TERM)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal type (TERM)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminaltyp (TERM)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipo de terminal (TERM)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тип термінала (TERM)"
           }
         }
       }
@@ -19662,35 +19836,6 @@
         }
       }
     },
-    "Woluminy": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Volumes"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Volumes"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Volúmenes"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Томи"
-          }
-        }
-      }
-    },
     "Wpisy": {
       "extractionState": "manual",
       "localizations": {
@@ -20064,6 +20209,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Примусово"
+          }
+        }
+      }
+    },
+    "Wyniki wyszukiwania": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search results"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchergebnisse"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resultados de búsqueda"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результати пошуку"
           }
         }
       }
@@ -21083,31 +21257,31 @@
         }
       }
     },
-    "Zamyka połączenie z serwerem albo telefon z aktywnego panelu; karty z nim wracają do katalogu domowego.": {
+    "Zamyka połączenie z serwerem albo telefon z aktywnego panelu wraz z jego kartami (ostatnia karta panelu wraca do katalogu domowego).": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Closes the connection to the server or the phone in the active panel; its tabs go back to the home folder."
+            "value": "Closes the connection to the server or the phone in the active panel together with its tabs (the panel's last tab returns to the home folder)."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schließt die Verbindung zum Server oder das Telefon im aktiven Bereich; seine Tabs wechseln zurück in den Benutzerordner."
+            "value": "Schließt die Verbindung zum Server oder das Telefon im aktiven Bereich samt seinen Tabs (der letzte Tab des Bereichs kehrt zum Benutzerordner zurück)."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cierra la conexión con el servidor o el teléfono del panel activo; sus pestañas vuelven a la carpeta de inicio."
+            "value": "Cierra la conexión con el servidor o el teléfono del panel activo junto con sus pestañas (la última pestaña del panel vuelve a la carpeta de inicio)."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Закриває з’єднання із сервером або телефон в активній панелі; його вкладки повертаються до домашньої теки."
+            "value": "Закриває з'єднання з сервером або телефон в активній панелі разом з його вкладками (остання вкладка панелі повертається до домашньої теки)."
           }
         }
       }

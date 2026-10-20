@@ -64,6 +64,13 @@ struct ConnectionsView: View {
                             .font(.caption).foregroundStyle(.secondary)
                         Toggle(L10n.tr("Przy otwarciu: terminal SSH w drugim panelu"), isOn: Binding(
                             get: { draft.openTerminal ?? true }, set: { draft.openTerminal = $0 ? nil : false }))
+                        Picker(L10n.tr("Typ terminala (TERM)"), selection: Binding(
+                            get: { draft.effectiveTerminalType },
+                            set: { draft.terminalType = $0 == RemoteConnection.defaultTerminalType ? nil : $0 })) {
+                            ForEach(terminalTypeChoices, id: \.self) { Text($0).tag($0) }
+                        }
+                        Text(L10n.tr("Gdy programy na serwerze (mc, vi, smitty) źle rysują ekran, nie mają kolorów albo nie reagują na klawisze F1–F10, wybierz typ, który serwer zna — na starym AIX zwykle xterm. Zmiana działa od następnego otwarcia terminala."))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     if draft.kind == .scp {
                         Picker(L10n.tr("Kodowanie nazw na serwerze"), selection: Binding(
@@ -115,6 +122,12 @@ struct ConnectionsView: View {
         }
         .frame(minWidth: 760, minHeight: 460)
         .onChange(of: selection) { select($1) }
+    }
+
+    /// Typy z listy plus typ wpisany ręcznie w `connections.json`.
+    private var terminalTypeChoices: [String] {
+        let t = draft.effectiveTerminalType
+        return RemoteConnection.terminalTypes.contains(t) ? RemoteConnection.terminalTypes : RemoteConnection.terminalTypes + [t]
     }
 
     private func select(_ alias: String?) {

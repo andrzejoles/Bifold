@@ -80,6 +80,8 @@ public final class Tab: Identifiable {
     }
 
     public func navigate(to target: VFSPath, focus: String? = nil, recordHistory: Bool = true) async throws {
+        // Karta-terminal zostaje terminalem — katalogi otwiera `Workspace.open` w nowej karcie.
+        guard terminal == nil else { throw CommandError.notAvailable(L10n.tr("Karta z terminalem SSH nie pokazuje plików — otwórz je w nowej karcie")) }
         navigationGeneration += 1
         let provider = try providers.provider(for: target)
         isLoading = true
@@ -119,6 +121,7 @@ public final class Tab: Identifiable {
 
     /// Ponowne wczytanie bieżącego katalogu z zachowaniem kursora i zaznaczenia.
     public func reload() async {
+        guard terminal == nil else { return }
         let keepCursor = cursor
         let keepIndex = cursorIndex
         let generation = navigationGeneration + 1
@@ -354,10 +357,13 @@ public struct TerminalSpec: Sendable, Equatable {
     public var alias: String
     public var executable: String
     public var arguments: [String]
+    /// Typ terminala (`TERM`), który ssh przekazuje na serwer.
+    public var term: String
 
-    public init(alias: String, executable: String, arguments: [String]) {
+    public init(alias: String, executable: String, arguments: [String], term: String = RemoteConnection.defaultTerminalType) {
         self.alias = alias
         self.executable = executable
         self.arguments = arguments
+        self.term = term
     }
 }

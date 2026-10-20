@@ -52,6 +52,18 @@ public struct RemoteConnection: Codable, Sendable, Hashable, Identifiable {
     public var nameEncoding: NameEncoding?
     /// SFTP/SCP: przy otwarciu połączenia terminal SSH w drugim panelu (domyślnie tak).
     public var openTerminal: Bool?
+    /// SFTP/SCP: typ terminala (`TERM`) dla terminala SSH, np. `xterm` dla starego AIX; `nil` = `xterm-256color`.
+    public var terminalType: String?
+
+    public static let defaultTerminalType = "xterm-256color"
+    /// Typy proponowane w ustawieniach połączenia.
+    public static let terminalTypes = ["xterm-256color", "xterm", "vt100", "vt220", "aixterm", "dtterm", "ansi"]
+
+    /// `TERM` przekazywany przez ssh na serwer (tylko bezpieczne znaki — wartość trafia do środowiska procesu).
+    public var effectiveTerminalType: String {
+        guard let t = terminalType, t.range(of: "^[A-Za-z0-9._+-]{1,40}$", options: .regularExpression) != nil else { return Self.defaultTerminalType }
+        return t
+    }
 
     /// Czy otwarcie połączenia otwiera też terminal SSH w drugim panelu.
     public var opensTerminal: Bool { kind.usesSSH && openTerminal != false }
