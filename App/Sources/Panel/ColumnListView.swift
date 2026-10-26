@@ -100,14 +100,18 @@ final class ColumnListView: NSView, FileListView {
         defer { programmatic = false }
         for column in max(0, browser.firstVisibleColumn)...max(0, min(browser.lastVisibleColumn, browser.lastColumn)) {
             guard let parent = column == 0 ? root : browser.parentForItems(inColumn: column) as? BrowserNode else { continue }
-            let count = parent.children(showHidden: tab.showHidden).count
+            let children = parent.children(showHidden: tab.showHidden)
+            let count = children.count
             guard count > 0 else { continue }
             var rows = 0..<count
             if count > 2000 {
                 let selected = max(0, browser.selectedRow(inColumn: column))
                 rows = max(0, selected - 300)..<min(count, selected + 300)
             }
-            browser.reloadData(forRowIndexes: IndexSet(integersIn: rows), inColumn: column)
+            for row in rows {
+                if let cell = browser.loadedCell(atRow: row, column: column) as? NSCell { configure(cell, children[row]) }
+            }
+            browser.setNeedsDisplay(browser.frame(ofColumn: column))
         }
     }
 
@@ -188,18 +192,22 @@ extension ColumnListView: NSBrowserDelegate {
     }
 
     func browser(_ browser: NSBrowser, willDisplayCell cell: Any, atRow row: Int, column: Int) {
-        guard let cell = cell as? NSBrowserCell,
+        guard let cell = cell as? NSCell,
               let parent = column == 0 ? root : browser.parentForItems(inColumn: column) as? BrowserNode else { return }
         let children = parent.children(showHidden: tab?.showHidden ?? false)
         guard row < children.count else { return }
         configure(cell, children[row])
     }
 
-    /// Ikona, oznaczenie i reguła kolorów jak w pozostałych widokach (kolor, pogrubienie, przekreślenie).
-    fileprivate func configure(_ cell: NSBrowserCell, _ node: BrowserNode) {
-        let image = IconCache.shared.icon(for: node.item)
-        image.size = NSSize(width: 16, height: 16)
-        cell.image = image
+    /// Oznaczenie i reguła kolorów jak w pozostałych widokach (kolor, pogrubienie, przekreślenie).
+    /// Przeglądarka oparta na elementach podaje w macOS 27 `NSTextFieldCell` (nie `NSBrowserCell`) —
+    /// ikona tylko, gdy komórka ją obsługuje; wcześniej przez to pomijane były też kolory reguł.
+    fileprivate func configure(_ cell: NSCell, _ node: BrowserNode) {
+        if let cell = cell as? NSBrowserCell {
+            let image = IconCache.shared.icon(for: node.item)
+            image.size = NSSize(width: 16, height: 16)
+            cell.image = image
+        }
         let style = workspace.colorRules.style(for: node.item)
         let isMarked = marked.contains(node.path)
         if style != nil || isMarked {

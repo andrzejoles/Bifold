@@ -12,6 +12,8 @@ struct MultiRenameView: View {
     @State private var rule = RenameRule()
     @State private var plan: [RenamePlanEntry] = []
     @State private var error: String?
+    @State private var planTask: Task<Void, Never>?
+    @State private var generation = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -64,11 +66,17 @@ struct MultiRenameView: View {
         .onChange(of: rule) { refresh() }
     }
 
+    /// Podgląd liczony w tle; poprzednie obliczenie jest anulowane, a spóźniony wynik starszej reguły
+    /// (numer generacji) nie nadpisuje nowszego podglądu.
     private func refresh() {
         let items = items, rule = rule
-        Task.detached {
-            let p = MultiRename.plan(items, rule: rule)
-            await MainActor.run { plan = p }
+        planTask?.cancel()
+        generation += 1
+        let current = generation
+        planTask = Task {
+            let p = await Task.detached { MultiRename.plan(items, rule: rule) }.value
+            guard !Task.isCancelled, current == generation else { return }
+            plan = p
         }
     }
 

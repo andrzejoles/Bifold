@@ -202,8 +202,11 @@ struct SearchView: View {
 }
 
 final class SearchWindowController: NSWindowController, NSWindowDelegate {
+    private let model: SearchModel
+
     init(workspace: Workspace, directory: VFSPath, criteria: SearchCriteria?) {
         let model = SearchModel(workspace: workspace, directory: directory, criteria: criteria)
+        self.model = model
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 640), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         window.title = L10n.tr("Szukaj plików")
         window.setFrameAutosaveName("SearchWindow")
@@ -214,4 +217,9 @@ final class SearchWindowController: NSWindowController, NSWindowDelegate {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Zamknięte okno nie szuka dalej w tle.
+    func windowWillClose(_ notification: Notification) {
+        model.stop()
+    }
 }

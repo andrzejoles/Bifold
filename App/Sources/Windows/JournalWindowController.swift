@@ -125,6 +125,9 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
             }
             let result = await workspace.fileOps.execute(plan, force: force)
             workspace.setStatus(L10n.tr("Cofnięto: \(result.performed), pominięto: \(result.skipped.count), błędy: \(result.errors.count)"))
+            // Jak komenda „Cofnij operację” — panele pokazują stan po cofnięciu.
+            await workspace.left.activeTab.reload()
+            await workspace.right.activeTab.reload()
             reload()
         }
     }

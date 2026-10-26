@@ -187,7 +187,8 @@ private struct ColorRuleSettings: View {
             List {
                 ForEach(Array(workspace.colorRules.rules.enumerated()), id: \.element.id) { index, rule in
                     HStack {
-                        Toggle("", isOn: Binding(
+                        // Etykieta ukryta wizualnie, ale czytana przez VoiceOver.
+                        Toggle(L10n.tr("Reguła włączona: \(rule.name.isEmpty ? L10n.tr("(bez nazwy)") : rule.name)"), isOn: Binding(
                             get: { workspace.colorRules.rules[index].enabled },
                             set: { workspace.colorRules.rules[index].enabled = $0 })).labelsHidden()
                         Text(rule.name.isEmpty ? L10n.tr("(bez nazwy)") : rule.name)
@@ -341,7 +342,9 @@ struct AttributesEditor: View {
                         GridRow {
                             Text([L10n.tr("Właściciel"), L10n.tr("Grupa"), L10n.tr("Pozostali")][who])
                             ForEach(0..<3, id: \.self) { what in
-                                Toggle("", isOn: $bits[who * 3 + what]).labelsHidden()
+                                Toggle([L10n.tr("Właściciel"), L10n.tr("Grupa"), L10n.tr("Pozostali")][who] + " — "
+                                       + [L10n.tr("odczyt"), L10n.tr("zapis"), L10n.tr("wykonanie")][what],
+                                       isOn: $bits[who * 3 + what]).labelsHidden()
                             }
                         }
                     }

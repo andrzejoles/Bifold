@@ -270,6 +270,36 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "%@/s": {
+      "extractionState": "manual",
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@/s"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@/s"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@/s"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@/с"
+          }
+        }
+      }
+    },
     "%@: istnieje na serwerze — pominięto": {
       "extractionState": "manual",
       "localizations": {
@@ -295,6 +325,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@: уже є на сервері — пропущено"
+          }
+        }
+      }
+    },
+    "%lld MB/s": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld MB/s"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld MB/s"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld MB/s"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld МБ/с"
           }
         }
       }
@@ -11020,6 +11079,35 @@
         }
       }
     },
+    "Parametry zmienione — porównaj ponownie": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parameters changed — compare again"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parameter geändert — erneut vergleichen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parámetros cambiados — vuelve a comparar"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Параметри змінено — порівняйте ще раз"
+          }
+        }
+      }
+    },
     "Pełny": {
       "extractionState": "manual",
       "localizations": {
@@ -11654,6 +11742,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Перегляд"
+          }
+        }
+      }
+    },
+    "Podgląd obrazu jest dostępny tylko dla plików na dysku.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image preview is available only for files on disk."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bildvorschau ist nur für Dateien auf der Festplatte verfügbar."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La vista previa de imagen solo está disponible para archivos en disco."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перегляд зображення доступний лише для файлів на диску."
           }
         }
       }
@@ -14409,6 +14526,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Швидкий перегляд"
+          }
+        }
+      }
+    },
+    "Reguła włączona: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rule enabled: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regel aktiviert: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regla activada: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Правило ввімкнено: %@"
           }
         }
       }
@@ -17371,31 +17517,60 @@
         }
       }
     },
-    "Terminal SSH: %@ — klawisze idą do serwera; Ctrl+Tab — drugi panel, ⌘W — zamknij kartę": {
+    "Terminal SSH: %@ — klawisze idą do serwera; Ctrl+Tab — drugi panel": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "SSH terminal: %@ — keys go to the server; Ctrl+Tab — other panel, ⌘W — close tab"
+            "value": "SSH terminal: %@ — keys go to the server; Ctrl+Tab — other panel"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "SSH-Terminal: %@ — Tasten gehen an den Server; Strg+Tab — anderer Bereich, ⌘W — Tab schließen"
+            "value": "SSH-Terminal: %@ — Tasten gehen an den Server; Strg+Tab — anderer Bereich"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Terminal SSH: %@ — las teclas van al servidor; Ctrl+Tab — otro panel, ⌘W — cerrar pestaña"
+            "value": "Terminal SSH: %@ — las teclas van al servidor; Ctrl+Tab — otro panel"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Термінал SSH: %@ — клавіші йдуть на сервер; Ctrl+Tab — інша панель, ⌘W — закрити вкладку"
+            "value": "Термінал SSH: %@ — клавіші йдуть на сервер; Ctrl+Tab — інша панель"
+          }
+        }
+      }
+    },
+    "Terminal SSH: %@ — klawisze idą do serwera; Ctrl+Tab — drugi panel, %@ — zamknij kartę": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH terminal: %@ — keys go to the server; Ctrl+Tab — other panel, %@ — close tab"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH-Terminal: %@ — Tasten gehen an den Server; Strg+Tab — anderer Bereich, %@ — Tab schließen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal SSH: %@ — las teclas van al servidor; Ctrl+Tab — otro panel, %@ — cerrar pestaña"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Термінал SSH: %@ — клавіші йдуть на сервер; Ctrl+Tab — інша панель, %@ — закрити вкладку"
           }
         }
       }
@@ -19285,6 +19460,35 @@
         }
       }
     },
+    "Usuń z listy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from list"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus der Liste entfernen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar de la lista"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прибрати зі списку"
+          }
+        }
+      }
+    },
     "Usuń zakończone z listy": {
       "extractionState": "manual",
       "localizations": {
@@ -19952,6 +20156,35 @@
         }
       }
     },
+    "Wstrzymaj": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anhalten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pausar"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Призупинити"
+          }
+        }
+      }
+    },
     "Wstrzymaj / wznów": {
       "extractionState": "manual",
       "localizations": {
@@ -20180,6 +20413,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вибір програми для відкриття елементів."
+          }
+        }
+      }
+    },
+    "Wykonaj: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perform: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausführen: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecutar: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Виконати: %@"
           }
         }
       }
@@ -20586,6 +20848,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Продовжує призупинені завдання."
+          }
+        }
+      }
+    },
+    "Wznów": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortsetzen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reanudar"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відновити"
           }
         }
       }
@@ -21137,6 +21428,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Закрити вкладку"
+          }
+        }
+      }
+    },
+    "Zamknij okno": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Window"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster schließen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar ventana"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрити вікно"
           }
         }
       }
@@ -23577,6 +23897,35 @@
         }
       }
     },
+    "Znajdź…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Знайти…"
+          }
+        }
+      }
+    },
     "Znaleziono: %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -23693,31 +24042,60 @@
         }
       }
     },
-    "[Sesja SSH zakończona — ⌘W zamyka kartę]": {
+    "[Sesja SSH zakończona — %@ zamyka kartę]": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "[SSH session ended — ⌘W closes the tab]"
+            "value": "[SSH session ended — %@ closes the tab]"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "[SSH-Sitzung beendet — ⌘W schließt den Tab]"
+            "value": "[SSH-Sitzung beendet — %@ schließt den Tab]"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "[Sesión SSH terminada — ⌘W cierra la pestaña]"
+            "value": "[Sesión SSH terminada — %@ cierra la pestaña]"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "[Сесію SSH завершено — ⌘W закриває вкладку]"
+            "value": "[Сесію SSH завершено — %@ закриває вкладку]"
+          }
+        }
+      }
+    },
+    "[Sesja SSH zakończona]": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[SSH session ended]"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[SSH-Sitzung beendet]"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Sesión SSH terminada]"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Сесію SSH завершено]"
           }
         }
       }
@@ -23805,6 +24183,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "agy mcp add завершився помилкою (%d)"
+          }
+        }
+      }
+    },
+    "aktywna": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "active"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aktiv"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "activa"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "активна"
           }
         }
       }
@@ -25213,6 +25620,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "файли й теки"
+          }
+        }
+      }
+    },
+    "pozostało %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ left"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "noch %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "quedan %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "залишилось %@"
           }
         }
       }

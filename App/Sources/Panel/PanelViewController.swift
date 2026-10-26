@@ -37,6 +37,7 @@ final class PanelViewController: NSViewController {
     private let observations = ObservationBag()
     private var lastGeneration = -1
     private var lastTabID: UUID?
+    private var lastFontSize: Double?
     private(set) var isActive = false
 
     init(workspace: Workspace, side: PanelSide) {
@@ -188,8 +189,16 @@ final class PanelViewController: NSViewController {
             _ = tab.selection
             _ = tab.directorySizes
             _ = self.workspace.colorRules
-            _ = self.workspace.settings.fontSize
             self.currentView?.refreshMarks(tab)
+        }
+        // Rozmiar czcionki (wysokość wierszy, komórek) — tylko gdy się zmienił, nie przy każdej zmianie ustawień.
+        observations.add { [weak self] in
+            guard let self else { return }
+            let size = self.workspace.settings.fontSize
+            guard size != self.lastFontSize else { return }
+            let first = self.lastFontSize == nil
+            self.lastFontSize = size
+            if !first { self.currentView?.refreshMarks(self.tab) }
         }
         // Ścieżka, wolne miejsce, stan
         observations.add { [weak self] in
@@ -526,8 +535,6 @@ final class QuickSearchOverlay: NSView {
         super.init(frame: frame)
         wantsLayer = true
         layer?.cornerRadius = 6
-        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
-        layer?.borderColor = NSColor.controlAccentColor.cgColor
         layer?.borderWidth = 1
         label.font = .systemFont(ofSize: 13, weight: .medium)
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -542,6 +549,15 @@ final class QuickSearchOverlay: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    // Kolory warstwy w `updateLayer` — AppKit wywołuje ją z bieżącym wyglądem, także po zmianie motywu
+    // (CGColor ustawiony raz zostawał w kolorach poprzedniego motywu).
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
+        layer?.borderColor = NSColor.controlAccentColor.cgColor
+    }
 
     func restartTimer(_ expired: @escaping @MainActor () -> Void) {
         timer?.invalidate()

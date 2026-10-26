@@ -27,25 +27,45 @@ final class GridListView: NSView, FileListView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Rozmiar komórki miniatury (etykieta pod ikoną zawija się w tej szerokości).
-    static let thumbnailItemSize = NSSize(width: 120, height: 128)
+    /// Szerokość komórki miniatury (etykieta pod ikoną zawija się w tej szerokości).
+    static let thumbnailItemWidth: CGFloat = 120
+    private let layout = NSCollectionViewFlowLayout()
+    private var layoutFontSize: CGFloat = 0
+
+    private var fontSize: CGFloat { CGFloat(workspace.settings.fontSize) }
+
+    /// Rozmiar komórki dla bieżącej czcionki: skrócony — wysokość wiersza z czcionki, miniatury —
+    /// ikona i etykieta w dwóch liniach.
+    private func itemSize(for size: CGFloat) -> NSSize {
+        let font = NSFont.systemFont(ofSize: size, weight: .semibold)
+        let line = ceil(font.ascender - font.descender + font.leading)
+        switch style {
+        case .brief: return NSSize(width: 220, height: max(20, line + 5))
+        case .thumbnails: return NSSize(width: Self.thumbnailItemWidth, height: 4 + 88 + 2 + 2 * line + 6)
+        }
+    }
+
+    private func updateItemSize() {
+        guard layoutFontSize != fontSize else { return }
+        layoutFontSize = fontSize
+        layout.itemSize = itemSize(for: fontSize)
+        layout.invalidateLayout()
+    }
 
     private func setup() {
-        let layout = NSCollectionViewFlowLayout()
         switch style {
         case .brief:
             layout.scrollDirection = .horizontal
-            layout.itemSize = NSSize(width: 220, height: 20)
             layout.minimumInteritemSpacing = 0
             layout.minimumLineSpacing = 8
             layout.sectionInset = NSEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
         case .thumbnails:
             layout.scrollDirection = .vertical
-            layout.itemSize = Self.thumbnailItemSize
             layout.minimumInteritemSpacing = 8
             layout.minimumLineSpacing = 8
             layout.sectionInset = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         }
+        updateItemSize()
         collection.owner = self
         collection.collectionViewLayout = layout
         collection.isSelectable = true
@@ -73,6 +93,7 @@ final class GridListView: NSView, FileListView {
     func reload(_ tab: Tab) {
         self.tab = tab
         items = tab.visibleItems
+        updateItemSize()
         collection.reloadData()
     }
 
@@ -88,10 +109,16 @@ final class GridListView: NSView, FileListView {
         if style == .brief { collection.scrollToItems(at: [path], scrollPosition: .nearestVerticalEdge) }
     }
 
+    /// Oznaczenia, reguły kolorów i czcionka — tylko etykiety i tło (bez ponownego żądania miniatur).
     func refreshMarks(_ tab: Tab) {
+        if layoutFontSize != fontSize {
+            updateItemSize()
+            collection.reloadData()
+            return
+        }
         for case let item as GridItem in collection.visibleItems() {
             if let ip = collection.indexPath(for: item), ip.item < items.count {
-                configure(item, items[ip.item])
+                configureAppearance(item, items[ip.item])
             }
         }
     }
@@ -100,25 +127,31 @@ final class GridListView: NSView, FileListView {
     var isFocused: Bool { window?.firstResponder === collection }
 
     fileprivate func configure(_ cell: GridItem, _ item: FileItem) {
+        configureAppearance(cell, item)
+        cell.icon.image = IconCache.shared.icon(for: item)
+        cell.representedPath = item.path
+        // Pusty plik nie ma czego pokazać w podglądzie (byłaby pusta kartka) — zostaje ikona typu.
+        if self.style == .thumbnails, !item.isNavigable, item.size != 0, let url = item.path.url {
+            let path = item.path
+            cell.thumbnailRequest = thumbnails.thumbnail(for: url, item: item, size: NSSize(width: 96, height: 96)) { [weak cell] image in
+                guard let cell, cell.representedPath == path else { return }
+                cell.thumbnailRequest = nil
+                if let image { cell.icon.image = image }
+            }
+        }
+    }
+
+    /// Etykieta (oznaczenie, reguła kolorów, czcionka) i tło komórki.
+    private func configureAppearance(_ cell: GridItem, _ item: FileItem) {
         let marked = tab?.selection.contains(item.path) ?? false
         let style = item.isParentLink ? nil : workspace.colorRules.style(for: item)
         // Miniatury: zawijanie słów, a ostatnia z dwóch linii z wielokropkiem (truncatesLastVisibleLine);
         // skrócony: jedna linia z wielokropkiem w środku.
         let lineBreak: NSLineBreakMode = cell.label.maximumNumberOfLines == 1 ? .byTruncatingMiddle : .byWordWrapping
         cell.label.attributedStringValue = NSAttributedString(
-            string: item.name, attributes: Theme.attributes(size: CGFloat(workspace.settings.fontSize), style: style, marked: marked, lineBreak: lineBreak))
+            string: item.name, attributes: Theme.attributes(size: fontSize, style: style, marked: marked, lineBreak: lineBreak))
         cell.marked = marked
-        let icon = IconCache.shared.icon(for: item)
-        cell.icon.image = icon
-        // Pusty plik nie ma czego pokazać w podglądzie (byłaby pusta kartka) — zostaje ikona typu.
-        if self.style == .thumbnails, !item.isNavigable, item.size != 0, let url = item.path.url {
-            let path = item.path
-            cell.representedPath = path
-            thumbnails.thumbnail(for: url, size: NSSize(width: 96, height: 96)) { [weak cell] image in
-                guard let cell, cell.representedPath == path, let image else { return }
-                cell.icon.image = image
-            }
-        }
+        cell.ruleBackground = style?.backgroundColor.map(Theme.color)
     }
 }
 
@@ -143,15 +176,20 @@ final class GridItem: NSCollectionViewItem {
     let icon = NSImageView()
     let label = NSTextField(labelWithString: "")
     var representedPath: VFSPath?
+    /// Trwające żądanie miniatury (anulowane przy ponownym użyciu komórki).
+    var thumbnailRequest: QLThumbnailGenerator.Request?
     private var gridStyle: GridListView.Style = .brief
-    var marked = false { didSet { updateBackground() } }
+    var marked = false { didSet { if marked != oldValue { updateBackground() } } }
+    var ruleBackground: NSColor? { didSet { if ruleBackground != oldValue { updateBackground() } } }
 
     override var isSelected: Bool { didSet { updateBackground() } }
 
     override func loadView() {
-        let v = NSView()
+        let v = GridItemView()
         v.wantsLayer = true
         v.layer?.cornerRadius = 4
+        // Kolory warstwy (CGColor) nie śledzą motywu — ponowne ustawienie po zmianie wyglądu.
+        v.onAppearanceChange = { [weak self] in self?.updateBackground() }
         view = v
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.translatesAutoresizingMaskIntoConstraints = false
@@ -188,7 +226,7 @@ final class GridItem: NSCollectionViewItem {
             label.cell?.wraps = true
             // Szerokość komórki minus marginesy — bez niej wieloliniowe pole w Auto Layout obcina drugą
             // linię bez wielokropka.
-            label.preferredMaxLayoutWidth = GridListView.thumbnailItemSize.width - 4
+            label.preferredMaxLayoutWidth = GridListView.thumbnailItemWidth - 4
             NSLayoutConstraint.activate([
                 icon.topAnchor.constraint(equalTo: view.topAnchor, constant: 4),
                 icon.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -202,19 +240,35 @@ final class GridItem: NSCollectionViewItem {
     }
 
     private func updateBackground() {
+        let color: NSColor
         if isSelected {
-            view.layer?.backgroundColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.45).cgColor
+            color = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.45)
         } else if marked {
-            view.layer?.backgroundColor = Theme.markedBackground.cgColor
+            color = Theme.markedBackground
         } else {
-            view.layer?.backgroundColor = NSColor.clear.cgColor
+            color = ruleBackground ?? .clear
+        }
+        view.effectiveAppearance.performAsCurrentDrawingAppearance {
+            view.layer?.backgroundColor = color.cgColor
         }
     }
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        if let thumbnailRequest { QLThumbnailGenerator.shared.cancel(thumbnailRequest) }
+        thumbnailRequest = nil
         representedPath = nil
         icon.image = nil
+    }
+}
+
+/// Widok komórki siatki zgłaszający zmianę wyglądu (jasny/ciemny).
+final class GridItemView: NSView {
+    var onAppearanceChange: (() -> Void)?
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onAppearanceChange?()
     }
 }
 
@@ -233,6 +287,14 @@ final class FileCollectionView: NSCollectionView {
 
     override func mouseDown(with event: NSEvent) {
         owner?.controller?.activate()
+        // Cmd+klik oznacza plik (jak w widoku szczegółów i Ctrl+klik w TC), zamiast zmieniać kursor.
+        if event.modifierFlags.contains(.command) {
+            if let ip = indexPathForItem(at: convert(event.locationInWindow, from: nil)), let tab = owner?.controller?.tab,
+               ip.item < tab.visibleItems.count {
+                tab.toggleSelection(tab.visibleItems[ip.item].path)
+            }
+            return
+        }
         super.mouseDown(with: event)
         if event.clickCount == 2, let ip = indexPathForItem(at: convert(event.locationInWindow, from: nil)) {
             owner?.controller?.openItem(at: ip.item)
@@ -245,15 +307,23 @@ final class FileCollectionView: NSCollectionView {
     }
 }
 
-/// Miniatury z QuickLook, buforowane w pamięci.
+/// Miniatury z QuickLook, buforowane w pamięci (ograniczona liczba; klucz z datą modyfikacji
+/// i rozmiarem — edytowany plik dostaje nową miniaturę).
 @MainActor
 final class ThumbnailCache {
-    private let cache = NSCache<NSURL, NSImage>()
+    private let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 500
+        return cache
+    }()
 
-    func thumbnail(for url: URL, size: NSSize, completion: @escaping @MainActor (NSImage?) -> Void) {
-        if let cached = cache.object(forKey: url as NSURL) {
+    /// - Returns: żądanie do anulowania (`nil`, gdy miniatura była w pamięci).
+    @discardableResult
+    func thumbnail(for url: URL, item: FileItem, size: NSSize, completion: @escaping @MainActor (NSImage?) -> Void) -> QLThumbnailGenerator.Request? {
+        let key = "\(url.path)|\(item.modified?.timeIntervalSince1970 ?? 0)|\(item.size)"
+        if let cached = cache.object(forKey: key as NSString) {
             completion(cached)
-            return
+            return nil
         }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         let request = QLThumbnailGenerator.Request(fileAt: url, size: size, scale: scale, representationTypes: .thumbnail)
@@ -264,10 +334,11 @@ final class ThumbnailCache {
             // ikona typu pliku. Nie trafia do pamięci podręcznej — plik może zaraz dostać treść.
             let image = rep.flatMap { Self.isBlank($0.cgImage) ? nil : $0.nsImage }
             Task { @MainActor in
-                if let image { self?.cache.setObject(image, forKey: url as NSURL) }
+                if let image { self?.cache.setObject(image, forKey: key as NSString) }
                 completion(image)
             }
         }
+        return request
     }
 
     /// Obraz jednolity (jeden kolor) w próbce 32×32 — w mniejszej próbce plik z jednym znakiem też
