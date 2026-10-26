@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — miniatury
+- Pusty plik w widoku miniatur pokazywał puste miejsce (podgląd QuickLook to biała strona bez treści) —
+  teraz ikona typu pliku; jednolity, pusty podgląd też zostaje zastąpiony ikoną.
+- Miniatury dokumentów w ramce z zagiętym rogiem, jak w Finderze (biała strona tekstu ginęła na białym tle).
+
 ### Poprawione — przegląd kodu, część 2
 - Archiwa: wpisy ze ścieżką `../…` (spreparowane archiwum) są pomijane — przy kopiowaniu z archiwum
   wskazywałyby istniejący plik poza katalogiem tymczasowym; archiwa tar z „.” (`./kat/…`) pokazują

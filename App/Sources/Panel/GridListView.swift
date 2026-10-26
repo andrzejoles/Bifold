@@ -110,7 +110,8 @@ final class GridListView: NSView, FileListView {
         cell.marked = marked
         let icon = IconCache.shared.icon(for: item)
         cell.icon.image = icon
-        if self.style == .thumbnails, !item.isNavigable, let url = item.path.url {
+        // Pusty plik nie ma czego pokazać w podglądzie (byłaby pusta kartka) — zostaje ikona typu.
+        if self.style == .thumbnails, !item.isNavigable, item.size != 0, let url = item.path.url {
             let path = item.path
             cell.representedPath = path
             thumbnails.thumbnail(for: url, size: NSSize(width: 96, height: 96)) { [weak cell] image in
@@ -256,12 +257,29 @@ final class ThumbnailCache {
         }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         let request = QLThumbnailGenerator.Request(fileAt: url, size: size, scale: scale, representationTypes: .thumbnail)
+        // Jak w Finderze: dokument w ramce z zagiętym rogiem — biała strona tekstu bez ramki ginęła na białym tle.
+        request.iconMode = true
         QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { [weak self] rep, _ in
-            let image = rep?.nsImage
+            // Pusty podgląd (np. pusty plik tekstowy — biała strona bez treści) nic nie mówi: zostaje
+            // ikona typu pliku. Nie trafia do pamięci podręcznej — plik może zaraz dostać treść.
+            let image = rep.flatMap { Self.isBlank($0.cgImage) ? nil : $0.nsImage }
             Task { @MainActor in
                 if let image { self?.cache.setObject(image, forKey: url as NSURL) }
                 completion(image)
             }
         }
+    }
+
+    /// Obraz jednolity (jeden kolor) w próbce 32×32 — w mniejszej próbce plik z jednym znakiem też
+    /// wyglądałby na pusty.
+    nonisolated static func isBlank(_ image: CGImage) -> Bool {
+        let side = 32
+        guard let ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = ctx.data else { return false }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
+        let pixels = data.bindMemory(to: UInt32.self, capacity: side * side)
+        let first = pixels[0]
+        return (1..<side * side).allSatisfy { pixels[$0] == first }
     }
 }
