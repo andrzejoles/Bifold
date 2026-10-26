@@ -87,13 +87,16 @@ public struct SevenZip: Sendable {
         let stdoutText = String(decoding: outBox.data.prefix(65536), as: UTF8.self)
         if p.terminationStatus != 0 {
             if isCancelled() { throw VFSError.cancelled }
-            let all = stderr + stdoutText
-            if all.contains("Wrong password") { throw password == nil ? ArchiveError.passwordRequired : ArchiveError.wrongPassword }
-            if all.contains("Can not open encrypted archive") || all.contains("Enter password") {
-                throw password == nil ? ArchiveError.passwordRequired : ArchiveError.wrongPassword
-            }
+            if let error = Self.passwordError(stderr + stdoutText, password: password) { throw error }
         }
         return Output(status: p.terminationStatus, stdout: outBox.data, stderr: stderr)
+    }
+
+    static func passwordError(_ output: String, password: String?) -> ArchiveError? {
+        if output.contains("Wrong password") || output.contains("Can not open encrypted archive") || output.contains("Enter password") {
+            return password == nil ? .passwordRequired : .wrongPassword
+        }
+        return nil
     }
 
     private final class DataBox: @unchecked Sendable { var data = Data() }
@@ -115,8 +118,8 @@ public struct SevenZip: Sendable {
         public var encrypted: Bool
     }
 
-    public func list(_ archive: VFSPath, password: String?) throws -> [Entry] {
-        let out = try run(["l", "-slt", archive.path], password: password)
+    public func list(_ archive: VFSPath, password: String?, isCancelled: @escaping @Sendable () -> Bool = { false }) throws -> [Entry] {
+        let out = try run(["l", "-slt", archive.path], password: password, isCancelled: isCancelled)
         guard out.status == 0 else { throw ArchiveError.failed(out.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
         return Self.parseListing(String(decoding: out.stdout, as: UTF8.self))
     }
@@ -166,6 +169,75 @@ public struct SevenZip: Sendable {
         guard out.status == 0 || out.status == 1 else { throw ArchiveError.failed(out.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
     }
 
+    /// Fragment pliku z archiwum (`7zz e -so`) czytany strumieniowo: wyjście jest odrzucane do
+    /// `range.lowerBound`, a po `range.upperBound` proces jest kończony — w pamięci tylko fragment.
+    /// Bez zakresu — cały plik.
+    public func read(_ archive: VFSPath, entry: String, password: String?, range: Range<Int64>?,
+                     isCancelled: @escaping @Sendable () -> Bool = { false }) throws -> Data {
+        guard let range else { return try read(archive, entry: entry, password: password) }
+        guard range.upperBound > max(0, range.lowerBound) else { return Data() }
+        let list = try Self.listFile([entry])
+        defer { try? FileManager.default.removeItem(at: list) }
+        let p = Process()
+        p.executableURL = URL(filePath: executable)
+        p.arguments = ["e", "-so", archive.path, "@" + list.path, "-sccUTF-8", "-scsUTF-8"]
+        let input = Pipe(), out = Pipe(), err = Pipe()
+        p.standardInput = input
+        p.standardOutput = out
+        p.standardError = err
+        try p.run()
+        if let password { input.fileHandleForWriting.write(Data((password + "\n").utf8)) }
+        try? input.fileHandleForWriting.close()
+        let errBox = DataBox()
+        let errDone = DispatchSemaphore(value: 0)
+        Thread.detachNewThread { errBox.data = err.fileHandleForReading.readDataToEndOfFile(); errDone.signal() }
+
+        let handle = out.fileHandleForReading
+        var result = Data()
+        var position: Int64 = 0
+        var stoppedEarly = false
+        var cancelled = false
+        while position < range.upperBound {
+            if isCancelled() { cancelled = true; break }
+            guard let chunk = try? handle.read(upToCount: 1 << 20), !chunk.isEmpty else { break }
+            let start = position, end = position + Int64(chunk.count)
+            let lo = max(start, range.lowerBound), hi = min(end, range.upperBound)
+            if lo < hi {
+                let base = chunk.startIndex
+                result.append(chunk[(base + Int(lo - start))..<(base + Int(hi - start))])
+            }
+            position = end
+        }
+        if p.isRunning && (cancelled || position >= range.upperBound) {
+            stoppedEarly = true
+            p.terminate()
+        }
+        try? handle.close()
+        p.waitUntilExit()
+        errDone.wait()
+        if cancelled { throw VFSError.cancelled }
+        if !stoppedEarly && p.terminationStatus != 0 {
+            let stderr = String(decoding: errBox.data, as: UTF8.self)
+            if let error = Self.passwordError(stderr, password: password) { throw error }
+            throw ArchiveError.failed(stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return result
+    }
+
+    /// Rozpakowuje jeden plik (`7zz e`, bez ścieżki z archiwum) do katalogu i zwraca ścieżkę wyniku.
+    public func extractEntry(_ archive: VFSPath, entry: String, to directory: VFSPath, password: String?,
+                             isCancelled: @escaping @Sendable () -> Bool = { false }) throws -> VFSPath {
+        let name = (entry as NSString).lastPathComponent
+        guard isSafeComponentName(name) else { throw VFSError.invalidName(name) }
+        let list = try Self.listFile([entry])
+        defer { try? FileManager.default.removeItem(at: list) }
+        let out = try run(["e", archive.path, "-o" + directory.path, "-aoa", "-y", "@" + list.path], password: password, isCancelled: isCancelled)
+        guard out.status == 0 else { throw ArchiveError.failed(out.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        let result = directory.appending(name)
+        guard FileManager.default.fileExists(atPath: result.path) else { throw VFSError.notFound(result) }
+        return result
+    }
+
     /// Zawartość jednego pliku z archiwum (podgląd F3).
     public func read(_ archive: VFSPath, entry: String, password: String?) throws -> Data {
         let list = try Self.listFile([entry])
@@ -181,10 +253,48 @@ public struct SevenZip: Sendable {
     }
 
     /// Tworzy archiwum z elementów katalogu `base` (nazwy względne). `volumeSize` — archiwum
-    /// wieloczęściowe (np. „100m”).
+    /// wieloczęściowe (np. „100m”). Archiwum powstaje pod ukrytą nazwą tymczasową i dostaje właściwą
+    /// nazwę dopiero po sukcesie — po błędzie lub anulowaniu nie zostaje niekompletne archiwum ani części.
     public func create(_ archive: VFSPath, format: ArchiveFormat, base: VFSPath, names: [String], level: Int = 5,
                        password: String? = nil, volumeSize: String? = nil, isCancelled: @escaping @Sendable () -> Bool = { false }) throws {
-        if FileManager.default.fileExists(atPath: archive.path) { throw VFSError.alreadyExists(archive) }
+        guard let parent = archive.parent else { throw VFSError.unsupported("archive /") }
+        let volumes = !(volumeSize ?? "").isEmpty
+        let firstFinal = volumes ? parent.appending(FileSplitter.partName(archive.name, index: 1)) : archive
+        for p in Set([archive, firstFinal]) where FileManager.default.fileExists(atPath: p.path) { throw VFSError.alreadyExists(p) }
+        let tempName = ".bifold-new-\(UUID().uuidString.prefix(8)).\(format.fileExtension)"
+        let temp = parent.appending(tempName)
+        func removeTemporaries() {
+            for name in (try? FileManager.default.contentsOfDirectory(atPath: parent.path)) ?? [] where name.hasPrefix(tempName) {
+                try? FileManager.default.removeItem(atPath: parent.appending(name).path)
+            }
+        }
+        do {
+            try createUnchecked(temp, innerName: archive.name.fileStem, format: format, base: base, names: names, level: level,
+                                password: password, volumeSize: volumeSize, isCancelled: isCancelled)
+            if isCancelled() { throw VFSError.cancelled }
+            let outputs = volumes ? FileSplitter.parts(startingWith: parent.appending(FileSplitter.partName(tempName, index: 1))) : [temp]
+            guard let first = outputs.first, FileManager.default.fileExists(atPath: first.path) else {
+                throw ArchiveError.failed(archive.name)
+            }
+            var renamed: [VFSPath] = []
+            do {
+                for (i, output) in outputs.enumerated() {
+                    let final = volumes ? parent.appending(FileSplitter.partName(archive.name, index: i + 1)) : archive
+                    guard renamex_np(output.path, final.path, UInt32(RENAME_EXCL)) == 0 else { throw VFSError.from(errno: errno, path: final) }
+                    renamed.append(final)
+                }
+            } catch {
+                for r in renamed { unlink(r.path) }
+                throw error
+            }
+        } catch {
+            removeTemporaries()
+            throw error
+        }
+    }
+
+    private func createUnchecked(_ archive: VFSPath, innerName: String, format: ArchiveFormat, base: VFSPath, names: [String], level: Int,
+                                 password: String?, volumeSize: String?, isCancelled: @escaping @Sendable () -> Bool) throws {
         let list = try Self.listFile(names)
         defer { try? FileManager.default.removeItem(at: list) }
         var args = ["a", "-t" + format.sevenZipType, "-mx=\(level)", archive.path, "@" + list.path]
@@ -200,7 +310,7 @@ public struct SevenZip: Sendable {
             let tmpDir = archive.parent!.appending(".bifold-tar-\(UUID().uuidString.prefix(8))")
             try FileManager.default.createDirectory(atPath: tmpDir.path, withIntermediateDirectories: false)
             defer { try? FileManager.default.removeItem(atPath: tmpDir.path) }
-            let tarPath = tmpDir.appending(archive.name.fileStem)
+            let tarPath = tmpDir.appending(innerName)
             let tarOut = try run(["a", "-ttar", tarPath.path, "@" + list.path], directory: base.path, isCancelled: isCancelled)
             guard tarOut.status == 0 else { throw ArchiveError.failed(tarOut.stderr) }
             var second = ["a", "-t" + format.sevenZipType, "-mx=\(level)", archive.path, tarPath.path]
@@ -210,9 +320,6 @@ public struct SevenZip: Sendable {
             return
         }
         let out = try run(args, password: password.map { "\($0)\n\($0)" }, directory: base.path, isCancelled: isCancelled)
-        guard out.status == 0 else {
-            try? FileManager.default.removeItem(atPath: archive.path)
-            throw ArchiveError.failed(out.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
+        guard out.status == 0 else { throw ArchiveError.failed(out.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
     }
 }
