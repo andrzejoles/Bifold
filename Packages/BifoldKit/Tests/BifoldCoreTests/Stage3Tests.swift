@@ -267,3 +267,85 @@ let rg: String? = ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"].first { FileMana
         #expect(plan[1].problem == L10n.tr("nie można odczytać metadanych multimediów"))
     }
 }
+
+@Suite struct SearchAndChecksumFixesTests {
+    /// Istniejąca część `x.001` nie jest nadpisywana ani (po błędzie) usuwana.
+    @Test func splitKeepsExistingParts() throws {
+        let tmp = try TempDir()
+        FileManager.default.createFile(atPath: tmp.url.appending(path: "x").path, contents: Data(count: 250_000))
+        let out = try tmp.dir("out")
+        try tmp.file("out/x.002", "cudze")
+        #expect(throws: VFSError.alreadyExists(out.appending("x.002"))) {
+            try FileSplitter.split(tmp.path.appending("x"), partSize: 100_000, into: out)
+        }
+        #expect(try tmp.names("out") == ["x.002"])
+        #expect(try tmp.read("out/x.002") == "cudze")
+        // Istniejący plik sum: błąd przed utworzeniem czegokolwiek.
+        try FileManager.default.removeItem(at: tmp.url.appending(path: "out/x.002"))
+        try tmp.file("out/x.sha256", "stare sumy")
+        #expect(throws: VFSError.alreadyExists(out.appending("x.sha256"))) {
+            try FileSplitter.split(tmp.path.appending("x"), partSize: 100_000, into: out)
+        }
+        #expect(try tmp.names("out") == ["x.sha256"])
+        #expect(try tmp.read("out/x.sha256") == "stare sumy")
+    }
+
+    /// Plik sum nie może sprawdzać plików spoza swojego katalogu (`..`, ścieżki absolutne, dowiązania).
+    @Test func verifyRejectsPathsOutsideBase() throws {
+        let tmp = try TempDir()
+        let secret = try tmp.file("tajne.txt", "abc")
+        try tmp.file("sumy/w.txt", "abc")
+        try FileManager.default.createSymbolicLink(atPath: tmp.url.appending(path: "sumy/link.txt").path, withDestinationPath: secret.path)
+        let hash = try Checksums.hash(secret, algorithm: .sha256)
+        let text = Checksums.format([(hash, "w.txt"), (hash, "../tajne.txt"), (hash, secret.path), (hash, "link.txt"),
+                                     (hash, "pod/../w.txt"), (hash, "brak.txt"), (hash, "/etc/../" + secret.path)])
+        try Data(text.utf8).write(to: tmp.url.appending(path: "sumy/sumy.sha256"))
+        let results = try Checksums.verify(checksumFile: tmp.path.appending("sumy/sumy.sha256"))
+        #expect(results.map(\.status) == [.ok, .invalid, .invalid, .invalid, .ok, .missing, .invalid])
+    }
+
+    /// Nakładające się korzenie: plik nie jest duplikatem samego siebie.
+    @Test func duplicatesWithOverlappingRoots() throws {
+        let tmp = try TempDir()
+        try tmp.file("a/x.txt", "jedyny w swoim rodzaju")
+        try tmp.file("a/b/y.txt", "para")
+        try tmp.file("c/z.txt", "para")
+        let groups = try DuplicateFinder.find(in: [tmp.path, tmp.path.appending("a"), tmp.path.appending("a/b")], mode: .content)
+        #expect(groups.count == 1)
+        #expect(Set(groups[0].map(\.name)) == ["y.txt", "z.txt"])
+        #expect(try DuplicateFinder.find(in: [tmp.path, tmp.path.appending("a")], mode: .name).isEmpty)
+    }
+
+    /// Anulowanie wyszukiwania w treści kończy `rg`, nawet gdy ten nic nie wypisuje (czyta kolejkę FIFO).
+    @Test(.enabled(if: rg != nil)) func cancellingContentSearchStopsRipgrep() async throws {
+        let tmp = try TempDir()
+        let fifo = tmp.url.appending(path: "kolejka")
+        #expect(mkfifo(fifo.path, 0o600) == 0)
+        let (stream, continuation) = AsyncStream<SearchEvent>.makeStream()
+        let slot = ProcessSlot()
+        let finished = Mutexed(false)
+        Thread {
+            SearchEngine.runRipgrep(SearchCriteria(roots: [.local(fifo)], contentText: "x"), executable: rg!, flag: CancellationFlag(),
+                                    slot: slot, continuation: continuation)
+            finished.set(true)
+        }.start()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(!finished.get())
+        slot.terminate()
+        for _ in 0..<100 where !finished.get() { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(finished.get())
+        continuation.finish()
+        _ = stream
+    }
+
+    /// Maska i wyrażenie skompilowane raz dają te same wyniki co pojedyncze sprawdzenie.
+    @Test func matcherMatchesCriteria() {
+        let item = FileItem(path: .local("/x/Raport-2024.TXT"), kind: .file, size: 10)
+        for c in [SearchCriteria(roots: [], nameMask: "*.txt"), SearchCriteria(roots: [], nameRegex: "^raport-\\d+"),
+                  SearchCriteria(roots: [], nameRegex: "^raport", caseSensitive: true), SearchCriteria(roots: [], nameMask: "*.pdf")] {
+            #expect(MetadataMatcher(c).matches(item) == c.matchesMetadata(item))
+        }
+        #expect(MetadataMatcher(SearchCriteria(roots: [], nameMask: "*.txt")).matches(item))
+        #expect(!MetadataMatcher(SearchCriteria(roots: [], nameRegex: "^raport", caseSensitive: true)).matches(item))
+    }
+}

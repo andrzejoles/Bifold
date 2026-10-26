@@ -76,7 +76,9 @@ public enum Checksums {
         return out
     }
 
-    public enum VerifyStatus: String, Sendable, Codable { case ok, mismatch, missing }
+    /// `invalid` — wpis wskazuje poza katalog pliku sum (ścieżka absolutna, `..`, dowiązanie na zewnątrz);
+    /// nie jest sprawdzany, żeby plik sum nie służył do badania istnienia i treści dowolnych plików.
+    public enum VerifyStatus: String, Sendable, Codable { case ok, mismatch, missing, invalid }
 
     public struct VerifyResult: Sendable, Hashable {
         public var path: String
@@ -90,12 +92,33 @@ public enum Checksums {
         }
         let text = String(decoding: try LocalFS().readSync(checksumFile), as: UTF8.self)
         let base = checksumFile.parent ?? .root
+        let baseReal = VFSPath.local(realPath(base.path) ?? base.path)
         return try parse(text).map { e in
-            let p = e.path.hasPrefix("/") ? VFSPath.local(e.path) : VFSPath.local(base.path + "/" + e.path)
+            guard let p = entryPath(e.path, base: base, baseReal: baseReal) else { return VerifyResult(path: e.path, status: .invalid) }
             guard FileManager.default.fileExists(atPath: p.path) else { return VerifyResult(path: e.path, status: .missing) }
             let h = try hash(p, algorithm: algorithm, isCancelled: isCancelled)
             return VerifyResult(path: e.path, status: h == e.hash ? .ok : .mismatch)
         }
+    }
+
+    /// Ścieżka wpisu, jeśli leży w poddrzewie katalogu pliku sum — tekstowo (po rozwinięciu `.`/`..`)
+    /// i po rozwiązaniu dowiązań; inaczej `nil`.
+    static func entryPath(_ raw: String, base: VFSPath, baseReal: VFSPath) -> VFSPath? {
+        let joined = raw.hasPrefix("/") ? raw : base.path + "/" + raw
+        var components: [Substring] = []
+        for c in joined.split(separator: "/") {
+            if c == "." { continue }
+            if c == ".." {
+                guard !components.isEmpty else { return nil }
+                components.removeLast()
+                continue
+            }
+            components.append(c)
+        }
+        let path = VFSPath.local("/" + components.joined(separator: "/"))
+        guard path.isDescendant(of: base, orEqual: false) else { return nil }
+        if let real = realPath(path.path), !VFSPath.local(real).isDescendant(of: baseReal, orEqual: false) { return nil }
+        return path
     }
 }
 
@@ -104,16 +127,31 @@ public enum Checksums {
 public enum DuplicateFinder {
     public enum Mode: String, Codable, Sendable, CaseIterable { case content, nameAndSize, name }
 
+    /// Element systemu plików: urządzenie + i-węzeł (ten sam plik pod inną ścieżką).
+    struct Identity: Hashable {
+        var device: Int32
+        var inode: UInt64
+    }
+
     public static func find(in roots: [VFSPath], mode: Mode = .content, minSize: Int64 = 1, includeHidden: Bool = false, isCancelled: @escaping () -> Bool = { false }) throws -> [[FileItem]] {
         var files: [FileItem] = []
         let fs = LocalFS()
         var stack = roots
+        // Nakładające się korzenie (katalog i jego podkatalog, firmlinki) i twarde dowiązania: każdy
+        // katalog przeglądany raz, każdy plik liczony raz — inaczej plik byłby „duplikatem” samego siebie.
+        var visitedDirectories: Set<Identity> = []
+        var seenFiles: Set<Identity> = []
         while let dir = stack.popLast() {
             if isCancelled() { throw VFSError.cancelled }
+            var st = stat()
+            guard stat(dir.path, &st) == 0, visitedDirectories.insert(Identity(device: st.st_dev, inode: st.st_ino)).inserted else { continue }
             guard let items = try? fs.listSync(dir) else { continue }
             for item in items where includeHidden || !item.isHidden {
                 if item.kind == .directory { stack.append(item.path) }
-                else if item.kind == .file && item.size >= minSize { files.append(item) }
+                else if item.kind == .file && item.size >= minSize,
+                        seenFiles.insert(Identity(device: st.st_dev, inode: item.inode)).inserted {
+                    files.append(item)
+                }
             }
         }
         switch mode {
@@ -157,6 +195,10 @@ public enum FileSplitter {
         precondition(partSize > 0)
         guard let input = FileHandle(forReadingAtPath: source.path) else { throw VFSError.notFound(source) }
         defer { try? input.close() }
+        let sum = directory.appending(source.name + ".sha256")
+        var st = stat()
+        guard lstat(sum.path, &st) != 0 else { throw VFSError.alreadyExists(sum) }
+        // Tylko pliki utworzone przez nas (O_EXCL) — przy błędzie usuwamy wyłącznie je.
         var created: [VFSPath] = []
         var index = 1
         do {
@@ -170,9 +212,10 @@ public enum FileSplitter {
                     let chunk = try input.read(upToCount: Int(min(remaining, 1 << 20))) ?? Data()
                     if chunk.isEmpty { break }
                     if first {
-                        guard FileManager.default.createFile(atPath: part.path, contents: nil, attributes: nil) else { throw VFSError.alreadyExists(part) }
-                        output = FileHandle(forWritingAtPath: part.path)
+                        let fd = open(part.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o644)
+                        guard fd >= 0 else { throw VFSError.from(errno: errno, path: part) }
                         created.append(part)
+                        output = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
                         first = false
                     }
                     try output?.write(contentsOf: chunk)
@@ -182,7 +225,6 @@ public enum FileSplitter {
                 if first { break }
                 index += 1
             }
-            let sum = directory.appending(source.name + ".sha256")
             let hash = try Checksums.hash(source, algorithm: .sha256)
             try Data(Checksums.format([(hash, source.name)]).utf8).write(to: URL(filePath: sum.path), options: .withoutOverwriting)
             created.append(sum)
