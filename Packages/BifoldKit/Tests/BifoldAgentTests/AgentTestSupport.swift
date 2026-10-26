@@ -9,8 +9,11 @@ import Foundation
 final class MockApprover: ApprovalPresenter {
     var answer = true
     var requests: [ApprovalRequest] = []
+    /// Działanie „w trakcie otwartego okna zgody” (np. zmiana kursora przez użytkownika albo agenta).
+    var whileOpen: (@MainActor (ApprovalRequest) async -> Void)?
     func requestApproval(_ request: ApprovalRequest) async -> Bool {
         requests.append(request)
+        await whileOpen?(request)
         return answer
     }
 }

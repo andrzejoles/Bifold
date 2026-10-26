@@ -9,12 +9,31 @@ public struct SyncJob: Codable, Sendable, Hashable, Identifiable {
     public var source: String
     public var destination: String
     public var mode: SyncMode
+    /// Ścieżki względne pominięte w synchronizacji.
+    public var exclude: [String]
 
-    public init(name: String, source: String, destination: String, mode: SyncMode) {
+    public init(name: String, source: String, destination: String, mode: SyncMode, exclude: [String] = []) {
         self.name = name
         self.source = source
         self.destination = destination
         self.mode = mode
+        self.exclude = exclude
+    }
+
+    // Starsze pliki sync-jobs.json nie mają `exclude`.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        source = try c.decode(String.self, forKey: .source)
+        destination = try c.decode(String.self, forKey: .destination)
+        mode = try c.decode(SyncMode.self, forKey: .mode)
+        exclude = try c.decodeIfPresent([String].self, forKey: .exclude) ?? []
+    }
+
+    /// Argumenty `sync.preview` / `sync.run` odpowiadające zadaniu.
+    var arguments: CommandArguments {
+        CommandArguments(["source": .string(source), "destination": .string(destination), "mode": .string(mode.rawValue),
+                          "exclude": .array(exclude.map { .string($0) })])
     }
 }
 
@@ -194,7 +213,7 @@ var syncCommands: [Command] { [
         let name = try await ctx.text("name", title: L10n.tr("Nazwa zadania synchronizacji"))
         let (s, d, m) = try ctx.syncEndpoints()
         var jobs = ctx.workspace.syncJobs.filter { $0.name != name }
-        jobs.append(SyncJob(name: name, source: s.displayPath, destination: d.displayPath, mode: m))
+        jobs.append(SyncJob(name: name, source: s.displayPath, destination: d.displayPath, mode: m, exclude: ctx.arguments.strings("exclude") ?? []))
         ctx.workspace.syncJobs = jobs
         return CommandResult(message: name)
     },
@@ -213,8 +232,7 @@ var syncCommands: [Command] { [
             agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Uruchamia zapisane zadanie synchronizacji (z podglądem).")),
         preview: { @MainActor ctx in
             let job = try savedSyncJob(ctx)
-            return try await ctx.workspace.syncPlan(source: ctx.workspace.parsePath(job.source, relativeTo: .root),
-                                                   destination: ctx.workspace.parsePath(job.destination, relativeTo: .root), mode: job.mode).preview
+            return try await CommandContext(workspace: ctx.workspace, invoker: ctx.invoker, arguments: job.arguments).filteredPlan().preview
         }
     ) { ctx in
         let job = try savedSyncJob(ctx)
@@ -223,20 +241,15 @@ var syncCommands: [Command] { [
                                          destination: ctx.workspace.parsePath(job.destination, relativeTo: .root), job: job)
             return .ok
         }
-        var args = CommandArguments(["source": .string(job.source), "destination": .string(job.destination), "mode": .string(job.mode.rawValue)])
-        args[ToolCatalogKeys.viaRunCommand] = ctx.arguments[ToolCatalogKeys.viaRunCommand]
-        let plan = try await CommandContext(workspace: ctx.workspace, invoker: ctx.invoker, arguments: args).filteredPlan()
+        // Kontekst wewnętrzny nie przechodzi przez bramkę agenta — końce zadania sprawdziła już bramka
+        // przy wywołaniu sync.runSaved (zasoby i zasada najmniejszego poziomu).
+        let plan = try await CommandContext(workspace: ctx.workspace, invoker: ctx.invoker, arguments: job.arguments).filteredPlan()
         let rc = try ctx.workspace.remotes.runningRclone()
         let queued = ctx.workspace.jobs.enqueue(.sync(plan, rc), title: L10n.tr("Synchronizacja „\(job.name)”"), invoker: ctx.invoker)
         let state = await ctx.workspace.jobs.wait(for: queued)
         return CommandResult(message: "\(state)", value: ["state": .string("\(state)")])
     },
 ] }
-
-/// Klucz wewnętrzny argumentów (wywołanie przez `run_command`).
-public enum ToolCatalogKeys {
-    public static let viaRunCommand = "__viaRunCommand"
-}
 
 @MainActor
 private func savedSyncJob(_ ctx: CommandContext) throws -> SyncJob {

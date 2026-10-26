@@ -61,7 +61,7 @@ public enum Bridge {
         }
         defer { close(fd) }
 
-        let hello = Wire.Hello(token: options.token, pid: getpid())
+        let hello = Wire.Hello(token: options.token)
         try Wire.writeFrame(JSONEncoder().encode(hello), to: fd)
         Wire.setReadTimeout(fd, seconds: 10)
         let replyData: Data

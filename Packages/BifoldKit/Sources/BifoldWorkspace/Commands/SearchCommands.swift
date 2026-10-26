@@ -51,9 +51,8 @@ extension CommandContext {
             guard let d = iso.date(from: s) else { throw CommandError.invalidArgument(key, "ISO 8601") }
             return d
         }
-        let base = tab.path.isLocal ? tab.path : .local(NSHomeDirectory())
         return SearchCriteria(
-            roots: a.paths("paths", relativeTo: base) ?? [base],
+            roots: searchRoots(),
             nameMask: a.string("nameMask") ?? "",
             nameRegex: a.string("nameRegex") ?? "",
             recursive: a.bool("recursive") ?? true,
@@ -71,8 +70,23 @@ extension CommandContext {
             .with { if a.bool("searchArchives") == true { $0.archiveTool = workspace.settings.toolPath("7zz") } }
     }
 
+    /// Katalogi przeszukiwania: argument `paths` (jak przy elementach — `parsePath`, więc także
+    /// ścieżki absolutne zamrożone przez bramkę agenta) albo bieżący katalog lokalny / domowy.
+    func searchRoots() -> [VFSPath] {
+        let base = tab.path.isLocal ? tab.path : .local(NSHomeDirectory())
+        return arguments.strings("paths")?.map { workspace.parsePath($0, relativeTo: base) } ?? [base]
+    }
+
+    /// Dla agenta: bez ścieżek zablokowanych (SECURITY.md §4.5) — ani ścieżki, ani dopasowanej treści.
+    func visibleToAgent(_ hits: [SearchHit]) -> [SearchHit] {
+        guard isAgent else { return hits }
+        let blocked = BlockedPaths(for: workspace)
+        return hits.filter { !blocked.isBlocked($0.item.path) }
+    }
+
     /// Wyniki do JSON (dla agenta) albo do panelu.
-    func deliver(_ hits: [SearchHit], truncated: Bool, title: String) async throws -> CommandResult {
+    func deliver(_ allHits: [SearchHit], truncated: Bool, title: String) async throws -> CommandResult {
+        let hits = visibleToAgent(allHits)
         if arguments.bool("toPanel") ?? !isAgent {
             try await workspace.showResults(title: title, items: hits.map(\.item))
         }
@@ -91,7 +105,8 @@ extension CommandContext {
                 return .object(o)
             }),
         ]
-        return CommandResult(message: L10n.tr("Znaleziono: \(hits.count)"), value: value)
+        // Nazwy i treść z plików — dla agenta oznaczone jako niezaufane (SECURITY.md §4.6).
+        return CommandResult(message: L10n.tr("Znaleziono: \(hits.count)"), value: isAgent ? untrusted(value) : value)
     }
 }
 
@@ -102,13 +117,24 @@ func parseSize(_ text: String) -> Int64? {
     let units: [(String, Double)] = [("TB", tb), ("GB", gb), ("MB", mb), ("KB", kb), ("T", tb), ("G", gb), ("M", mb), ("K", kb), ("B", 1)]
     for (suffix, mult) in units where t.hasSuffix(suffix) {
         guard let v = Double(t.dropLast(suffix.count).trimmingCharacters(in: .whitespaces)) else { return nil }
-        return Int64(v * mult)
+        // „1E30K”, „INFB”, „NANM” — poza zakresem Int64 to błąd, nie awaria.
+        let bytes = v * mult
+        guard bytes.isFinite, bytes >= 0, bytes < 9.0e18 else { return nil }
+        return Int64(bytes)
     }
     return Int64(t)
 }
 
 extension RenameRule {
-    init(arguments a: CommandArguments) {
+    /// Zakresy licznika: `counterStart + indeks * counterStep` i dopełnienie zerami nie mogą przepełnić Int.
+    init(arguments a: CommandArguments) throws {
+        func bounded(_ key: String, _ range: ClosedRange<Int64>) throws {
+            guard a[key] != nil else { return }
+            guard let v = a.int(key), range.contains(v) else { throw CommandError.invalidArgument(key, "\(range.lowerBound)…\(range.upperBound)") }
+        }
+        try bounded("counterStart", -1_000_000_000...1_000_000_000)
+        try bounded("counterStep", -1_000_000...1_000_000)
+        try bounded("counterDigits", 0...20)
         self.init(
             nameMask: a.string("nameMask") ?? "[N]", extensionMask: a.string("extensionMask") ?? "[E]",
             search: a.string("search") ?? "", replace: a.string("replace") ?? "", regex: a.bool("regex") ?? false,
@@ -159,7 +185,7 @@ var searchCommands: [Command] { [
         agent: .full, effect: .uiState, summary: L10n.tr("Wyszukiwanie przez indeks Spotlight w bieżącym katalogu."))
     ) { ctx in
         let query = try await ctx.text("query", title: L10n.tr("Spotlight"), message: L10n.tr("Szukaj (nazwa lub treść):"))
-        let scopes = ctx.arguments.paths("paths", relativeTo: ctx.tab.path) ?? [ctx.tab.path.isLocal ? ctx.tab.path : .local(NSHomeDirectory())]
+        let scopes = ctx.searchRoots()
         let paths = await SpotlightSearch.run(query, scopes: scopes)
         let fs = LocalFS()
         let hits = paths.compactMap { try? fs.itemSync(at: $0) }.map { SearchHit(item: $0, matches: []) }
@@ -209,16 +235,20 @@ var searchCommands: [Command] { [
                      CommandParameter("toPanel", .boolean, L10n.tr("Pokaż wyniki w nowej karcie panelu"))],
         agent: .read, effect: .none, summary: L10n.tr("Grupy identycznych plików (nazwa, rozmiar, zawartość SHA-256) w katalogach."))
     ) { ctx in
-        let roots = ctx.arguments.paths("paths", relativeTo: ctx.tab.path) ?? [ctx.tab.path.isLocal ? ctx.tab.path : .local(NSHomeDirectory())]
+        let roots = ctx.searchRoots()
         let mode = ctx.arguments.string("mode").flatMap(DuplicateFinder.Mode.init(rawValue:)) ?? .content
         let minSize = ctx.arguments.int("minSize") ?? 1
-        let groups = try await runBlocking(qos: .utility) { try DuplicateFinder.find(in: roots, mode: mode, minSize: minSize) }
+        var groups = try await runBlocking(qos: .utility) { try DuplicateFinder.find(in: roots, mode: mode, minSize: minSize) }
+        if ctx.isAgent {
+            // Bez zablokowanych ścieżek; grupa z jednym widocznym plikiem zdradzałaby duplikat w zablokowanym katalogu.
+            let blocked = BlockedPaths(for: ctx.workspace)
+            groups = groups.map { $0.filter { !blocked.isBlocked($0.path) } }.filter { $0.count > 1 }
+        }
         if ctx.arguments.bool("toPanel") ?? !ctx.isAgent {
             try await ctx.workspace.showResults(title: L10n.tr("duplikaty (\(groups.count))"), items: groups.flatMap { $0 })
         }
-        return CommandResult(
-            message: L10n.tr("Grupy duplikatów: \(groups.count)"),
-            value: .array(groups.prefix(500).map { g in .array(g.map { .string($0.path.path) }) }))
+        let value: JSONValue = .array(groups.prefix(500).map { g in .array(g.map { .string($0.path.path) }) })
+        return CommandResult(message: L10n.tr("Grupy duplikatów: \(groups.count)"), value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(
@@ -228,7 +258,7 @@ var searchCommands: [Command] { [
             summary: L10n.tr("Zmienia nazwy wielu elementów według masek, licznika, dat, metadanych EXIF/multimediów, znajdź-zamień (regex) i wielkości liter; z podglądem.")),
         preview: { @MainActor ctx in
             let items = try ctx.targets()
-            let plan = MultiRename.plan(items, rule: RenameRule(arguments: ctx.arguments))
+            let plan = MultiRename.plan(items, rule: try RenameRule(arguments: ctx.arguments))
             let problems = plan.filter { $0.problem != nil }
             return EffectPreview(
                 summary: L10n.tr("Zmiana nazw: \(plan.filter(\.changes).count) z \(plan.count)"),
@@ -242,7 +272,7 @@ var searchCommands: [Command] { [
             try ctx.requireUI().showMultiRename(items: items)
             return .ok
         }
-        let plan = MultiRename.plan(items, rule: RenameRule(arguments: ctx.arguments))
+        let plan = MultiRename.plan(items, rule: try RenameRule(arguments: ctx.arguments))
         let problems = plan.filter { $0.problem != nil }
         let journal = ctx.workspace.journal, invoker = ctx.invoker
         let count = try await runBlocking(qos: .userInitiated) {
@@ -277,8 +307,12 @@ var searchCommands: [Command] { [
             let name = ctx.arguments.string("name") ?? ((files.count == 1 ? files[0].name : base.name) + "." + algorithm.fileExtension)
             try validateFileName(name)
             let target = base.appending(name)
-            try await ctx.workspace.fileOps.createFile(target, invoker: ctx.invoker)
-            try Data(Checksums.format(pairs.map { (hash: $0.0, relativePath: $0.1) }).utf8).write(to: target.url!, options: .atomic)
+            // Plik od razu z treścią (O_EXCL), a wpis dziennika z odciskiem po zapisie — cofnięcie widzi
+            // plik niezmieniony i może go usunąć.
+            let contents = Data(Checksums.format(pairs.map { (hash: $0.0, relativePath: $0.1) }).utf8)
+            try await LocalFS().createFile(target, contents: contents)
+            let batch = ctx.workspace.journal.beginBatch(title: L10n.tr("Nowy plik \(target.name)"), invoker: ctx.invoker)
+            ctx.workspace.journal.record(.created(path: target, isDirectory: false), fingerprint: try? LocalFS().itemSync(at: target).fingerprint, in: batch)
             message += "\n→ " + target.path
             if target.parent == ctx.tab.path { await ctx.tab.reload() }
         }

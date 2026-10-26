@@ -15429,6 +15429,35 @@
         }
       }
     },
+    "Serwer API agentów nie działa: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent API server is not running: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Agenten-API-Server läuft nicht: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor de la API de agentes no está en funcionamiento: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер API агентів не працює: %@"
+          }
+        }
+      }
+    },
     "Serwer SCP ⇄ inny serwer lub archiwum: najpierw skopiuj na dysk": {
       "extractionState": "manual",
       "localizations": {
@@ -15541,6 +15570,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сесія не змінила жодного файлу"
+          }
+        }
+      }
+    },
+    "Sesja: %@, katalog: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session: %@, folder: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitzung: %@, Ordner: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesión: %@, carpeta: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сеанс: %@, тека: %@"
           }
         }
       }
