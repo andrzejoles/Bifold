@@ -1,5 +1,7 @@
+import BifoldBridgeKit
 import BifoldCore
 import BifoldWorkspace
+import CryptoKit
 import Foundation
 import MCP
 import Observation
@@ -9,10 +11,34 @@ public struct ApprovalRequest: Sendable, Identifiable {
     public let id = UUID()
     public let sessionID: String
     public let agent: AgentKind
+    /// Katalog roboczy sesji (pokazywany w oknie zgody razem z identyfikatorem sesji).
+    public let directory: VFSPath
     public let command: CommandID
     public let title: String
     public let preview: EffectPreview
     public let arguments: CommandArguments
+}
+
+/// Tekst do okna zatwierdzania: znaki sterujące (C0, DEL, C1), znaki kierunku pisma (bidi, np.
+/// U+202E), znaki zerowej szerokości i separatory wierszy w nazwach od agenta pokazywane jako
+/// `\u{…}` — nazwa pliku nie może udawać innej ścieżki ani dopisać fałszywych wierszy podglądu.
+public enum ApprovalText {
+    static func isDeceptive(_ v: UInt32) -> Bool {
+        v < 0x20 || (0x7F...0x9F).contains(v) || v == 0x061C || (0x200B...0x200F).contains(v)
+            || (0x2028...0x202E).contains(v) || (0x2060...0x2069).contains(v) || v == 0xFEFF
+    }
+
+    public static func sanitize(_ text: String) -> String {
+        var out = ""
+        for scalar in text.unicodeScalars {
+            if isDeceptive(scalar.value) {
+                out += "\\u{" + String(scalar.value, radix: 16, uppercase: true) + "}"
+            } else {
+                out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
+    }
 }
 
 /// Interfejs okna zatwierdzania (aplikacja) albo atrapa w testach.
@@ -57,12 +83,20 @@ public final class AgentController: AgentInvocationGate {
     public private(set) var pending: [ApprovalRequest] = []
     public private(set) var sessions: [AgentSessionInfo] = []
     public private(set) var connectionEvents: [ConnectionEvent] = []
+    /// Błąd startu serwera gniazda (pokazywany w panelu agenta).
     public private(set) var serverError: String?
     @ObservationIgnored private var server: AgentServer?
     @ObservationIgnored private let limiter = RateLimiter()
     @ObservationIgnored let log: AgentLog
     @ObservationIgnored private var mcpServers: [String: [Server]] = [:]
     @ObservationIgnored public let socketURL: URL
+    /// Bramka jednej sesji naraz: kolejne wywołania tej samej sesji czekają, aż poprzednie zostanie
+    /// sprawdzone (i zatwierdzone) — agent nie zmieni stanu paneli w trakcie otwartego okna zgody.
+    @ObservationIgnored private var gateBusy: Set<String> = []
+    @ObservationIgnored private var gateWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    /// Największa odpowiedź narzędzia (z zapasem na kopertę JSON-RPC w ramce 4 MB).
+    static let maxResponseBytes = Wire.maxFrame - 64 * 1024
 
     public init(workspace: Workspace, socketURL: URL? = nil, logDirectory: URL? = nil) {
         self.workspace = workspace
@@ -84,13 +118,17 @@ public final class AgentController: AgentInvocationGate {
         let server = AgentServer(
             socketURL: socketURL, registry: registry,
             onAccept: { [weak self] fd, session in
-                Task { @MainActor in self?.serve(fd: fd, session: session) }
+                Task { @MainActor in
+                    guard let self else { close(fd); return }
+                    self.serve(fd: fd, session: session)
+                }
             },
             onEvent: { [weak self] event in
                 Task { @MainActor in self?.record(event) }
             })
         do {
             try server.start()
+            serverError = nil
         } catch {
             serverError = "\(error)"
             throw error
@@ -121,6 +159,8 @@ public final class AgentController: AgentInvocationGate {
         mcpServers[id] = nil
         sessions.removeAll { $0.id == id }
         pending.removeAll { $0.sessionID == id }
+        // Wywołania czekające na bramkę tej sesji kończą się błędem session_closed.
+        releaseGate(id)
         log.write(session: session, ["event": "session_end"])
     }
 
@@ -129,22 +169,41 @@ public final class AgentController: AgentInvocationGate {
         if connectionEvents.count > 200 { connectionEvents.removeFirst(connectionEvents.count - 200) }
         switch event {
         case let .accepted(id, pid):
-            if let i = sessions.firstIndex(where: { $0.id == id }) { sessions[i].connected = true }
             log.writeGlobal(["event": "connection_accepted", "session": .string(id), "pid": .int(Int64(pid))])
         case let .rejected(reason, pid):
             log.writeGlobal(["event": "connection_rejected", "reason": .string(reason), "pid": pid.map { .int(Int64($0)) } ?? .null])
         }
     }
 
+    private func updateConnected(_ sessionID: String) {
+        if let i = sessions.firstIndex(where: { $0.id == sessionID }) {
+            sessions[i].connected = !(mcpServers[sessionID] ?? []).isEmpty
+        }
+    }
+
     // MARK: MCP
 
     private func serve(fd: Int32, session: AgentSession) {
+        // Sesja mogła zostać zamknięta między uwierzytelnieniem (wątek gniazda) a tą chwilą.
+        guard registry.session(session.id) != nil else {
+            close(fd)
+            return
+        }
         let server = Server(
             name: "bifold", version: "1.0",
             instructions: Self.instructions,
             capabilities: .init(tools: .init(listChanged: false)))
-        mcpServers[session.id, default: []].append(server)
         let sessionID = session.id
+        mcpServers[sessionID, default: []].append(server)
+        updateConnected(sessionID)
+        // Rozłączenie mostu: deskryptor zamyka transport (po zakończeniu wątku czytającego),
+        // serwer MCP znika z listy sesji.
+        let transport = SocketTransport(fd: fd) { [weak self, weak server] in
+            Task { @MainActor in
+                guard let self, let server else { return }
+                self.connectionClosed(server, sessionID: sessionID)
+            }
+        }
         Task { [weak self] in
             await server.withMethodHandler(ListTools.self) { [weak self] _ in
                 await MainActor.run {
@@ -156,10 +215,25 @@ public final class AgentController: AgentInvocationGate {
                 guard let self else { return CallTool.Result(content: [.text(text: "session_closed", annotations: nil, _meta: nil)], isError: true) }
                 return await self.callTool(params.name, arguments: params.arguments ?? [:], sessionID: sessionID)
             }
-            let transport = SocketTransport(fd: fd)
-            try? await server.start(transport: transport)
+            do {
+                try await server.start(transport: transport)
+            } catch {
+                await transport.disconnect()
+                await MainActor.run { self?.connectionClosed(server, sessionID: sessionID) }
+            }
         }
     }
+
+    private func connectionClosed(_ server: Server, sessionID: String) {
+        guard var list = mcpServers[sessionID], let i = list.firstIndex(where: { $0 === server }) else { return }
+        list.remove(at: i)
+        mcpServers[sessionID] = list.isEmpty ? nil : list
+        updateConnected(sessionID)
+        Task { await server.stop() }
+    }
+
+    /// Liczba aktywnych połączeń MCP sesji (testy wycieków).
+    func connectionCount(_ sessionID: String) -> Int { mcpServers[sessionID]?.count ?? 0 }
 
     static let instructions = """
     Bifold to dwupanelowy menedżer plików. Narzędzia działają na stanie aplikacji (panele, karty, zaznaczenie) \
@@ -168,6 +242,24 @@ public final class AgentController: AgentInvocationGate {
     Niektóre ścieżki (klucze, hasła, profile przeglądarek) są zablokowane.
     """
 
+    /// Komendy, których wynik zawiera dane z plików (treść, nazwy, ścieżki) — w dzienniku tylko rozmiar i skrót.
+    static let fileDataCommands: Set<CommandID> = [
+        "agent.state", "agent.selection", "agent.list", "agent.fileInfo", "agent.readFile",
+        "search.find", "search.spotlight", "search.runSaved", "search.duplicates",
+        "file.compare", "dirs.compare", "remote.list", "remote.read", "remote.search", "archive.list",
+        "sync.preview", "file.checksumCreate", "file.checksumVerify", "selection.calculateSizes",
+    ]
+
+    /// Wpis wyniku do dziennika: treść plików nigdy nie trafia do JSONL, tylko rozmiar i SHA-256.
+    static func logFields(result text: String, command: CommandID) -> [String: JSONValue] {
+        let data = Data(text.utf8)
+        if fileDataCommands.contains(command) || text.contains("\"untrusted\"") {
+            let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            return ["resultBytes": .int(Int64(data.count)), "resultSHA256": .string(digest)]
+        }
+        return ["result": .string(String(text.prefix(2000)))]
+    }
+
     /// Wywołanie narzędzia MCP (także z testów bez gniazda).
     public func callTool(_ name: String, arguments raw: [String: Value], sessionID: String) async -> CallTool.Result {
         let started = Date()
@@ -175,9 +267,32 @@ public final class AgentController: AgentInvocationGate {
         // Klucze wewnętrzne („__…”) może ustawić tylko aplikacja.
         for key in args.values.keys where key.hasPrefix("__") { args[key] = nil }
 
+        var activity = AgentActivity(sessionID: sessionID, tool: name, arguments: Self.summarize(args), started: started, status: .running)
+        activities.append(activity)
+        if activities.count > 500 { activities.removeFirst(activities.count - 500) }
+        let activityID = activity.id
+        let index: () -> Int? = { [weak self] in self?.activities.lastIndex { $0.id == activityID } }
+        let session = registry.session(sessionID)
+
+        /// Każde wywołanie — także odrzucone przed bramką — trafia do dziennika i kończy wpis aktywności.
+        func finish(_ status: AgentActivity.Status, command: CommandID?, _ fields: [String: JSONValue]) {
+            activity.status = status
+            activity.duration = Date().timeIntervalSince(started)
+            if let i = index() { activities[i] = activity }
+            var f: [String: JSONValue] = ["tool": .string(name), "arguments": .string(activity.arguments), "ms": .int(Int64(activity.duration! * 1000))]
+            if let command { f["command"] = .string(command.rawValue) }
+            for (k, v) in fields { f[k] = v }
+            if let session { log.write(session: session, f) } else { f["session"] = .string(sessionID); log.writeGlobal(f) }
+        }
+        func fail(_ code: String, _ message: String, command: CommandID? = nil) -> CallTool.Result {
+            finish(.denied(code), command: command, ["decision": .string(code)])
+            return error(message)
+        }
+
+        guard session != nil else { return fail("session_closed", "session_closed") }
         let commandID: CommandID
         if name == ToolCatalog.runCommand {
-            guard let id = args.string("command") else { return error("missing_argument: command") }
+            guard let id = args.string("command") else { return fail("missing_argument", "missing_argument: command") }
             commandID = CommandID(rawValue: id)
             var inner = CommandArguments(args["arguments"]?.objectValue ?? [:])
             for key in inner.values.keys where key.hasPrefix("__") { inner[key] = nil }
@@ -187,36 +302,23 @@ public final class AgentController: AgentInvocationGate {
             commandID = entry.command
             for (k, v) in entry.fixed { args[k] = v }
         } else {
-            return error("unknown_tool: \(name)")
+            return fail("unknown_tool", "unknown_tool: \(name)")
         }
 
-        var activity = AgentActivity(sessionID: sessionID, tool: name, arguments: Self.summarize(args), started: started, status: .running)
-        activities.append(activity)
-        if activities.count > 500 { activities.removeFirst(activities.count - 500) }
-        let activityID = activity.id
-        let index: () -> Int? = { [weak self] in self?.activities.lastIndex { $0.id == activityID } }
-
-        guard let session = registry.session(sessionID) else { return error("session_closed") }
         do {
-            let result = try await workspace.invoke(commandID, args, invoker: session.invoker)
+            let result = try await workspace.invoke(commandID, args, invoker: session!.invoker)
             let text = result.value.map { $0.description } ?? result.message ?? "ok"
-            activity.status = .succeeded
+            // Odpowiedź większa niż ramka zabiłaby most — czytelny błąd zamiast rozłączenia.
+            if text.utf8.count > Self.maxResponseBytes {
+                return fail("too_large", "too_large: odpowiedź ma \(text.utf8.count) B (limit \(Self.maxResponseBytes) B) — zawęź zapytanie (limit, offset, maxResults)", command: commandID)
+            }
             activity.result = String(text.prefix(300))
-            activity.duration = Date().timeIntervalSince(started)
-            if let i = index() { activities[i] = activity }
-            log.write(session: session, ["tool": .string(name), "command": .string(commandID.rawValue), "arguments": .string(activity.arguments), "decision": "allowed", "result": .string(String(text.prefix(2000))), "ms": .int(Int64(activity.duration! * 1000))])
+            finish(.succeeded, command: commandID, ["decision": "allowed"].merging(Self.logFields(result: text, command: commandID)) { a, _ in a })
             return CallTool.Result(content: [.text(text: text, annotations: nil, _meta: nil)], isError: false)
         } catch let denial as AgentDenial {
-            activity.status = .denied(denial.code)
-            activity.duration = Date().timeIntervalSince(started)
-            if let i = index() { activities[i] = activity }
-            log.write(session: session, ["tool": .string(name), "command": .string(commandID.rawValue), "arguments": .string(activity.arguments), "decision": .string(denial.code)])
-            return error(denial.localizedDescription)
+            return fail(denial.code, denial.localizedDescription, command: commandID)
         } catch {
-            activity.status = .failed(error.localizedDescription)
-            activity.duration = Date().timeIntervalSince(started)
-            if let i = index() { activities[i] = activity }
-            log.write(session: session, ["tool": .string(name), "command": .string(commandID.rawValue), "arguments": .string(activity.arguments), "decision": "allowed", "error": .string(error.localizedDescription)])
+            finish(.failed(error.localizedDescription), command: commandID, ["decision": "allowed", "error": .string(error.localizedDescription)])
             return self.error(error.localizedDescription)
         }
     }
@@ -232,86 +334,86 @@ public final class AgentController: AgentInvocationGate {
 
     // MARK: AgentInvocationGate
 
+    private func acquireGate(_ sessionID: String) async {
+        while gateBusy.contains(sessionID) {
+            await withCheckedContinuation { gateWaiters[sessionID, default: []].append($0) }
+        }
+        gateBusy.insert(sessionID)
+    }
+
+    private func releaseGate(_ sessionID: String) {
+        gateBusy.remove(sessionID)
+        for w in gateWaiters.removeValue(forKey: sessionID) ?? [] { w.resume() }
+    }
+
     public func authorize(_ command: Command, context: CommandContext) async throws {
-        guard let sessionID = context.invoker.agentSessionID, let session = registry.session(sessionID) else {
+        _ = try await authorizeFrozen(command, context: context)
+    }
+
+    public func authorizeFrozen(_ command: Command, context: CommandContext) async throws -> CommandArguments {
+        guard let sessionID = context.invoker.agentSessionID, registry.session(sessionID) != nil else {
             throw AgentDenial.sessionClosed
         }
+        await acquireGate(sessionID)
+        defer { releaseGate(sessionID) }
+        // Sesja mogła się zakończyć, gdy wywołanie czekało na bramkę.
+        guard let session = registry.session(sessionID) else { throw AgentDenial.sessionClosed }
         let settings = workspace.settings.agent
         guard limiter.allow(session: sessionID, limit: settings.callsPerMinute) else { throw AgentDenial.rateLimited }
         let via = context.arguments[ToolCatalog.viaRunCommandKey]?.boolValue == true
         let level = AgentPolicy.effectiveAccess(command: command.descriptor, session: session, settings: settings, viaRunCommand: via)
 
-        // Zasoby: ścieżki jawne i domyślne (zaznaczenie, drugi panel). Zablokowana ścieżka = poziom „Brak”.
-        let blocked = BlockedPaths(settings.blockedPaths)
-        var effective = level
-        for path in try resourcePaths(command.descriptor, context) {
-            if AgentPolicy.resourceAccess(path, blocked: blocked) == .none { throw AgentDenial.blockedPath(path.path) }
-            // Zasada najmniejszego poziomu: serwery tylko do odczytu, FTP za zgodą, udziały sieciowe do odczytu.
-            effective = min(effective, workspace.resourceAccess(path))
-        }
-        if effective == .none { throw AgentDenial.permissionDenied("zasób niedostępny dla agenta") }
+        // Zamrożenie: ścieżki względne i cele domyślne → ścieżki absolutne (te same dla bramki,
+        // podglądu i komendy).
+        let call = try ArgumentFreezer(workspace: workspace, blocked: BlockedPaths(for: workspace)).freeze(command.descriptor, context.arguments)
+        var decision = try decide(command.descriptor, level: level, call: call)
+        guard decision == .needsApproval else { return call.arguments }
 
-        switch AgentPolicy.decide(level: effective, effect: command.descriptor.effect) {
-        case .allow:
-            return
-        case .deny(let why):
-            throw AgentDenial.permissionDenied(why)
-        case .needsApproval:
-            let preview = try await workspace.preview(command.id, context.arguments, invoker: context.invoker)
-            let request = ApprovalRequest(
-                sessionID: sessionID, agent: session.kind, command: command.id, title: command.descriptor.title,
-                preview: preview, arguments: context.arguments)
-            pending.append(request)
-            if let i = activities.lastIndex(where: { $0.sessionID == sessionID && $0.status == .running }) {
-                activities[i].status = .waitingForApproval
-            }
-            defer { pending.removeAll { $0.id == request.id } }
-            guard let approvals else { throw AgentDenial.rejectedByUser }
-            let approved = await approvals.requestApproval(request)
-            log.write(session: session, ["approval": .string(command.id.rawValue), "approved": .bool(approved), "preview": .string(preview.summary)])
-            if let i = activities.lastIndex(where: { $0.sessionID == sessionID && $0.status == .waitingForApproval }) {
-                activities[i].status = .running
-            }
-            guard approved, registry.session(sessionID) != nil else { throw AgentDenial.rejectedByUser }
+        let before = PanelFingerprint(workspace, selection: call.liveSelection)
+        let preview = try await workspace.preview(command.id, call.arguments, invoker: context.invoker)
+        let request = ApprovalRequest(
+            sessionID: sessionID, agent: session.kind, directory: session.directory, command: command.id,
+            title: command.descriptor.title, preview: preview, arguments: call.arguments)
+        pending.append(request)
+        if let i = activities.lastIndex(where: { $0.sessionID == sessionID && $0.status == .running }) {
+            activities[i].status = .waitingForApproval
         }
+        defer { pending.removeAll { $0.id == request.id } }
+        guard let approvals else { throw AgentDenial.rejectedByUser }
+        let approved = await approvals.requestApproval(request)
+        log.write(session: session, ["approval": .string(command.id.rawValue), "approved": .bool(approved), "preview": .string(preview.summary)])
+        if let i = activities.lastIndex(where: { $0.sessionID == sessionID && $0.status == .waitingForApproval }) {
+            activities[i].status = .running
+        }
+        guard approved, registry.session(sessionID) != nil else { throw AgentDenial.rejectedByUser }
+
+        // Po zgodzie: blokady jeszcze raz (lista mogła się zmienić w trakcie) i stan, z którego
+        // komenda nadal czyta na żywo.
+        decision = try decide(command.descriptor, level: level, call: call)
+        if case .deny(let why) = decision { throw AgentDenial.permissionDenied(why) }
+        if (call.livePaths || call.liveSelection), PanelFingerprint(workspace, selection: call.liveSelection) != before {
+            throw AgentDenial.stateChanged
+        }
+        if let job = call.savedSyncJob, workspace.syncJobs.first(where: { $0.name == job.name }) != job {
+            throw AgentDenial.stateChanged
+        }
+        return call.arguments
     }
 
-    /// Ścieżki, których dotyczy wywołanie (do sprawdzenia listy zablokowanych).
-    func resourcePaths(_ d: CommandDescriptor, _ ctx: CommandContext) throws -> [VFSPath] {
-        let base = ctx.tab.path
-        var paths: [VFSPath] = []
-        let parse = { (raw: String) in self.workspace.parsePath(raw, relativeTo: base) }
-        for p in d.parameters {
-            switch p.type {
-            case .path:
-                if let v = ctx.arguments.string(p.name) { paths.append(parse(v)) }
-            case .paths where p.name == "paths" || p.name == "names":
-                paths += (ctx.arguments.strings(p.name) ?? []).map(parse)
-            default:
-                break
-            }
+    /// Poziom wywołania po zasadzie najmniejszego poziomu (komenda, sesja, ustawienia, każdy zasób).
+    private func decide(_ d: CommandDescriptor, level: AgentAccess, call: FrozenCall) throws -> AgentPolicy.Decision {
+        let blocked = BlockedPaths(for: workspace)
+        var effective = level
+        for r in call.resources {
+            if blocked.isBlocked(r.path) { throw AgentDenial.blockedPath(r.path.path) }
+            if r.subtree, blocked.containsBlocked(r.path) { throw AgentDenial.blockedSubtree(r.path.path) }
+            // Zasada najmniejszego poziomu: serwery tylko do odczytu, FTP za zgodą, udziały sieciowe do odczytu.
+            effective = min(effective, workspace.resourceAccess(r.path))
         }
-        // Narzędzia serwerowe: alias + ścieżka.
-        if let alias = ctx.arguments.string("alias") {
-            paths.append(VFSPath(provider: RemoteFS.providerID(alias), path: ctx.arguments.string("path") ?? "/"))
-        }
-        if ["file.mkdir", "file.newFile"].contains(d.id), let name = ctx.arguments.string("name") {
-            paths.append(resolvePath(name, relativeTo: base))
-        }
-        if d.id == "file.rename", let name = ctx.arguments.string("newName"), let parent = (ctx.arguments.path("path", relativeTo: base) ?? ctx.tab.cursorItem?.path)?.parent {
-            paths.append(resolvePath(name, relativeTo: parent))
-        }
-        // Domyślne cele: zaznaczenie/kursor oraz katalog drugiego panelu.
-        let usesTargets = d.parameters.contains { $0.name == "paths" } && ctx.arguments["paths"] == nil
-        if usesTargets || d.id == "file.rename" && ctx.arguments["path"] == nil {
-            paths += (try? ctx.targets(allowEmpty: true).map(\.path)) ?? []
-        }
-        if ["file.copy", "file.move"].contains(d.id), ctx.arguments["destination"] == nil {
-            paths.append(ctx.otherTab.path)
-        }
-        // Bieżący katalog liczy się tylko, gdy komenda z niego korzysta (zaznaczenie, nowy element).
-        if usesTargets || ["file.mkdir", "file.newFile", "agent.selection"].contains(d.id) { paths.append(base) }
-        return paths
+        if effective == .none { throw AgentDenial.permissionDenied("zasób niedostępny dla agenta") }
+        let decision = AgentPolicy.decide(level: effective, effect: d.effect)
+        if case .deny(let why) = decision { throw AgentDenial.permissionDenied(why) }
+        return decision
     }
 }
 
@@ -360,9 +462,4 @@ final class AgentLog: Sendable {
     }
 
     func flush() { queue.sync {} }
-
-    /// Wpisy sesji (przeglądarka dziennika).
-    func entries(sessionFile url: URL) -> [String] {
-        (try? String(contentsOf: url, encoding: .utf8))?.split(separator: "\n").map(String.init) ?? []
-    }
 }

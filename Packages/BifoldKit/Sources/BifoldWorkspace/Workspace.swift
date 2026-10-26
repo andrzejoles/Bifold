@@ -7,6 +7,17 @@ import Observation
 @MainActor
 public protocol AgentInvocationGate: AnyObject {
     func authorize(_ command: Command, context: CommandContext) async throws
+    /// Jak `authorize`, ale zwraca argumenty „zamrożone” przez bramkę (ścieżki absolutne, cele
+    /// domyślne rozwinięte) — komenda wykonuje się dokładnie z nimi, a nie ze stanem paneli
+    /// z chwili po zatwierdzeniu.
+    func authorizeFrozen(_ command: Command, context: CommandContext) async throws -> CommandArguments
+}
+
+extension AgentInvocationGate {
+    public func authorizeFrozen(_ command: Command, context: CommandContext) async throws -> CommandArguments {
+        try await authorize(command, context: context)
+        return context.arguments
+    }
 }
 
 /// Cały stan aplikacji: dwa panele z kartami, ustawienia, kolejka i dziennik operacji,
@@ -264,12 +275,13 @@ public final class Workspace {
     @discardableResult
     public func invoke(_ id: CommandID, _ arguments: CommandArguments = .empty, invoker: Invoker = .user) async throws -> CommandResult {
         guard let command = registry.command(id) else { throw CommandError.unknownCommand(id) }
-        let context = CommandContext(workspace: self, invoker: invoker, arguments: arguments)
+        var context = CommandContext(workspace: self, invoker: invoker, arguments: arguments)
         let started = Date()
         do {
             if invoker.isAgent {
                 guard let agentGate else { throw CommandError.notAvailable(L10n.tr("API agenta jest wyłączone")) }
-                try await agentGate.authorize(command, context: context)
+                let frozen = try await agentGate.authorizeFrozen(command, context: context)
+                context = CommandContext(workspace: self, invoker: invoker, arguments: frozen)
             }
             let result = try await command.run(context)
             notify(CommandInvocationRecord(command: id, arguments: arguments, invoker: invoker, started: started, outcome: .success(result.message)))

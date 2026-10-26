@@ -102,3 +102,70 @@ public enum JSONStore {
         chmod(url.path, 0o600)
     }
 }
+
+/// Zablokowane ścieżki i normalizacja ścieżek od agenta (SECURITY.md §4.5).
+public struct BlockedPaths: Sendable {
+    private let prefixes: [[String]]
+
+    public init(_ patterns: [String], home: String = NSHomeDirectory()) {
+        var all: [[String]] = []
+        for p in patterns {
+            let expanded = VFSPath.normalize(expandTilde(p, home: home))
+            all.append(Self.components(expanded))
+            // Także postać rzeczywista (dowiązania, /private/…).
+            if let real = realPath(expanded), real != expanded { all.append(Self.components(real)) }
+        }
+        prefixes = all.filter { !$0.isEmpty }
+    }
+
+    /// Lista blokad agenta: z ustawień oraz katalog danych aplikacji wyznaczony w czasie działania
+    /// (także przy `BIFOLD_DATA_DIR` albo innej nazwie aplikacji — `connections.json`, dzienniki
+    /// i gniazdo nigdy nie są dostępne dla agenta).
+    @MainActor
+    public init(for workspace: Workspace) {
+        self.init(workspace.settings.agent.blockedPaths + [workspace.paths.root.path(percentEncoded: false)])
+    }
+
+    static func components(_ path: String) -> [String] {
+        path.split(separator: "/").map { $0.lowercased() }
+    }
+
+    /// Ścieżka rzeczywista: `~`, `.`, `..` i dowiązania symboliczne najdłuższego istniejącego
+    /// prefiksu rozwiązane — żeby „~/x/../.ssh” albo dowiązanie do ~/.ssh nie omijały blokady.
+    public static func canonical(_ path: String, home: String = NSHomeDirectory()) -> String {
+        let normalized = VFSPath.normalize(expandTilde(path, home: home))
+        var existing = normalized
+        var rest: [String] = []
+        while realPath(existing) == nil, existing != "/" {
+            rest.insert((existing as NSString).lastPathComponent, at: 0)
+            existing = (existing as NSString).deletingLastPathComponent
+        }
+        let base = realPath(existing) ?? existing
+        return VFSPath.normalize(([base] + rest).joined(separator: "/"))
+    }
+
+    private func candidates(_ path: String) -> [[String]] {
+        Set([VFSPath.normalize(expandTilde(path)), Self.canonical(path)]).map(Self.components)
+    }
+
+    public func isBlocked(_ path: String) -> Bool {
+        candidates(path).contains { comps in
+            prefixes.contains { prefix in comps.count >= prefix.count && Array(comps.prefix(prefix.count)) == prefix }
+        }
+    }
+
+    public func isBlocked(_ path: VFSPath) -> Bool {
+        path.isLocal && isBlocked(path.path)
+    }
+
+    /// Czy w poddrzewie `path` leży zablokowana ścieżka (`path` jest nią albo jej przodkiem).
+    /// Operacja rekurencyjna agenta na takim katalogu (kopiowanie, przenoszenie, Kosz, archiwum,
+    /// synchronizacja) ominęłaby blokadę.
+    public func containsBlocked(_ path: VFSPath) -> Bool {
+        guard path.isLocal else { return false }
+        if isBlocked(path) { return true }
+        return candidates(path.path).contains { comps in
+            prefixes.contains { prefix in prefix.count > comps.count && Array(prefix.prefix(comps.count)) == comps }
+        }
+    }
+}

@@ -61,4 +61,38 @@ import Testing
         #expect(crossErr && cross.contains("permission_denied"), "\(cross)")
         #expect(!sftp.root.exists("logi/plik.txt"))
     }
+
+    /// Synchronizacja z domyślnymi końcami (drugi panel na SFTP) i zapisane zadanie z celem SFTP
+    /// podlegają zasadzie najmniejszego poziomu — zapis na SFTP jest dla agenta zabroniony nawet za zgodą.
+    @Test func syncToReadOnlyServerIsDenied() async throws {
+        let env = try await AgentEnv()
+        defer { env.shutdown(); env.workspace.remotes.stop() }
+        let sftp = try TestServer("sftp")
+        try sftp.root.file("logi/app.log", "linia")
+        // Katalog źródłowy bez katalogu danych testu (.support — zablokowany jak dane aplikacji).
+        try env.tmp.file("src/lokalny.txt", "L")
+        try await env.workspace.left.activeTab.navigate(to: env.tmp.path.appending("src"))
+        let remotes = env.workspace.remotes!
+        try remotes.save(RemoteConnection(alias: "prod-logi", kind: .sftp, host: "127.0.0.1", port: sftp.port, user: "u"), secret: "tajne")
+        defer { remotes.keychain.delete("prod-logi") }
+        let (session, _) = env.session()
+        env.approver.answer = true
+
+        // Drugi panel na serwerze, synchronizacja bez jawnych końców.
+        let (nav, navErr) = await call(env, session, "navigate", ["path": "prod-logi:/logi", "side": "right"])
+        #expect(!navErr, "\(nav)")
+        env.workspace.activeSide = .left
+        #expect(RemoteFS.alias(of: env.workspace.otherTab.path) == "prod-logi")
+        let (run, runErr) = await call(env, session, "sync_run", ["mode": "mirror"])
+        #expect(runErr && run.contains("permission_denied"), "\(run)")
+        #expect(env.approver.requests.isEmpty)
+
+        // Zapisane zadanie (np. przez użytkownika) z celem na SFTP.
+        env.workspace.syncJobs = [SyncJob(name: "na-serwer", source: env.tmp.url.path + "/src", destination: "prod-logi:/logi", mode: .mirror)]
+        let (saved, savedErr) = await call(env, session, "sync_job_run", ["name": "na-serwer"])
+        #expect(savedErr && saved.contains("permission_denied"), "\(saved)")
+        #expect(env.approver.requests.isEmpty)
+        #expect(!sftp.root.exists("logi/lokalny.txt"))
+        #expect(sftp.root.exists("logi/app.log"))
+    }
 }

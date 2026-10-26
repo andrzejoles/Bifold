@@ -16,15 +16,14 @@ public enum Wire {
         case timeout
     }
 
+    /// Pierwsza ramka mostu. PID mostu aplikacja bierze z jądra (`LOCAL_PEERPID`), nie z ramki.
     public struct Hello: Codable, Sendable, Equatable {
         public var type = "hello"
         public var token: String
-        public var pid: Int32
         public var version: Int
 
-        public init(token: String, pid: Int32, version: Int = Wire.protocolVersion) {
+        public init(token: String, version: Int = Wire.protocolVersion) {
             self.token = token
-            self.pid = pid
             self.version = version
         }
     }
@@ -44,8 +43,9 @@ public enum Wire {
         return out
     }
 
-    /// Zapis ramki (blokujący).
+    /// Zapis ramki (blokujący). Ramka ponad limit nie jest wysyłana — odbiorca i tak by się rozłączył.
     public static func writeFrame(_ payload: Data, to fd: Int32) throws {
+        guard payload.count <= maxFrame else { throw Error.frameTooLarge(payload.count) }
         try writeAll(encode(payload), to: fd)
     }
 
@@ -65,18 +65,23 @@ public enum Wire {
     }
 
     /// Odczyt ramki (blokujący). `Error.closed` przy końcu strumienia.
-    public static func readFrame(from fd: Int32) throws -> Data {
-        let header = try readExactly(4, from: fd)
+    /// - Parameters:
+    ///   - maxLength: limit długości sprawdzany na nagłówku, przed przydzieleniem pamięci
+    ///   - deadline: bezwzględny termin całej ramki (`Error.timeout`) — powolne sączenie bajtów
+    ///     nie przedłuża go, w przeciwieństwie do `SO_RCVTIMEO` liczonego dla każdego `read`.
+    public static func readFrame(from fd: Int32, maxLength: Int = maxFrame, deadline: ContinuousClock.Instant? = nil) throws -> Data {
+        let header = try readExactly(4, from: fd, deadline: deadline)
         let length = Int(header.withUnsafeBytes { UInt32(bigEndian: $0.loadUnaligned(as: UInt32.self)) })
-        guard length <= maxFrame else { throw Error.frameTooLarge(length) }
-        return try readExactly(length, from: fd)
+        guard length <= min(maxLength, maxFrame) else { throw Error.frameTooLarge(length) }
+        return try readExactly(length, from: fd, deadline: deadline)
     }
 
-    static func readExactly(_ count: Int, from fd: Int32) throws -> Data {
+    static func readExactly(_ count: Int, from fd: Int32, deadline: ContinuousClock.Instant? = nil) throws -> Data {
         var data = Data(count: count)
         var offset = 0
         try data.withUnsafeMutableBytes { buf in
             while offset < count {
+                if let deadline { try waitReadable(fd, until: deadline) }
                 let n = Darwin.read(fd, buf.baseAddress! + offset, count - offset)
                 if n == 0 { throw Error.closed }
                 if n < 0 {
@@ -88,6 +93,20 @@ public enum Wire {
             }
         }
         return data
+    }
+
+    /// Czeka (poll), aż gniazdo będzie miało dane, najdłużej do terminu.
+    static func waitReadable(_ fd: Int32, until deadline: ContinuousClock.Instant) throws {
+        while true {
+            let left = ContinuousClock.now.duration(to: deadline)
+            guard left > .zero else { throw Error.timeout }
+            let ms = Int32(clamping: max(1, left.components.seconds * 1000 + left.components.attoseconds / 1_000_000_000_000_000))
+            var p = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            let r = poll(&p, 1, ms)
+            if r > 0 { return }
+            if r == 0 { throw Error.timeout }
+            if errno != EINTR { throw Error.io(errno) }
+        }
     }
 
     /// Ustawia limit czasu odczytu gniazda (0 = bez limitu).
