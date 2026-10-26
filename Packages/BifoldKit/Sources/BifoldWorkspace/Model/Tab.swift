@@ -184,6 +184,9 @@ public final class Tab: Identifiable {
         guard isCurrent() else { return false }
         volume = info
         startWatching(provider)
+        // Także po ustawieniu kursora: odświeżenie rozpoczęte w trakcie tej nawigacji zapamiętało kursor
+        // sprzed niej i nie może go przywrócić.
+        if !isReload { appliedNavigations += 1 }
         return true
     }
 
@@ -290,10 +293,16 @@ public final class Tab: Identifiable {
         }
     }
 
-    /// Przelicza od razu i czeka na wynik (po wczytaniu katalogu, w testach).
+    /// Przelicza od razu i czeka na wynik (po wczytaniu katalogu, w testach). Gdy w trakcie ktoś inny
+    /// zlecił przeliczenie (np. odświeżenie z FSEvents), czeka na nowsze — inaczej wołający ustawiałby
+    /// kursor według nieaktualnej listy (np. na „..” w katalogu, który był pusty).
     public func processNow() async {
         reprocess()
-        await processTask?.value
+        while true {
+            let started = processGeneration
+            await processTask?.value
+            if started == processGeneration { break }
+        }
     }
 
     private func apply(_ result: [FileItem]) {
