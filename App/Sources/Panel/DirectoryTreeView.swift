@@ -96,6 +96,9 @@ final class DirectoryTreeView: NSView {
     /// Rozwija drzewo do podanej ścieżki i zaznacza ją.
     /// - Parameter refresh: poziomy na ścieżce są wczytywane ponownie (nowe lub usunięte katalogi).
     func reveal(_ path: VFSPath, refresh: Bool = true) {
+        // Nowe odsłanianie zastępuje odłożone — inaczej wczytany później poziom zaznaczyłby katalog,
+        // którego panel już nie pokazuje (także gdy drzewo jest ukryte albo ścieżka spoza korzeni).
+        pendingReveal = nil
         guard !isHidden else { return }
         let root = roots.filter { path.isDescendant(of: $0.path) }.max { $0.path.components.count < $1.path.components.count }
         guard var node = root else { return }

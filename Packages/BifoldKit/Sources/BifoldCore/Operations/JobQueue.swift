@@ -116,6 +116,11 @@ public final class JobQueue {
         jobs.removeAll { $0.state.isFinished }
     }
 
+    /// Usuwa z kolejki jedno zadanie, jeśli jest zakończone (trwające i oczekujące zostają).
+    public func remove(_ id: UUID) {
+        jobs.removeAll { $0.id == id && $0.state.isFinished }
+    }
+
     public func job(_ id: UUID) -> Job? { jobs.first { $0.id == id } }
 
     /// Czeka na zakończenie zadania (agent, testy).

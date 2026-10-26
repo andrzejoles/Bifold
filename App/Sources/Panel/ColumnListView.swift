@@ -13,6 +13,8 @@ final class ColumnListView: NSView, FileListView {
     private let root = BrowserNode(path: .root, name: "/", isDirectory: true)
     private var tab: Tab?
     private var programmatic = false
+    /// Ścieżka, dla której ostatnio zwolniono poziomy spoza bieżącej ścieżki.
+    private var prunedFor: VFSPath?
     private var keyMonitor: Any?
 
     init(workspace: Workspace) {
@@ -71,11 +73,37 @@ final class ColumnListView: NSView, FileListView {
             root.invalidate()
         }
         syncCursor(tab)
+        if prunedFor != tab.path {
+            prunedFor = tab.path
+            prune(tab)
+        }
+    }
+
+    /// Zwalnia wczytane poziomy katalogów spoza bieżącej ścieżki (i spoza kolumn, które przeglądarka
+    /// jeszcze pokazuje) — inaczej każdy odwiedzony katalog zostawałby w pamięci, a każde odświeżenie
+    /// przechodziło całe drzewo.
+    private func prune(_ tab: Tab) {
+        var keep = Set<VFSPath>()
+        func keepWithAncestors(_ path: VFSPath) {
+            var current: VFSPath? = path
+            while let p = current, keep.insert(p).inserted { current = p.parent }
+        }
+        keepWithAncestors(cursorTarget(tab))
+        keepWithAncestors(tab.path)
+        if browser.lastColumn >= 1 {
+            for column in 1...browser.lastColumn {
+                if let node = browser.parentForItems(inColumn: column) as? BrowserNode { keepWithAncestors(node.path) }
+            }
+        }
+        root.prune(keeping: keep)
+    }
+
+    private func cursorTarget(_ tab: Tab) -> VFSPath {
+        tab.cursorItem.flatMap { $0.isParentLink ? nil : $0.path } ?? tab.path
     }
 
     func syncCursor(_ tab: Tab) {
-        let target = tab.cursorItem.flatMap { $0.isParentLink ? nil : $0.path } ?? tab.path
-        let comps = target.components
+        let comps = cursorTarget(tab).components
         programmatic = true
         defer { programmatic = false }
         var node = root
@@ -98,7 +126,9 @@ final class ColumnListView: NSView, FileListView {
         guard browser.lastColumn >= 0 else { return }
         programmatic = true
         defer { programmatic = false }
-        for column in max(0, browser.firstVisibleColumn)...max(0, min(browser.lastVisibleColumn, browser.lastColumn)) {
+        let first = max(0, browser.firstVisibleColumn), last = min(browser.lastVisibleColumn, browser.lastColumn)
+        guard first <= last else { return }
+        for column in first...last {
             guard let parent = column == 0 ? root : browser.parentForItems(inColumn: column) as? BrowserNode else { continue }
             let children = parent.children(showHidden: tab.showHidden)
             let count = children.count
@@ -144,19 +174,28 @@ final class ColumnListView: NSView, FileListView {
         controller?.activate()
         guard let parent = node.path.parent else { return }
         if parent != tab.path {
-            Task { try? await tab.navigate(to: parent, focus: node.name) }
+            // Przez `Workspace.open` (jak inne nawigacje) — błąd wczytania katalogu jest pokazywany.
+            guard let panel = controller?.panel else { return }
+            Task { await workspace.openReportingError(parent, in: panel, focus: node.name) }
         } else {
             tab.cursor = node.path
         }
     }
 
-    /// Podwójne kliknięcie pliku — komenda „Otwórz” (jak Enter; kursor ustawia `selectionChanged`).
+    /// Podwójne kliknięcie pliku — komenda „Otwórz” (jak Enter). Plik w innej kolumnie niż bieżący
+    /// katalog: najpierw nawigacja do jego katalogu (asynchroniczna), potem otwarcie.
     @objc private func doubleClicked() {
-        guard let tab, let node = selectedNode(), !node.isDirectory else { return }
+        guard let tab, let node = selectedNode(), !node.isDirectory, let parent = node.path.parent else { return }
         controller?.activate()
-        if node.path.parent == tab.path {
+        if parent == tab.path {
             tab.cursor = node.path
             workspace.perform("panel.open")
+        } else if let panel = controller?.panel {
+            Task {
+                guard let opened = await workspace.openReportingError(parent, in: panel, focus: node.name),
+                      opened.cursor == node.path else { return }
+                workspace.perform("panel.open")
+            }
         }
     }
 
@@ -180,7 +219,10 @@ extension ColumnListView: NSBrowserDelegate {
     }
 
     func browser(_ browser: NSBrowser, child index: Int, ofItem item: Any?) -> Any {
-        (item as? BrowserNode ?? root).children(showHidden: tab?.showHidden ?? false)[index]
+        // Liczba dzieci mogła się zmienić od pytania o nią (wczytanie w tle) — węzeł zastępczy do
+        // przeładowania kolumny zamiast wyjścia poza zakres.
+        let children = (item as? BrowserNode ?? root).children(showHidden: tab?.showHidden ?? false)
+        return children.indices.contains(index) ? children[index] : BrowserNode.placeholder
     }
 
     func browser(_ browser: NSBrowser, isLeafItem item: Any?) -> Bool {
@@ -222,6 +264,9 @@ extension ColumnListView: NSBrowserDelegate {
 /// Węzeł przeglądarki kolumnowej z dziećmi wczytywanymi leniwie poza wątkiem głównym.
 /// Odświeżenie zachowuje węzły (i ich wczytane poziomy) o tych samych ścieżkach — kolumny nie migają.
 final class BrowserNode: NSObject {
+    /// Pusty liść podawany przeglądarce w miejsce wiersza, którego już nie ma.
+    static let placeholder = BrowserNode(path: VFSPath(provider: ProviderID("placeholder"), path: "/"), name: "", isDirectory: false)
+
     let path: VFSPath
     let name: String
     let isDirectory: Bool
@@ -242,21 +287,44 @@ final class BrowserNode: NSObject {
 
     /// Oznacza wczytane poziomy jako nieaktualne — zostaną wczytane ponownie przy następnym użyciu,
     /// a do tego czasu przeglądarka pokazuje poprzednią zawartość.
+    /// Schodzi tylko do wczytanych poziomów (po `prune` — bieżąca ścieżka i pokazywane kolumny).
     func invalidate() {
         stale = true
-        cached?.forEach { $0.invalidate() }
+        guard let cached else { return }
+        for child in cached where child.cached != nil { child.invalidate() }
     }
 
-    /// Dzieci, jeśli już wczytane (także nieaktualne — wtedy w tle wczytywane są nowe);
-    /// `nil`, gdy poziom dopiero się wczytuje.
+    /// Zwalnia wczytane poziomy dzieci, których ścieżek nie ma w `keep` (`keep` zawiera przodków).
+    func prune(keeping keep: Set<VFSPath>) {
+        guard let cached else { return }
+        for child in cached where child.cached != nil || child.loadingHidden != nil {
+            if keep.contains(child.path) { child.prune(keeping: keep) } else { child.release() }
+        }
+    }
+
+    /// Zapomina wczytane dzieci; trwające wczytanie zostanie pominięte (`finish` sprawdza `loadingHidden`).
+    private func release() {
+        cached = nil
+        loadingHidden = nil
+        stale = false
+    }
+
+    /// Dzieci, jeśli już wczytane (także nieaktualne albo z innym ustawieniem ukrytych plików — wtedy
+    /// w tle wczytywane są nowe, a do ich nadejścia przeglądarka dostaje dotychczasową listę, zgodną
+    /// z liczbą wierszy, którą już zna); `nil`, gdy poziom wczytuje się pierwszy raz.
     func loadedChildren(showHidden: Bool) -> [BrowserNode]? {
         guard isDirectory else { return [] }
-        if let cached, cachedHidden == showHidden {
-            if stale { startLoading(showHidden: showHidden) }
-            return cached
+        guard let cached else {
+            startLoading(showHidden: showHidden)
+            return nil
         }
-        startLoading(showHidden: showHidden)
-        return nil
+        if cachedHidden != showHidden || stale {
+            startLoading(showHidden: showHidden)
+        } else if loadingHidden != nil, loadingHidden != showHidden {
+            // Powrót do wczytanego wariantu — spóźniony wynik drugiego nie może go zastąpić.
+            loadingHidden = nil
+        }
+        return cached
     }
 
     /// Dzieci dla przeglądarki (pusta lista, dopóki poziom się wczytuje).

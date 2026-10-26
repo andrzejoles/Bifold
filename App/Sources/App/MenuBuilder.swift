@@ -200,9 +200,10 @@ final class MenuBuilder: NSObject, NSMenuItemValidation {
         guard Self.panelCategories.contains(command.descriptor.category) else { return true }
         // Komendy panelu nie działają w innych oknach (podgląd, ustawienia, arkusze dialogów).
         guard mainIsKey else { return false }
-        guard editingText, !item.keyEquivalent.isEmpty else { return true }
+        guard editingText, NSApp.currentEvent?.type == .keyDown, !item.keyEquivalent.isEmpty else { return true }
         // W polu tekstowym: skróty z Ctrl (edycja w stylu Emacsa: ⌃H, ⌃T, ⌃W…) i Cmd+strzałki/⌫ należą
-        // do pola; F-klawisze i pozostałe skróty z Cmd działają dalej.
+        // do pola; F-klawisze i pozostałe skróty z Cmd działają dalej. Tylko przy naciśnięciu klawiszy —
+        // pozycja wybrana myszą wykonuje komendę także przy fokusie w polu.
         let mask = item.keyEquivalentModifierMask
         let scalar = item.keyEquivalent.unicodeScalars.first.map { Int($0.value) } ?? 0
         let isFunctionKey = (NSF1FunctionKey...NSF35FunctionKey).contains(scalar)

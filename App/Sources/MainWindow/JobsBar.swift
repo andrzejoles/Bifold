@@ -7,8 +7,7 @@ final class JobsBar: NSView {
     private let workspace: Workspace
     private let stack = NSStackView()
     private var rows: [UUID: JobRow] = [:]
-    /// Zakończone zadania ukryte z paska (po czasie albo ✕) — kolejka nie ma usuwania pojedynczego zadania.
-    private var dismissed: Set<UUID> = []
+    /// Zakończone zadania zaplanowane do ukrycia po czasie (bez błędów).
     private var dismissScheduled: Set<UUID> = []
     private let observations = ObservationBag()
     /// Najwięcej wierszy naraz: wszystkie aktywne mają pierwszeństwo przed zakończonymi.
@@ -38,7 +37,7 @@ final class JobsBar: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     private func sync() {
-        let all = workspace.jobs.jobs.filter { !dismissed.contains($0.id) }
+        let all = workspace.jobs.jobs
         // Aktywne (najstarsze najpierw — to one właśnie działają), potem najnowsze zakończone.
         let active = all.filter { !$0.state.isFinished }.prefix(Self.maxRows)
         let finished = all.filter(\.state.isFinished).suffix(max(0, Self.maxRows - active.count))
@@ -72,16 +71,11 @@ final class JobsBar: NSView {
         }
     }
 
-    /// Ukrywa zakończone zadanie; gdy wszystkie zakończone są ukryte, zwalnia je z kolejki.
+    /// Ukrywa zakończone zadanie i zwalnia je z kolejki (pozostałe nieudane zostają do ✕).
     private func dismiss(_ id: UUID) {
         guard let job = workspace.jobs.job(id), job.state.isFinished else { return }
-        dismissed.insert(id)
-        let finished = workspace.jobs.jobs.filter(\.state.isFinished)
-        if finished.allSatisfy({ dismissed.contains($0.id) }) {
-            workspace.jobs.removeFinished()
-            dismissed.subtract(finished.map(\.id))
-            dismissScheduled.subtract(finished.map(\.id))
-        }
+        workspace.jobs.remove(id)
+        dismissScheduled.remove(id)
         sync()
     }
 }
