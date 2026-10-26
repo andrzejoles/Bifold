@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         agents.mainWindow = mainWindow
         mainWindow.agentPane = agents.pane
         menuBuilder = MenuBuilder(workspace: workspace)
+        menuBuilder.mainWindow = mainWindow.window
         NSApp.mainMenu = menuBuilder.build()
 
         observations.add { [weak self] in

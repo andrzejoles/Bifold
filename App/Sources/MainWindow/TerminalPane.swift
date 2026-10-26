@@ -1,5 +1,6 @@
 import AppKit
 import BifoldCore
+import BifoldWorkspace
 import SwiftTerm
 
 /// Wbudowany terminal (SwiftTerm) z powłoką użytkownika. Linia poleceń pod panelami
@@ -7,6 +8,8 @@ import SwiftTerm
 final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
     private(set) var terminalView: LocalProcessTerminalView?
     private var started = false
+    /// Skróty aplikacji, które terminal przepuszcza do menu (zamknięcie terminala).
+    weak var workspace: Workspace?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -38,13 +41,9 @@ final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
             tv.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         terminalView = tv
-        var env = ProcessInfo.processInfo.environment
-        env["TERM"] = "xterm-256color"
-        env["LANG"] = env["LANG"] ?? "pl_PL.UTF-8"
-        env.removeValue(forKey: "BIFOLD_AGENT_TOKEN")
         let shell = Self.userShell
         tv.startProcess(
-            executable: shell, args: ["-l"], environment: env.map { "\($0.key)=\($0.value)" },
+            executable: shell, args: ["-l"], environment: Self.environment(term: "xterm-256color"),
             execName: "-" + (shell as NSString).lastPathComponent, currentDirectory: directory.path)
     }
 
@@ -61,6 +60,35 @@ final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
         if let terminalView { window?.makeFirstResponder(terminalView) }
     }
 
+    /// Środowisko procesu terminala: `TERM`, `LANG` z ustawień systemu, gdy aplikacja go nie ma
+    /// (uruchomiona z Findera), bez tokenu agenta.
+    static func environment(term: String) -> [String] {
+        var env = ProcessInfo.processInfo.environment
+        env["TERM"] = term
+        if env["LANG"] == nil {
+            let language = Locale.current.language.languageCode?.identifier ?? "en"
+            let region = Locale.current.region?.identifier ?? "US"
+            env["LANG"] = "\(language)_\(region).UTF-8"
+        }
+        env.removeValue(forKey: "BIFOLD_AGENT_TOKEN")
+        return env.map { "\($0.key)=\($0.value)" }
+    }
+
+    /// AppKit pyta o skróty widoki przed menu — gdy terminal ma fokus, klawisze bez Cmd (Ctrl+W, Ctrl+R,
+    /// F3–F8…) idą do powłoki, a nie do komend panelu (jak w karcie-terminalu, D44). Wyjątek: skrót
+    /// zamykający terminal (⌃`).
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.type == .keyDown, let terminalView, window?.firstResponder === terminalView,
+              !event.modifierFlags.contains(.command) else {
+            return super.performKeyEquivalent(with: event)
+        }
+        if let chord = KeyChord(event: event), workspace?.keymap.command(for: chord) == "tools.terminal" {
+            return super.performKeyEquivalent(with: event)
+        }
+        terminalView.keyDown(with: event)
+        return true
+    }
+
     // MARK: LocalProcessTerminalViewDelegate
 
     nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
@@ -69,11 +97,14 @@ final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
 
     nonisolated func processTerminated(source: TerminalView, exitCode: Int32?) {
         Task { @MainActor in
+            // Po `exit` fokus wraca do panelu (inaczej zostaje na oknie i klawisze nic nie robią).
+            let hadFocus = self.terminalView != nil && self.window?.firstResponder === self.terminalView
+            let controller = self.window?.windowController as? MainWindowController
             self.terminalView?.removeFromSuperview()
             self.terminalView = nil
             self.started = false
             self.isHidden = true
-            (self.window?.windowController as? MainWindowController)?.terminalClosed()
+            controller?.terminalClosed(refocus: hadFocus)
         }
     }
 }
