@@ -16,6 +16,8 @@ public final class Panel {
     public var showsTree: Bool
 
     @ObservationIgnored let providers: ProviderRegistry
+    /// Wywoływane po zamknięciu karty (`Workspace` wyrejestrowuje wtedy nieużywane archiwa i wyniki).
+    @ObservationIgnored var onTabClosed: (@MainActor () -> Void)?
 
     init(side: PanelSide, tabs: [Tab], activeTabIndex: Int = 0, showsTree: Bool = false, providers: ProviderRegistry) {
         precondition(!tabs.isEmpty)
@@ -42,8 +44,9 @@ public final class Panel {
     public func closeTab(at index: Int? = nil) -> Bool {
         let i = index ?? activeTabIndex
         guard tabs.count > 1, tabs.indices.contains(i) else { return false }
-        tabs.remove(at: i)
+        tabs.remove(at: i).stopBackgroundWork()
         if activeTabIndex >= tabs.count || i < activeTabIndex { activeTabIndex = max(0, activeTabIndex - 1) }
+        onTabClosed?()
         return true
     }
 
@@ -59,12 +62,11 @@ public final class Panel {
     public func nextTab() { activeTabIndex = (activeTabIndex + 1) % tabs.count }
     public func previousTab() { activeTabIndex = (activeTabIndex - 1 + tabs.count) % tabs.count }
 
-    public func moveTab(from: Int, to: Int) {
-        guard tabs.indices.contains(from), tabs.indices.contains(to), from != to else { return }
-        let active = activeTab
-        let t = tabs.remove(at: from)
-        tabs.insert(t, at: to)
-        activeTabIndex = tabs.firstIndex { $0 === active } ?? 0
+    /// Zamienia aktywne karty dwóch paneli (całe karty: katalog, historia, tytuł i maszyna jadą razem).
+    func swapActiveTabs(with other: Panel) {
+        let mine = activeTab
+        tabs[activeTabIndex] = other.activeTab
+        other.tabs[other.activeTabIndex] = mine
     }
 }
 

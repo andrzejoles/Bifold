@@ -4,19 +4,32 @@ import Foundation
 let conflictParam = CommandParameter("conflict", .string, L10n.tr("Co zrobić, gdy element docelowy istnieje (domyślnie skip)"), allowed: ["skip", "overwrite", "rename", "overwriteOlder"])
 
 extension CommandContext {
+    /// Katalog drugiego panelu jako domyślny cel — tylko lokalny. Archiwum, wyniki wyszukiwania albo
+    /// telefon w drugim panelu: wewnętrzna ścieżka (`/docs`) nie jest katalogiem na dysku.
+    func localOtherDirectory() throws -> VFSPath {
+        guard otherTab.path.isLocal else { throw CommandError.notAvailable(L10n.tr("Katalog docelowy musi być lokalny")) }
+        return otherTab.path
+    }
+
+    /// Katalog lokalny, względem którego liczone są względne ścieżki docelowe (bieżący albo drugi panel).
+    var localBaseDirectory: VFSPath? {
+        tab.path.isLocal ? tab.path : (otherTab.path.isLocal ? otherTab.path : nil)
+    }
+
     /// Cel kopiowania/przenoszenia: argument `destination` albo okno F5/F6 (domyślnie drugi panel).
     func transferRequest(_ kind: TransferKind, items: [FileItem], createMissing: Bool = true) async throws -> (TransferRequest, ConflictResolution?, Int64) {
-        let base = tab.path.isLocal ? tab.path : otherTab.path
+        let base = localBaseDirectory
         let destinationText: String
         var policy = try conflictPolicy()
         var speedLimit = arguments.int("speedLimit") ?? 0
         if let d = arguments.string("destination") {
             destinationText = d
         } else if isAgent {
-            destinationText = otherTab.path.path
+            destinationText = try localOtherDirectory().path
         } else {
+            let other = try localOtherDirectory()
             let ui = try requireUI()
-            let suggested = items.count == 1 && otherTab.path == base ? items[0].name : otherTab.path.path + "/"
+            let suggested = items.count == 1 && other == base ? items[0].name : other.path + "/"
             guard let result = await ui.promptTransfer(kind: kind, items: items, defaultDestination: suggested) else {
                 throw CommandError.cancelledByUser
             }
@@ -27,6 +40,7 @@ extension CommandContext {
         let trimmed = destinationText.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { throw CommandError.missingArgument("destination") }
         let target = resolvePath(trimmed, relativeTo: base)
+        guard target.isLocal else { throw CommandError.notAvailable(L10n.tr("Katalog docelowy musi być lokalny")) }
         let fs = LocalFS()
         let isExistingDirectory = (try? fs.itemSync(at: target))?.isNavigable ?? false
         if isExistingDirectory || trimmed.hasSuffix("/") || items.count > 1 {
@@ -74,7 +88,7 @@ private func transferCommand(_ kind: TransferKind) -> Command {
                     fileCount: items.count, totalBytes: items.reduce(0) { $0 + max(0, $1.size) })
             }
             if ctx.tab.isInArchive || ctx.tab.path.isDevice {
-                let dest = ctx.arguments.path("destination", relativeTo: ctx.otherTab.path) ?? ctx.otherTab.path
+                let dest = try ctx.arguments.path("destination", relativeTo: ctx.localBaseDirectory) ?? ctx.localOtherDirectory()
                 return EffectPreview(summary: L10n.tr("Kopiowanie z archiwum \(Format.describe(items)) → \(dest.path)"),
                                      operations: items.map { PlannedOperation(kind: "extract", source: $0.path, destination: dest, isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },
                                      fileCount: items.count, totalBytes: items.reduce(0) { $0 + max(0, $1.size) })
@@ -213,7 +227,8 @@ var fileCommands: [Command] { [
         preview: { @MainActor ctx in
             let source = try renameSource(ctx)
             let newName = try await ctx.text("newName", title: L10n.tr("Zmień nazwę"), default: source.name)
-            let target = source.parent!.appending(newName)
+            guard let parent = source.parent else { throw CommandError.invalidArgument("path", source.displayPath) }
+            let target = parent.appending(newName)
             let exists = target.isLocal ? (await LocalFS().exists(target) && target.path.lowercased() != source.path.lowercased()) : false
             return EffectPreview(summary: "\(source.name) → \(newName)", operations: [PlannedOperation(kind: "rename", source: source, destination: target, conflict: exists)], fileCount: 1, conflicts: exists ? [target.path] : [])
         }
@@ -382,7 +397,12 @@ var fileCommands: [Command] { [
 
 @MainActor
 private func renameSource(_ ctx: CommandContext) throws -> VFSPath {
-    if let raw = ctx.arguments.string("path") { return ctx.workspace.parsePath(raw, relativeTo: ctx.tab.path) }
+    if let raw = ctx.arguments.string("path") {
+        // Katalog główny (także `alias:/`) nie ma nazwy do zmiany.
+        let path = ctx.workspace.parsePath(raw, relativeTo: ctx.tab.path)
+        guard !path.isRoot else { throw CommandError.invalidArgument("path", raw) }
+        return path
+    }
     guard let item = ctx.tab.cursorItem, !item.isParentLink else { throw CommandError.nothingSelected }
     return item.path
 }
@@ -393,8 +413,12 @@ func attributeChange(from args: CommandArguments) throws -> AttributeChange {
         guard let v = UInt16(p, radix: 8), v <= 0o7777 else { throw CommandError.invalidArgument("permissions", L10n.tr("liczba ósemkowa, np. 644")) }
         change.permissions = v
     }
-    change.owner = args.int("owner").map { UInt32($0) }
-    change.group = args.int("group").map { UInt32($0) }
+    // UID/GID spoza zakresu UInt32 (np. -1 od agenta) — błąd zamiast awarii.
+    for key in ["owner", "group"] {
+        guard let raw = args.int(key) else { continue }
+        guard let id = UInt32(exactly: raw) else { throw CommandError.invalidArgument(key, "0…\(UInt32.max)") }
+        if key == "owner" { change.owner = id } else { change.group = id }
+    }
     let iso = ISO8601DateFormatter()
     if let m = args.string("modified") {
         guard let d = iso.date(from: m) else { throw CommandError.invalidArgument("modified", "ISO 8601") }

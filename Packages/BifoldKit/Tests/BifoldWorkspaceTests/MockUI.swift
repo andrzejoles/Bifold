@@ -30,7 +30,6 @@ final class MockUI: UIServices {
     func openWithDefaultApp(_ urls: [URL]) {}
     func showViewer(_ item: FileItem) {}
     func toggleQuickLook(_ items: [FileItem]) {}
-    func togglePreviewPanel() {}
     func runInTerminal(command: String?, directory: VFSPath) {}
     func toggleTerminal(directory: VFSPath) {}
     func focusCommandLine() {}

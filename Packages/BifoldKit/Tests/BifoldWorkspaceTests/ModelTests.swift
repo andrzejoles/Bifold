@@ -245,13 +245,16 @@ private struct SlowFS: FileSystemProvider {
     }
 
     /// Prawdziwy katalog ze 100 000 plików: listowanie + sortowanie poniżej 1 s.
+    /// Tworzenie i usuwanie plików poza MainActor — inaczej przez ~minutę stały wszystkie testy MainActor.
     @MainActor @Test func listHundredThousandFiles() async throws {
         let tmp = try TempDir()
         let base = tmp.url.path
-        for i in 0..<100_000 {
-            let fd = open(base + "/plik-\(i).dat", O_CREAT | O_WRONLY, 0o644)
-            close(fd)
-        }
+        await Task.detached(priority: .userInitiated) {
+            for i in 0..<100_000 {
+                let fd = open(base + "/plik-\(i).dat", O_CREAT | O_WRONLY, 0o644)
+                close(fd)
+            }
+        }.value
         let (ws, _) = try await makeWorkspace(tmp)
         let tab = ws.activeTab
         let t0 = ContinuousClock.now
@@ -267,5 +270,8 @@ private struct SlowFS: FileSystemProvider {
         let strict = ProcessInfo.processInfo.environment["BIFOLD_PERF_STRICT"] == "1"
         #expect(elapsed < .seconds(strict ? 1 : 3), "pierwsze wyświetlenie: \(elapsed)")
         print("100k: listowanie \(t1 - t0), sortowanie \(t2 - t1), razem w karcie \(elapsed)")
+        // Sprzątanie też w tle (`TempDir.deinit` usuwałby 100 000 plików na MainActor).
+        let url = tmp.url
+        await Task.detached(priority: .userInitiated) { try? FileManager.default.removeItem(at: url) }.value
     }
 }
