@@ -24898,6 +24898,35 @@
         }
       }
     },
+    "nie można odczytać metadanych multimediów": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cannot read media metadata"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medien-Metadaten können nicht gelesen werden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no se pueden leer los metadatos multimedia"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "не вдається прочитати метадані медіа"
+          }
+        }
+      }
+    },
     "nieodwracalna": {
       "extractionState": "manual",
       "localizations": {

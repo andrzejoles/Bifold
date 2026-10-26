@@ -206,4 +206,64 @@ let rg: String? = ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"].first { FileMana
         let rule = RenameRule(nameMask: "[Exif:DateTimeOriginal:yyyy-MM-dd_HH-mm-ss] [Exif:Model]")
         #expect(MultiRename.newName(for: item, index: 0, rule: rule) == "2021-07-14_18-30-05 Aparat X.jpg")
     }
+
+    /// Łańcuch nazw 1→2, 2→3, …, 5→6 w kolejności rosnącej: element zajmujący cel też musi zejść
+    /// na nazwę tymczasową, inaczej „już istnieje” i plik zostaje pod ukrytą nazwą `.bifold-rename-…`.
+    @Test func renameChainAscending() throws {
+        let tmp = try TempDir()
+        for i in 1...5 { try tmp.file("\(i).txt", "plik \(i)") }
+        let plan = (1...5).map { RenamePlanEntry(source: tmp.path.appending("\($0).txt"), newName: "\($0 + 1).txt") }
+        let journal = OperationJournal()
+        #expect(try MultiRename.execute(plan, journal: journal, invoker: .user, title: "łańcuch") == 5)
+        #expect(try tmp.names() == Set((2...6).map { "\($0).txt" }))
+        for i in 1...5 { #expect(try tmp.read("\(i + 1).txt") == "plik \(i)") }
+        // Cofnięcie przywraca pierwotne nazwy.
+        let undo = UndoPlanner.plan(for: journal.batches)
+        #expect(undo.conflicts.isEmpty)
+        let result = UndoPlanner.execute(undo, journal: journal)
+        #expect(result.errors.isEmpty && result.skipped.isEmpty)
+        for i in 1...5 { #expect(try tmp.read("\(i).txt") == "plik \(i)") }
+    }
+
+    /// Błąd jednego elementu: pozostałe dostają nowe nazwy, nic nie zostaje pod nazwą tymczasową.
+    @Test func renameFailureRestoresTemporaryNames() throws {
+        let tmp = try TempDir()
+        try tmp.file("a.txt", "A")
+        try tmp.file("b.txt", "B")
+        try tmp.file("c.txt", "C")
+        // a↔b przez nazwy tymczasowe, potem c → zajęte „x.txt” (pojawiło się po podglądzie).
+        let plan = [
+            RenamePlanEntry(source: tmp.path.appending("a.txt"), newName: "b.txt"),
+            RenamePlanEntry(source: tmp.path.appending("c.txt"), newName: "x.txt"),
+            RenamePlanEntry(source: tmp.path.appending("b.txt"), newName: "a.txt"),
+        ]
+        try tmp.file("x.txt", "obcy")
+        #expect(throws: VFSError.alreadyExists(tmp.path.appending("x.txt"))) { try MultiRename.execute(plan, journal: nil, invoker: .user, title: "t") }
+        #expect(try tmp.names() == ["a.txt", "b.txt", "c.txt", "x.txt"])
+        #expect(try tmp.read("x.txt") == "obcy" && tmp.read("c.txt") == "C")
+        #expect(try tmp.read("a.txt") == "B" && tmp.read("b.txt") == "A")
+    }
+
+    /// `[Media:…]` czyta tagi synchronicznie (bez semafora); plik, którego nie da się odczytać, to problem
+    /// w podglądzie, a nie pusty fragment nazwy.
+    @Test func mediaTagsAndUnreadableMedia() throws {
+        let tmp = try TempDir()
+        func frame(_ id: String, _ text: String) -> [UInt8] {
+            let body = [UInt8(3)] + Array(text.utf8)
+            let n = body.count
+            return Array(id.utf8) + [UInt8(n >> 24), UInt8((n >> 16) & 0xff), UInt8((n >> 8) & 0xff), UInt8(n & 0xff), 0, 0] + body
+        }
+        let tag = frame("TIT2", "Tytuł/próbny") + frame("TPE1", "Wykonawca") + frame("TYER", "2019")
+        let n = tag.count
+        var mp3 = Array("ID3".utf8) + [4, 0, 0] + [UInt8((n >> 21) & 0x7f), UInt8((n >> 14) & 0x7f), UInt8((n >> 7) & 0x7f), UInt8(n & 0x7f)] + tag
+        for _ in 0..<20 { mp3 += [0xFF, 0xFB, 0x90, 0x64] + [UInt8](repeating: 0, count: 413) }
+        FileManager.default.createFile(atPath: tmp.url.appending(path: "utwor.mp3").path, contents: Data(mp3))
+        try tmp.file("tekst.txt", "to nie jest dźwięk")
+        let items = try LocalFS().listSync(tmp.path).sorted { $0.name > $1.name }
+        let plan = MultiRename.plan(items, rule: RenameRule(nameMask: "[Media:artist] - [Media:title] ([Media:year])"))
+        #expect(plan[0].source.name == "utwor.mp3")
+        #expect(plan[0].newName == "Wykonawca - Tytuł-próbny (2019).mp3")
+        #expect(plan[0].problem == nil)
+        #expect(plan[1].problem == L10n.tr("nie można odczytać metadanych multimediów"))
+    }
 }
