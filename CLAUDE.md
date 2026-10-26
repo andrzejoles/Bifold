@@ -34,5 +34,4 @@ make unregister                   # usuwa z Launchpada kopie Bifolda spoza /Appl
 - `Foundation.Process` przekazuje argumenty jako NFD — wzorce przez pliki (`rg --file`, `7zz @lista`),
   SSH/SCP przez `Spawn` (posix_spawn).
 - Nowy plik źródłowy w `App/` wymaga `xcodegen generate` (`make generate`).
-- `make build -quiet` wypisuje „failed with exit code 0” — to nie błąd (kod wyjścia 0).
 - Narzędzia Sparkle przez `scripts/sparkle-tools.sh` (inaczej okno zgody Pęku kluczy).

@@ -12,6 +12,8 @@ VERSION="$(scripts/version.sh)"
 BUILD="$(scripts/version.sh --build)"
 DIST="$ROOT/dist"
 APP_NAME="$(awk -F' = ' '/^BIFOLD_APP_NAME/{print $2}' Config/Brand.xcconfig)"
+# Autor z BIFOLD_COPYRIGHT bez „© rok”.
+AUTHOR="$(awk -F' = ' '/^BIFOLD_COPYRIGHT/{print $2}' Config/Brand.xcconfig | sed 's/^© [0-9]* //')"
 echo "=== $APP_NAME $VERSION ($BUILD) ==="
 
 echo "[1/4] Budowanie (Release)…"
@@ -59,7 +61,7 @@ cp "$APP/Contents/Resources/Licencje zewnętrzne.txt" "$STAGE/"
 cp LICENSE "$STAGE/LICENSE.txt"
 cat > "$STAGE/Instrukcja instalacji.txt" <<TXT
 $APP_NAME $VERSION — dwupanelowy menedżer plików dla macOS (Apple Silicon, macOS 27)
-Autor: Andrzej Oleś w kooperacji z Claude AI · licencja MIT · https://github.com/$(awk -F' = ' '/^BIFOLD_REPOSITORY/{print $2}' Config/Brand.xcconfig)
+Autor: $AUTHOR · licencja MIT · https://github.com/$(awk -F' = ' '/^BIFOLD_REPOSITORY/{print $2}' Config/Brand.xcconfig)
 
 INSTALACJA
 1. Przeciągnij „${APP_NAME}” na „Aplikacje (Applications)”.

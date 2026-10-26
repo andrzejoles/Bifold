@@ -33,11 +33,14 @@ section() {
     cat "$2"
 }
 
+# Nazwa i autor tylko w Config/Brand.xcconfig.
+APP_NAME="$(awk -F' = ' '/^BIFOLD_APP_NAME/{print $2}' "$ROOT/Config/Brand.xcconfig")"
+COPYRIGHT="$(awk -F' = ' '/^BIFOLD_COPYRIGHT/{print $2}' "$ROOT/Config/Brand.xcconfig")"
 {
-    echo "Bifold — licencje bibliotek zewnętrznych"
+    echo "$APP_NAME — licencje bibliotek zewnętrznych"
     echo "========================================"
     echo
-    echo "Bifold: licencja MIT, © 2026 Andrzej Oleś w kooperacji z Claude AI (plik LICENSE w repozytorium)."
+    echo "$APP_NAME: licencja MIT, $COPYRIGHT (plik LICENSE w repozytorium)."
     section HexFiend "$ROOT/ThirdParty/HexFiend/License.txt"
     for name in "${LINKED[@]}"; do
         found=0

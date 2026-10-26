@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+## [2.3.0] – 2026-10-26
+
 ### Poprawione — przegląd kodu, część 3 (bezpieczeństwo agenta AI)
 - Agent nie zobaczy w wynikach wyszukiwania (nazwy, treść, duplikaty, zapisane wyszukiwania) plików
   z zablokowanych katalogów (`~/.ssh`, klucze chmur, dane Bifolda) i nie dotrze do nich ścieżkami
@@ -16,7 +18,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   program nie zamknie Bifolda przez gniazdo agenta; druga kopia Bifolda nie przejmuje połączeń agentów.
 - Dziennik agentów nie zapisuje treści czytanych plików i zapisuje każde wywołanie.
 - Agent nie zamknie karty z terminalem SSH ani nie rozłączy serwera z otwartym terminalem lub edycją.
-
 ### Poprawione — operacje na plikach
 - Zmiana samej wielkości liter (F6 `Foo.txt` → `foo.txt` z „Nadpisz”) zmienia nazwę zamiast przenosić
   plik do Kosza; F5 katalogu pod nazwą różniącą się wielkością liter nie kopiuje go w siebie.
@@ -29,7 +30,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   nie zostawia niekompletnego archiwum; podgląd pliku z archiwum nie wczytuje go całego do pamięci.
 - Dzielenie pliku nie nadpisuje istniejących części; duplikaty nie pokazują pliku jako własnego duplikatu;
   anulowanie wyszukiwania w treści działa od razu, wyszukiwanie po masce jest szybsze.
-
 ### Poprawione — serwery i telefony
 - Plik o spreparowanej nazwie na serwerze SCP nie zamyka już aplikacji.
 - „Nadpisz” przy wysyłaniu katalogu przez SCP scala katalogi (pliki, których nie wysyłasz, zostają);
@@ -46,7 +46,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   działającego rclone po awarii.
 - Pomocnik administratora odrzuca operacje na katalogach systemowych najwyższego poziomu i ich
   przodkach; okno hasła pokazuje ścieżki.
-
 ### Poprawione — interfejs
 - W widoku kolumn można pisać w oknach dialogowych, Ustawieniach, wyszukiwaniu i palecie komend; widok
   kolumn nie zawiesza okna przy dużych katalogach, a poza dyskiem lokalnym pokazuje listę szczegółów.
@@ -65,16 +64,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   także ⌃⌘1–5; skrót przy pozycji menu nie zmienia się między uruchomieniami.
 - Linia poleceń: `cd /tmp && make` wykonuje się w terminalu; po zmianie języka aplikacja nie uruchomi się
   sama, jeśli zamknięcie anulowano; „O programie” pokazuje prawa autorskie z konfiguracji marki.
-
 ### Zmienione — budowanie
 - Budowanie tylko dla Apple Silicon (bez ostrzeżenia o celu, Release szybszy); `gen-strings.py` nie
   zmienia katalogu tłumaczeń bez potrzeby; `signing.sh` bez haseł w argumentach procesów; licencje tylko
   dołączonych bibliotek; usunięty nieużywany `make perf-fixture`; test wydajności nie blokuje innych testów.
 
+## [2.2.0] – 2026-10-26
+
 ### Poprawione — miniatury
 - Pusty plik w widoku miniatur pokazywał puste miejsce (podgląd QuickLook to biała strona bez treści) —
   teraz ikona typu pliku; jednolity, pusty podgląd też zostaje zastąpiony ikoną.
 - Miniatury dokumentów w ramce z zagiętym rogiem, jak w Finderze (biała strona tekstu ginęła na białym tle).
+
+## [2.1.0] – 2026-10-26
 
 ### Poprawione — przegląd kodu, część 2
 - Archiwa: wpisy ze ścieżką `../…` (spreparowane archiwum) są pomijane — przy kopiowaniu z archiwum
@@ -86,6 +88,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   (`/private/etc/SUDOERS` omijało ją na APFS).
 - Miniatury: długa nazwa w dwóch liniach z „…” na końcu drugiej (wcześniej ucięta bez wielokropka).
 - `make unregister` czyta bundle id z `Config/Brand.xcconfig`.
+
+## [2.0.0] – 2026-10-26
 
 ### Poprawione — przegląd kodu
 - Długa nazwa pliku w widoku szczegółów (i w widoku skróconym) zawijała się do drugiej linii w wierszu
@@ -113,9 +117,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   porzucają już swojego katalogu tymczasowego (zapis połączeń odtwarzał go po usunięciu).
 - Budowanie bez ostrzeżeń kompilatora; kroki skryptów z wejściami i wyjściami (bez uruchamiania przy
   każdym budowaniu).
-
 ### Zmienione
 - SwiftTerm 1.99.1, Sparkle 2.10.1, swift-log 1.16.2, swift-collections 1.7.4.
+
+## [1.9.0] – 2026-10-20
 
 ### Zmienione — każda karta ma swoją „maszynę”
 - Karta jest związana z dyskiem lokalnym, serwerem albo telefonem, a nie cały panel. Otwarcie połączenia
@@ -125,7 +130,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   a katalogi otwierane z niej (drzewo, dom, „Przejdź do katalogu”) trafiają do nowej karty. Kilka terminali
   naraz — każdy w swojej karcie, do tego samego albo różnych serwerów.
 - „Rozłącz” zamyka karty serwera/telefonu (ostatnia karta panelu wraca do katalogu domowego).
-
 ### Dodane
 - Wybór dysku w karcie jak w TC: przycisk z nazwą dysku przed ścieżką (oraz Alt+F1 / ⌘D) — woluminy
   z wolnym miejscem (dysk wewnętrzny, USB, udziały), katalog domowy, telefon, zapisane połączenia, Menedżer
@@ -133,10 +137,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 - Typ terminala (TERM) w ustawieniach połączenia SFTP/SCP (np. `xterm` dla starego AIX); domyślnie
   `xterm-256color`.
 
-### Poprawione — telefony z Androidem
+## [1.8.0] – 2026-10-19
+
 - Po „Zezwól” Samsung łączy się z USB od nowa, a sesja otwarta wcześniej nigdy nie widziała nośników —
   Bifold używał jej dalej (pusty panel). Teraz brak nośników albo zerwana sesja = nowa sesja.
 - Bez zgody karta przechodzi na telefon z komunikatem; Ctrl+R po „Zezwól” ponawia próbę na telefonie.
+### Poprawione — telefony z Androidem
+
+## [1.7.0] – 2026-10-19
 
 ### Poprawione — telefony z Androidem
 - Pusty panel po otwarciu telefonu: narzędzia mtp-files/mtp-folders wczytywały cały telefon naraz (minuty
@@ -145,10 +153,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   sesja zostaje, po zgodzie wystarczy odświeżyć.
 - Telefon da się zamknąć: ⏏ na pasku ścieżki i „Rozłącz” (Ctrl+Shift+F) zwalniają telefon.
 
+## [1.6.0] – 2026-10-19
+
 ### Poprawione — panel agenta
 - „Zakończ” nie kończyło CLI, które przechwytuje SIGTERM, i zostawiało otwarty panel. Teraz SIGHUP do całej
   grupy procesów (jak zamknięcie okna terminala), po 2 s SIGKILL; bez działających sesji panel się chowa
   (zakończona sesja zostaje na liście z dziennikiem i cofaniem — Ctrl+Alt+0).
+
+## [1.5.0] – 2026-10-19
 
 ### Dodane — terminal SSH w panelu
 - Otwarcie połączenia SFTP/SCP (np. z Menedżera połączeń) pokazuje pliki serwera w aktywnym panelu, a w drugim
@@ -161,6 +173,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 ### Poprawione
 - Serwery i telefony pokazywały „0 B wolne”.
 
+## [1.4.0] – 2026-10-18
+
 ### Dodane — rozłączanie
 - „Rozłącz” (menu Sieć, paleta, Ctrl+Shift+F jak w Total Commanderze, ⌃⌘K w profilu Cmd, przycisk ⏏ na pasku
   ścieżki, Menedżer połączeń): zamyka sesję SSH/rclone, karty z tym serwerem wracają do katalogu domowego.
@@ -169,17 +183,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 ### Poprawione — SCP/SFTP
 - Pierwsze połączenie przez rclone (SFTP, FTP…) „zapominało” otwarte połączenia SCP; kolejne wejście na serwer
   SCP logowało się od nowa i zamykało wspólne połączenie główne.
+
+## [1.3.0] – 2026-10-18
+
+### Poprawione — SCP/SFTP
 - Połączenie SCP (i zapamiętanie klucza serwera SFTP) kończyło się błędem „keyword controlpath extra arguments
   at end of line”: ścieżka gniazda w „~/Library/Application Support” ma spację, a `ssh` rozcinał na niej opcję.
+
+## [1.2.0] – 2026-10-17
 
 ### Dodane — języki
 - Interfejs po angielsku, niemiecku, hiszpańsku i ukraińsku (obok polskiego), wybór w Ustawieniach.
 - Eksport pliku do tłumaczenia (JSON dla tłumacza lub AI) i import gotowego tłumaczenia, jak w CantatePresenter.
 - Opisy uprawnień macOS (Biurko, Dokumenty…) w tych samych językach.
-
-### Poprawione
 - 18 komunikatów miało w katalogu tłumaczeń błędne klucze i nie dało się ich przetłumaczyć.
 - W Launchpadzie i „Otwórz za pomocą” widać tylko jedną kopię Bifolda.
+### Poprawione
+
+## [1.1.0] – 2026-10-17
 
 ### Dodane — wydania i serwery
 - **SCP** (klasyczny protokół, `scp -O`) dla serwerów bez SFTP: listing, kopiowanie w obie strony,
