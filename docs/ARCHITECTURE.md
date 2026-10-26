@@ -10,13 +10,15 @@ Wymagania źródłowe: [`PROMPT.md`](PROMPT.md). Decyzje i ich uzasadnienia: [`D
 Bifold/
 ├── project.yml                 # definicja projektu Xcode (XcodeGen) — źródło prawdy
 ├── Bifold.xcodeproj            # wygenerowany z project.yml (commitowany dla wygody)
-├── Makefile                    # bootstrap, generate, build, test, run
+├── Makefile                    # bootstrap, generate, build, release, test, run, installer, version
 ├── Config/
 │   ├── Brand.xcconfig          # NAZWA APLIKACJI I BUNDLE ID — jedyne miejsce
 │   └── Bifold.entitlements     # bez sandboxa
 ├── App/                        # cel Bifold.app (AppKit, SwiftUI tylko w ustawieniach/dialogach)
+│   ├── Info.plist
 │   ├── Sources/
-│   └── Resources/              # Localizable.xcstrings, Assets, Info.plist
+│   ├── Resources/              # Localizable.xcstrings, InfoPlist.xcstrings, Assets
+│   └── Helper/                 # (Etap 7) Info.plist i plist demona pomocnika administratora
 ├── Packages/BifoldKit/         # cała logika jako pakiet SPM, testowalny bez interfejsu
 │   ├── Package.swift
 │   ├── Sources/
@@ -28,8 +30,9 @@ Bifold/
 │   │   ├── BifoldHelperKit/    # (Etap 7) protokół i walidacja operacji pomocnika administratora
 │   │   └── bifold-helper/      # (Etap 7) demon XPC (LaunchDaemon przez SMAppService)
 │   └── Tests/
+├── Tools/bifold-mtp/           # (Etap 7) pomocnik MTP w C (libmtp z Homebrew), osobny proces
 ├── ThirdParty/HexFiend/        # submoduł git (HexFiend 2.18.1), budowany skryptem
-├── scripts/                    # build-hexfiend.sh, gen-strings.py, perf-fixture.sh
+├── scripts/                    # budowanie (HexFiend, bifold-mtp), wersja, tłumaczenia, instalatory, podpis, wydanie
 └── docs/
 ```
 
@@ -38,8 +41,9 @@ Zależności między modułami (strzałka = „zależy od”):
 ```
 Bifold.app ──► BifoldWorkspace ──► BifoldCore
      │               ▲
-     └──► BifoldAgent┘ ──► MCP (swift-sdk)          bifold-mcp ──► BifoldBridgeKit ──► MCP
-     └──► SwiftTerm, HexFiend.framework, QuickLookUI
+     └──► BifoldAgent┘ ──► MCP (swift-sdk), BifoldBridgeKit      bifold-mcp ──► BifoldBridgeKit (tylko Foundation)
+     └──► BifoldHelperKit, SwiftTerm, Sparkle, HexFiend.framework, QuickLookUI
+                                                    bifold-helper ──► BifoldHelperKit
 ```
 
 `BifoldCore` i `BifoldWorkspace` nie importują AppKit. Wszystko, co wymaga interfejsu
@@ -164,7 +168,8 @@ public protocol Command: Sendable {
   (`Invoker.user(.keyboard|.menu|.palette|.commandLine)` albo `Invoker.agent(sessionID)`).
 - `preview` liczy skutki na sucho (lista operacji, ścieżki, liczba plików, rozmiar, konflikty) —
   używa go okno zatwierdzania agenta i potwierdzenia dla użytkownika (np. trwałe usuwanie).
-- Klawiatura (`KeyRouter` + `Keymap`), menu (budowane z rejestru), paleta komend (Cmd+Shift+P)
+- Klawiatura (`Keymap`: skróty jako odpowiedniki klawiszowe menu i `PanelViewController.handleKey`),
+  menu (budowane z rejestru), paleta komend (Cmd+Shift+P)
   i API agenta wywołują `CommandRegistry.invoke(id, args, invoker)` — jedną funkcję.
 - Profile skrótów: `totalCommander` (F-klawisze) i `command` (Cmd-owe zamienniki). Użytkownik
   nadpisuje pojedyncze skróty; zapis w `keymap.json`.
@@ -306,14 +311,18 @@ i woluminy sieciowe — odczyt, FTP — za zgodą, archiwa/urządzenia — odczy
 
 ## 9. Interfejs (cel Bifold.app)
 
-- `MainWindowController` → `NSSplitViewController`: [panel lewy | panel prawy], pod spodem
+- `MainWindowController` → zagnieżdżone `NSSplitView`: [panel lewy | panel prawy], pod spodem
   linia poleceń i (rozwijany) terminal SwiftTerm, na dole pasek kolejki operacji.
 - `PanelViewController`: pasek kart (`TabBarView`), pasek ścieżki, opcjonalne drzewo
-  (`NSOutlineView`), widok plików wymienny: `DetailsListView` (`NSTableView`),
-  `BriefListView` (`NSCollectionView` w kolumnach), `ThumbnailsView` (`NSCollectionView` +
-  `QLThumbnailGenerator`), `ColumnBrowserView` (`NSBrowser`), pasek stanu.
-- `KeyRouter` przechwytuje klawisze w oknie (`NSEvent` local monitor tylko dla F-klawiszy i
-  skrótów rejestru), resztę oddaje widokom (np. szybkie wyszukiwanie po literach).
-- `ViewerWindow` (F3): tekst (`NSTextView`, wybór kodowania), hex (HexFiend `HFTextView`),
-  obrazy (`NSImageView`). Quick Look: `QLPreviewPanel`. Panel podglądu: `QLPreviewView`.
-- Ustawienia: SwiftUI (`Settings` scene przez `NSHostingController`).
+  (`DirectoryTreeView`, `NSOutlineView`), widok plików wymienny (protokół `FileListView`):
+  `DetailsListView` (`NSTableView`), `GridListView` w stylu `.brief` (lista skrócona) albo
+  `.thumbnails` (miniatury, `NSCollectionView` + `QLThumbnailGenerator`), `ColumnListView`
+  (`NSBrowser`), panel szybkiego podglądu (`QuickViewPane`, `QLPreviewView`), pasek stanu.
+- Klawisze: skróty z `Keymap` są odpowiednikami klawiszowymi pozycji menu (menu z rejestru).
+  Widoki plików przekazują `keyDown` do `PanelViewController.handleKey`, który obsługuje szybkie
+  wyszukiwanie po literach, Escape i pozostałe skróty z `Keymap` (`workspace.perform`), a strzałki
+  itp. oddaje widokowi. Tylko `ColumnListView` używa lokalnego monitora `NSEvent` (`NSBrowser`
+  sam przechwytuje klawisze).
+- `ViewerWindowController` (F3): tekst (`NSTextView`, wybór kodowania), hex (HexFiend `HFTextView`),
+  obrazy (`NSImageView`). Quick Look: `QLPreviewPanel` (`QuickLookController`).
+- Ustawienia i okna dialogowe: SwiftUI w oknach AppKit (`NSHostingController`).

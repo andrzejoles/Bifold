@@ -22,32 +22,48 @@ SERVICE="bifold-signing-keychain"
 
 password() { security find-generic-password -s "$SERVICE" -a bifold -w 2>/dev/null; }
 
+# Hasła nie mogą trafić do argumentów procesów (widać je w `ps` i przez KERN_PROCARGS2) ani do zmiennych
+# środowiskowych. WYJĄTEK: `security` nie umie czytać hasła pęku ani pliku .p12 z pliku czy deskryptora,
+# a bez hasła w argumencie pyta w oknie/terminalu. Jedyna droga bez hasła w argumentach procesu to tryb
+# `security -i`, który czyta polecenie ze standardowego wejścia (printf jest poleceniem wbudowanym
+# powłoki, nie osobnym procesem). Jedno polecenie na wywołanie: wtedy kod wyjścia `security -i` jest
+# kodem wyjścia polecenia, więc `set -e` działa jak zwykle.
+# q: argument w cudzysłowie dla `security -i` (w cudzysłowie jedyne sekwencje specjalne to \\ i \").
+q() { local s="${1//\\/\\\\}"; s="${s//\"/\\\"}"; printf '"%s"' "$s"; }
+sec() { printf '%s\n' "$1" | security -i; }
+
 create_keychain() {
-    local pw
+    local pw line kcs=()
     pw="$(openssl rand -hex 24)"
-    security add-generic-password -U -s "$SERVICE" -a bifold -w "$pw" -T /usr/bin/security
-    security create-keychain -p "$pw" "$KC"
+    sec "add-generic-password -U -s $(q "$SERVICE") -a bifold -w $(q "$pw") -T /usr/bin/security"
+    sec "create-keychain -p $(q "$pw") $(q "$KC")"
     security set-keychain-settings "$KC"
-    # Bez dopisywania do listy wyszukiwania użytkownika (codesign dostaje --keychain).
-    security list-keychains -d user -s $(security list-keychains -d user | tr -d '"' | grep -v bifold-signing)
+    # Bez dopisywania do listy wyszukiwania użytkownika (codesign dostaje --keychain). Ścieżki mogą
+    # zawierać spacje: `security list-keychains` wypisuje każdą w cudzysłowie, w osobnym wierszu.
+    while IFS= read -r line; do
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line#\"}"; line="${line%\"}"
+        case "$line" in ""|*bifold-signing*) ;; *) kcs+=("$line") ;; esac
+    done < <(security list-keychains -d user)
+    security list-keychains -d user -s ${kcs[@]+"${kcs[@]}"}
 }
 
 import_p12() {
-    local file="$1" p12pw="$2"
-    security unlock-keychain -p "$(password)" "$KC"
-    security import "$file" -k "$KC" -P "$p12pw" -T /usr/bin/codesign >/dev/null
-    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$(password)" "$KC" >/dev/null
+    local file="$1" p12pw="$2" pw
+    pw="$(password)"
+    sec "unlock-keychain -p $(q "$pw") $(q "$KC")"
+    sec "import $(q "$file") -k $(q "$KC") -P $(q "$p12pw") -T /usr/bin/codesign" >/dev/null
+    sec "set-key-partition-list -S apple-tool:,apple:,codesign: -s -k $(q "$pw") $(q "$KC")" >/dev/null
 }
 
-ensure() {
-    if [ ! -f "$KC" ] || [ -z "$(password)" ]; then
-        [ -f "$KC" ] && { echo "Jest $KC, ale brak hasła w pęku logowania — usuń plik albo użyj import" >&2; exit 1; }
-        create_keychain
-        local tmp p12pw
-        tmp="$(mktemp -d)"
-        trap 'rm -rf "$tmp"' RETURN
-        p12pw="$(openssl rand -hex 16)"
-        cat > "$tmp/cert.cnf" <<CNF
+# Nowa tożsamość w osobnej podpowłoce: pułapka EXIT usuwa katalog tymczasowy z niezaszyfrowanym kluczem
+# (key.pem, -nodes) także przy błędzie (set -e) i przerwaniu; `trap … RETURN` tego nie robił.
+create_identity() (
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    trap 'exit 130' INT TERM
+    p12pw="$(openssl rand -hex 16)"
+    cat > "$tmp/cert.cnf" <<CNF
 [req]
 distinguished_name=dn
 x509_extensions=ext
@@ -60,13 +76,21 @@ basicConstraints=critical,CA:false
 keyUsage=critical,digitalSignature
 extendedKeyUsage=critical,codeSigning
 CNF
-        openssl req -x509 -newkey rsa:3072 -nodes -keyout "$tmp/key.pem" -out "$tmp/cert.pem" -days 7300 -config "$tmp/cert.cnf" 2>/dev/null
-        openssl pkcs12 -export -legacy -inkey "$tmp/key.pem" -in "$tmp/cert.pem" -out "$tmp/id.p12" -passout "pass:$p12pw" 2>/dev/null \
-            || openssl pkcs12 -export -inkey "$tmp/key.pem" -in "$tmp/cert.pem" -out "$tmp/id.p12" -passout "pass:$p12pw"
-        import_p12 "$tmp/id.p12" "$p12pw"
+    openssl req -x509 -newkey rsa:3072 -nodes -keyout "$tmp/key.pem" -out "$tmp/cert.pem" -days 7300 -config "$tmp/cert.cnf" 2>/dev/null
+    # Hasło .p12 przez standardowe wejście (-passout stdin), nie w argumentach.
+    printf '%s\n' "$p12pw" | openssl pkcs12 -export -legacy -inkey "$tmp/key.pem" -in "$tmp/cert.pem" -out "$tmp/id.p12" -passout stdin 2>/dev/null \
+        || printf '%s\n' "$p12pw" | openssl pkcs12 -export -inkey "$tmp/key.pem" -in "$tmp/cert.pem" -out "$tmp/id.p12" -passout stdin
+    import_p12 "$tmp/id.p12" "$p12pw"
+)
+
+ensure() {
+    if [ ! -f "$KC" ] || [ -z "$(password)" ]; then
+        [ -f "$KC" ] && { echo "Jest $KC, ale brak hasła w pęku logowania — usuń plik albo użyj import" >&2; exit 1; }
+        create_keychain
+        create_identity
         echo "Utworzono tożsamość „${NAME}” w $KC" >&2
     fi
-    security unlock-keychain -p "$(password)" "$KC"
+    sec "unlock-keychain -p $(q "$(password)") $(q "$KC")"
 }
 
 identity() {
@@ -122,8 +146,8 @@ case "${1:-}" in
         [ ! -f "$KC" ] || { echo "Już jest $KC — najpierw go usuń, jeśli chcesz odtworzyć kopię" >&2; exit 1; }
         PW="$(cat "$DIR/bifold-signing-haslo-pęku.txt")"
         cp -p "$DIR/bifold-signing.keychain-db" "$KC"
-        security add-generic-password -U -s "$SERVICE" -a bifold -w "$PW" -T /usr/bin/security
-        security unlock-keychain -p "$PW" "$KC"
+        sec "add-generic-password -U -s $(q "$SERVICE") -a bifold -w $(q "$PW") -T /usr/bin/security"
+        sec "unlock-keychain -p $(q "$PW") $(q "$KC")"
         identity
         ;;
     import)

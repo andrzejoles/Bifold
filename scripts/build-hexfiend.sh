@@ -12,6 +12,7 @@ if [ ! -f "$ROOT/ThirdParty/HexFiend/HexFiend_2.xcodeproj/project.pbxproj" ]; th
   exit 1
 fi
 TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 # Czyste środowisko: zmienne budowania Xcode z zewnętrznego procesu nie mogą przeciekać.
 env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" DEVELOPER_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}" \
   xcodebuild -project "$ROOT/ThirdParty/HexFiend/HexFiend_2.xcodeproj" -target HexFiend_Framework \
@@ -20,5 +21,4 @@ env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" DEVELOPER_DIR="${DEVELO
 mkdir -p "$OUT"
 rm -rf "$OUT/HexFiend.framework"
 cp -R "$TMP/Release/HexFiend.framework" "$OUT/"
-rm -rf "$TMP"
 echo "HexFiend.framework → $OUT"
