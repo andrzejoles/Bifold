@@ -28,8 +28,17 @@ enum Theme {
         return font
     }
 
-    static func attributes(size: CGFloat, style: FileStyle?, marked: Bool, secondary: Bool = false) -> [NSAttributedString.Key: Any] {
-        var attrs: [NSAttributedString.Key: Any] = [.font: secondary ? NSFont.monospacedDigitSystemFont(ofSize: size - 1, weight: .regular) : font(size: size, style: style, marked: marked)]
+    /// - Parameter lineBreak: sposób łamania nazwy. Tekst z atrybutami bez stylu akapitu zawija słowa
+    ///   (`lineBreakMode` pola tekstowego jest wtedy pomijany) — długa nazwa wychodziła w dwóch liniach
+    ///   w wierszu o stałej wysokości.
+    static func attributes(size: CGFloat, style: FileStyle?, marked: Bool, secondary: Bool = false,
+                           lineBreak: NSLineBreakMode = .byTruncatingMiddle) -> [NSAttributedString.Key: Any] {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = lineBreak
+        var attrs: [NSAttributedString.Key: Any] = [
+            .font: secondary ? NSFont.monospacedDigitSystemFont(ofSize: size - 1, weight: .regular) : font(size: size, style: style, marked: marked),
+            .paragraphStyle: paragraph,
+        ]
         if marked {
             attrs[.foregroundColor] = markedText
         } else if let c = style?.textColor {

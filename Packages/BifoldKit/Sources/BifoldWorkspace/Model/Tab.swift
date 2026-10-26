@@ -66,11 +66,11 @@ public final class Tab: Identifiable {
 
     // MARK: Nawigacja
 
-    /// Wczytuje katalog. Przy błędzie karta zostaje w poprzednim katalogu, a błąd jest rzucany.
     /// Karta na niedostępnym jeszcze miejscu (np. telefon bez „Zezwól”): pusta lista z komunikatem —
     /// odświeżenie (Ctrl+R) ponawia próbę w tym miejscu, a nie w poprzednim katalogu.
     public func showUnavailable(_ target: VFSPath, error: String) async {
         navigationGeneration += 1
+        isLoading = false
         path = target
         items = []
         selection = []
@@ -79,20 +79,34 @@ public final class Tab: Identifiable {
         await processNow()
     }
 
+    /// Wczytuje katalog. Przy błędzie karta zostaje w poprzednim katalogu, a błąd jest rzucany.
     public func navigate(to target: VFSPath, focus: String? = nil, recordHistory: Bool = true) async throws {
         // Karta-terminal zostaje terminalem — katalogi otwiera `Workspace.open` w nowej karcie.
         guard terminal == nil else { throw CommandError.notAvailable(L10n.tr("Karta z terminalem SSH nie pokazuje plików — otwórz je w nowej karcie")) }
         navigationGeneration += 1
+        try await load(target, focus: focus, recordHistory: recordHistory, generation: navigationGeneration, isReload: false)
+    }
+
+    /// Wczytanie katalogu przez nawigację albo odświeżenie. Wynik jest pomijany, gdy w trakcie zaczęła się
+    /// nowsza nawigacja — inaczej wolny katalog (serwer, odświeżenie przy obciążeniu) nadpisywał kartę
+    /// starym listingiem. Odświeżenie nie podbija numeru nawigacji (nie unieważnia jawnej nawigacji),
+    /// a jego wynik obowiązuje tylko, jeśli karta jest nadal w tym samym katalogu.
+    /// - Returns: `false`, gdy wynik pominięto.
+    @discardableResult
+    private func load(_ target: VFSPath, focus: String?, recordHistory: Bool, generation: Int, isReload: Bool) async throws -> Bool {
+        func isCurrent() -> Bool { navigationGeneration == generation && (!isReload || path == target) }
         let provider = try providers.provider(for: target)
-        isLoading = true
-        defer { isLoading = false }
+        if !isReload { isLoading = true }
+        defer { if !isReload, navigationGeneration == generation { isLoading = false } }
         let listed: [FileItem]
         do {
             listed = try await provider.list(target, options: ListOptions())
         } catch {
+            guard isCurrent() else { return false }
             loadError = error.localizedDescription
             throw error
         }
+        guard isCurrent() else { return false }
         let changedDirectory = target != path
         path = target
         loadError = nil
@@ -110,13 +124,17 @@ public final class Tab: Identifiable {
         }
         let focusPath = focus.map { target.appending($0) }
         await processNow()
+        guard isCurrent() else { return false }
         if let focusPath, visibleIndex[focusPath] != nil {
             cursor = focusPath
         } else if changedDirectory || cursor.map({ visibleIndex[$0] == nil }) ?? true {
             cursor = visibleItems.first(where: { !$0.isParentLink })?.path ?? visibleItems.first?.path
         }
-        volume = try? await provider.volumeInfo(for: target)
+        let info = try? await provider.volumeInfo(for: target)
+        guard isCurrent() else { return false }
+        volume = info
         startWatching(provider)
+        return true
     }
 
     /// Ponowne wczytanie bieżącego katalogu z zachowaniem kursora i zaznaczenia.
@@ -124,10 +142,9 @@ public final class Tab: Identifiable {
         guard terminal == nil else { return }
         let keepCursor = cursor
         let keepIndex = cursorIndex
-        let generation = navigationGeneration + 1
+        let generation = navigationGeneration
         do {
-            try await navigate(to: path, recordHistory: false)
-            guard navigationGeneration == generation else { return }
+            guard try await load(path, focus: nil, recordHistory: false, generation: generation, isReload: true) else { return }
         } catch {
             // Katalog zniknął — przejdź w górę do pierwszego istniejącego.
             var candidate = path.parent

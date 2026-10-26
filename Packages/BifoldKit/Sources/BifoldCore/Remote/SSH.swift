@@ -10,6 +10,8 @@ public enum Spawn {
         public var status: Int32
         public var output: Data
         public var error: Data
+        /// Proces przekroczył `timeout` i został zakończony.
+        public var timedOut = false
 
         public var errorText: String { String(decoding: error, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) }
     }
@@ -81,7 +83,8 @@ public enum Spawn {
         if case .capture = output {
             for (fd, isError) in [(outPipe[0], false), (errPipe[0], true)] {
                 group.enter()
-                DispatchQueue.global(qos: .utility).async {
+                // Własny wątek, nie pula GCD — patrz `SevenZip.run` (zakleszczenie przy zajętej puli).
+                Thread.detachNewThread {
                     var buffer = [UInt8](repeating: 0, count: 65536)
                     var data = Data()
                     while true {
@@ -100,12 +103,14 @@ public enum Spawn {
         var stopped = false
         var status: Int32 = 0
         var cancelled = false
+        var timedOut = false
         while true {
             let r = waitpid(pid, &status, WNOHANG)
             if r == pid { break }
             if r < 0, errno != EINTR { break }
             if isCancelled() || Date() > deadline {
                 cancelled = isCancelled()
+                timedOut = !cancelled
                 if stopped { kill(pid, SIGCONT) }
                 kill(pid, SIGTERM)
                 var waited = 0
@@ -127,7 +132,7 @@ public enum Spawn {
         if cancelled { throw VFSError.cancelled }
         let exit: Int32 = (status & 0x7f) == 0 ? (status >> 8) & 0xff : 128 + (status & 0x7f)
         let (out, err) = collected.withLock { $0 }
-        return Result(status: exit, output: out, error: err)
+        return Result(status: exit, output: out, error: err, timedOut: timedOut)
     }
 }
 

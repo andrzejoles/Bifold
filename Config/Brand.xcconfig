@@ -3,7 +3,8 @@
 // ~/Library/Application Support/$(BIFOLD_APP_NAME).
 BIFOLD_APP_NAME = Bifold
 PRODUCT_NAME = $(BIFOLD_APP_NAME)
-PRODUCT_BUNDLE_IDENTIFIER = local.aoles.bifold
+BIFOLD_BUNDLE_ID = local.aoles.bifold
+PRODUCT_BUNDLE_IDENTIFIER = $(BIFOLD_BUNDLE_ID)
 // Wersja i numer kompilacji z historii gita (scripts/version.sh → build/Version.xcconfig, dołączany
 // na końcu tego pliku) — tu tylko wartości zastępcze.
 MARKETING_VERSION = 0.0.0
@@ -19,8 +20,9 @@ BIFOLD_SPARKLE_PUBLIC_KEY = VC/dQ5mziGMUAvkAb33i+CEpDDO9KtRe65MKRDeoKLs=
 // działa tylko z podpisem zespołu — wtedy wpisz identyfikator i odkomentuj wymaganie niżej.
 DEVELOPMENT_TEAM =
 // Wymaganie podpisu klienta XPC pomocnika (kto może się z nim łączyć).
-BIFOLD_CLIENT_REQUIREMENT = identifier "$(PRODUCT_BUNDLE_IDENTIFIER)"
-// Z zespołem: BIFOLD_CLIENT_REQUIREMENT = identifier "$(PRODUCT_BUNDLE_IDENTIFIER)" and anchor apple generic and certificate leaf[subject.OU] = "$(DEVELOPMENT_TEAM)"
+// (BIFOLD_BUNDLE_ID, nie PRODUCT_BUNDLE_IDENTIFIER — ten w celu pomocnika ma końcówkę .helper.)
+BIFOLD_CLIENT_REQUIREMENT = identifier "$(BIFOLD_BUNDLE_ID)"
+// Z zespołem: BIFOLD_CLIENT_REQUIREMENT = identifier "$(BIFOLD_BUNDLE_ID)" and anchor apple generic and certificate leaf[subject.OU] = "$(DEVELOPMENT_TEAM)"
 
 // Wygenerowane przed budowaniem przez scripts/set-version.sh (poza repozytorium).
 #include? "../build/Version.xcconfig"

@@ -54,12 +54,17 @@ public final class Workspace {
     @ObservationIgnored private let persists: Bool
     /// Serwery i chmury (Etap 5).
     @ObservationIgnored public private(set) var remotes: RemoteManager!
+    /// Testy: katalog z pustą konfiguracją SSH i known_hosts (usuwany razem z obiektem).
+    @ObservationIgnored private let testSSHDirectory: URL?
 
     /// - Parameter persists: `false` w testach — nic nie jest zapisywane na dysk.
     public init(paths: AppPaths, persists: Bool = true, home: VFSPath = .local(NSHomeDirectory())) {
         homePath = home
         self.paths = paths
         self.persists = persists
+        // Osobny katalog tymczasowy — nie w katalogu danych (testy listują katalogi z nim w środku).
+        testSSHDirectory = persists ? nil
+            : FileManager.default.temporaryDirectory.appending(path: "bifold-tests-ssh-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
         if persists { paths.ensureExists() }
         let providers = ProviderRegistry([LocalFS()])
         self.providers = providers
@@ -105,19 +110,21 @@ public final class Workspace {
         registry = CommandRegistry.standard()
         rebuildKeymap()
         remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "local.aoles.bifold") + (persists ? ".remote" : ".tests"))
-        // Próby z BIFOLD_DATA_DIR: własna konfiguracja SSH i known_hosts zamiast ~/.ssh.
+        // Próby na żywo (zwykle razem z BIFOLD_DATA_DIR): własna konfiguracja SSH i known_hosts zamiast ~/.ssh.
         let env = ProcessInfo.processInfo.environment
         if let config = env["BIFOLD_SSH_CONFIG"] { remotes.sshConfigFile = config }
         if let known = env["BIFOLD_SSH_KNOWN_HOSTS"] { remotes.sshKnownHostsFile = known }
-        if !persists {
+        if let sshDir = testSSHDirectory {
             // Testy nie dotykają ~/.ssh (known_hosts i konfiguracja w katalogu testu).
-            // Osobny katalog tymczasowy — nie w katalogu danych (testy listują katalogi z nim w środku).
-            let sshDir = FileManager.default.temporaryDirectory.appending(path: "bifold-tests-ssh-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
             try? FileManager.default.createDirectory(at: sshDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             FileManager.default.createFile(atPath: sshDir.appending(path: "ssh_config").path, contents: Data())
             remotes.sshKnownHostsFile = sshDir.appending(path: "known_hosts").path
             remotes.sshConfigFile = sshDir.appending(path: "ssh_config").path
         }
+    }
+
+    deinit {
+        if let testSSHDirectory { try? FileManager.default.removeItem(at: testSSHDirectory) }
     }
 
     /// Poziom zasobu dla agenta (zasada najmniejszego poziomu, PROMPT.md 5.4–5.5):
@@ -236,7 +243,7 @@ public final class Workspace {
 
     public func saveSession() {
         guard persists else { return }
-        let snapshot = SessionSnapshot(left: left.snapshot, right: right.snapshot, activeSide: activeSide)
+        let snapshot = SessionSnapshot(left: left.snapshot(home: homePath), right: right.snapshot(home: homePath), activeSide: activeSide)
         try? JSONStore.save(snapshot, to: paths.session)
         journal.flush()
     }

@@ -32,7 +32,12 @@ final class PanelTerminalView: NSView, LocalProcessTerminalViewDelegate {
         ])
         var env = ProcessInfo.processInfo.environment
         env["TERM"] = spec.term
-        env["LANG"] = env["LANG"] ?? "pl_PL.UTF-8"
+        // Aplikacja z Findera zwykle nie ma LANG — z ustawień systemu (ssh przekazuje go na serwer).
+        if env["LANG"] == nil {
+            let language = Locale.current.language.languageCode?.identifier ?? "en"
+            let region = Locale.current.region?.identifier ?? "US"
+            env["LANG"] = "\(language)_\(region).UTF-8"
+        }
         env.removeValue(forKey: "BIFOLD_AGENT_TOKEN")
         terminal.startProcess(executable: spec.executable, args: spec.arguments, environment: env.map { "\($0.key)=\($0.value)" },
                               execName: nil, currentDirectory: NSHomeDirectory())

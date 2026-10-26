@@ -147,7 +147,8 @@ final class AgentPane: NSView {
         kill(-pid, SIGHUP)
         kill(pid, SIGHUP)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            guard kill(pid, 0) == 0 else { return }
+            // Cała grupa: powłoka mogła się już zakończyć, a CLI ignorujące SIGHUP — nie.
+            guard kill(-pid, 0) == 0 || kill(pid, 0) == 0 else { return }
             kill(-pid, SIGKILL)
             kill(pid, SIGKILL)
         }

@@ -92,7 +92,7 @@ public protocol FileSystemProvider: Sendable {
   kopiowanie przez rozpakowanie do katalogu tymczasowego (`ExtractingProvider`).
 - `RemoteFS` (Etap 5): `rclone rcd` na gnieździe Unix z konfiguracją w pamięci; `operations/*`,
   przesyłanie `RcloneTransfer` (zadania `_async`, postęp `core/stats`, `job/stop`).
-- `AFCDeviceFS` / `MTPDeviceFS` (Etap 7): `afcclient` / narzędzia libmtp, tylko do odczytu.
+- `AFCDeviceFS` / `MTPDeviceFS` (Etap 7): `afcclient` / pomocnik `bifold-mtp` (D45), tylko do odczytu.
 - `SearchResultsFS` (Etap 3): wyniki wyszukiwania jako „katalog” z prawdziwymi ścieżkami.
 - `LocalFS` odrzuca każdą ścieżkę innego dostawcy (`/a/b` z archiwum to nie `/a/b` na dysku).
 - `ProviderRegistry` rozwiązuje `ProviderID` → dostawcę. Panele, operacje, wyszukiwanie i API

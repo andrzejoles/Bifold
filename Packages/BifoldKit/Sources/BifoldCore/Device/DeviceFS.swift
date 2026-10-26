@@ -20,24 +20,20 @@ public struct DeviceInfo: Sendable, Hashable, Identifiable {
     public var name: String
 }
 
-/// Uruchamianie narzędzi CLI z lokalizacją C (stały format dat) i bez kolorów.
+/// Uruchamianie narzędzi CLI z lokalizacją C (stały format dat) i bez kolorów. Przez `Spawn`
+/// (argumenty bez zamiany na NFD, tylko deskryptory 0–2) z limitem czasu — zawieszone narzędzie
+/// (np. telefon, który przestał odpowiadać) nie blokuje wątku na zawsze.
 struct ToolRunner {
-    static func run(_ executable: String, _ args: [String], timeout: Double = 30) throws -> (status: Int32, output: String) {
-        let p = Process()
-        p.executableURL = URL(filePath: executable)
-        p.arguments = args
+    /// - Parameter includeErrors: dołącza stderr do wyniku (komunikaty błędów narzędzia).
+    static func run(_ executable: String, _ args: [String], timeout: Double = 30, includeErrors: Bool = true) throws -> (status: Int32, output: String) {
         var env = ProcessInfo.processInfo.environment
         env["LC_ALL"] = "C"
         env["NO_COLOR"] = "1"
         env["TERM"] = "dumb"
-        p.environment = env
-        let out = Pipe()
-        p.standardOutput = out
-        p.standardError = out
-        try p.run()
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        return (p.terminationStatus, stripANSI(String(decoding: data, as: UTF8.self)))
+        let r = try Spawn.run(executable, args.map { Array($0.utf8) }, environment: env, timeout: timeout)
+        if r.timedOut { throw VFSError.io(path: .local(executable), code: ETIMEDOUT) }
+        let data = includeErrors ? r.output + r.error : r.output
+        return (r.status, stripANSI(String(decoding: data, as: UTF8.self)))
     }
 
     static func stripANSI(_ s: String) -> String {
@@ -153,6 +149,8 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
     /// wtedy otwierana jest nowa.
     private let session = NSLock()
     nonisolated(unsafe) private var current: MTPHelper
+    /// Po `close()` sesja nie jest otwierana ponownie (przerwane polecenie kończy się anulowaniem).
+    private let closed = Mutex(false)
     public let capabilities: ProviderCapabilities = [.read]
     /// Zawartość odczytanych folderów (ścieżka → elementy), do zamiany ścieżek na identyfikatory MTP.
     private let cache = Mutex<[String: [Entry]]>([:])
@@ -171,12 +169,14 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
 
     public enum MTPError: Error, LocalizedError {
         case noStorage
+        case timeout
         case helper(String)
 
         public var errorDescription: String? {
             switch self {
             case .noStorage:
                 L10n.tr("Telefon nie udostępnia plików: odblokuj go i na ekranie telefonu stuknij „Zezwól” (dostęp do danych telefonu), potem odśwież panel (Ctrl+R).")
+            case .timeout: L10n.tr("Telefon nie odpowiada")
             case .helper(let m): m
             }
         }
@@ -212,15 +212,24 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
     func request(_ command: String, timeout: TimeInterval) throws -> [String: Any] {
         do {
             return try helper.request(command, timeout: timeout)
-        } catch MTPError.helper(let message) where !helper.isRunning || message == L10n.tr("Telefon nie odpowiada") {
-            try reopen()
-            return try helper.request(command, timeout: timeout)
+        } catch MTPError.timeout {
+        } catch MTPError.helper(_) where !helper.isRunning {
         }
+        if closed.withLock({ $0 }) { throw VFSError.cancelled }
+        try reopen()
+        return try helper.request(command, timeout: timeout)
+    }
+
+    /// Nazwa z telefonu, której można użyć jako składnika ścieżki: bez `/`, `.`/`..` i znaków
+    /// sterujących — nazwy trafiają do ścieżek lokalnych przy kopiowaniu i do poleceń pomocnika
+    /// (znak nowej linii dodałby polecenie), a telefon (lub udające go urządzenie USB) może podać dowolną.
+    static func isSafeName(_ name: String) -> Bool {
+        (try? validateFileName(name)) != nil && !name.unicodeScalars.contains { $0.properties.generalCategory == .control }
     }
 
     static func entries(_ items: Any?, storage: UInt32) -> [Entry] {
         ((items as? [[String: Any]]) ?? []).compactMap { e in
-            guard let id = (e["id"] as? NSNumber)?.uint32Value, let name = e["name"] as? String, !name.isEmpty else { return nil }
+            guard let id = (e["id"] as? NSNumber)?.uint32Value, let name = e["name"] as? String, isSafeName(name) else { return nil }
             let mtime = (e["mtime"] as? NSNumber)?.doubleValue ?? 0
             return Entry(id: id, storage: storage, name: name, size: (e["size"] as? NSNumber)?.int64Value ?? 0,
                          modified: mtime > 0 ? Date(timeIntervalSince1970: mtime) : nil, isFolder: e["folder"] as? Bool ?? false)
@@ -237,7 +246,7 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
         }
         let list = ((r["storages"] as? [[String: Any]]) ?? []).compactMap { s -> Entry? in
             guard let id = (s["id"] as? NSNumber)?.uint32Value else { return nil }
-            let name = (s["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? L10n.tr("Pamięć \(id)")
+            let name = (s["name"] as? String).flatMap { Self.isSafeName($0) ? $0 : nil } ?? L10n.tr("Pamięć \(id)")
             return Entry(id: Self.root, storage: id, name: name, size: -1, modified: nil, isFolder: true,
                          total: (s["total"] as? NSNumber)?.int64Value ?? 0, free: (s["free"] as? NSNumber)?.int64Value ?? 0)
         }
@@ -330,8 +339,11 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
         return (temp, items)
     }
 
-    /// Kończy sesję MTP (telefon wolny dla innych programów).
-    public func close() { helper.close() }
+    /// Kończy sesję MTP (telefon wolny dla innych programów); trwające pobieranie jest przerywane.
+    public func close() {
+        closed.withLock { $0 = true }
+        helper.close()
+    }
 
     /// Do testów: czy proces sesji działa.
     var isSessionRunning: Bool { helper.isRunning }
@@ -384,7 +396,7 @@ final class MTPHelper: @unchecked Sendable {
                 return obj
             }
             let left = deadline.timeIntervalSinceNow
-            guard left > 0 else { throw MTPDeviceFS.MTPError.helper(L10n.tr("Telefon nie odpowiada")) }
+            guard left > 0 else { throw MTPDeviceFS.MTPError.timeout }
             var pfd = pollfd(fd: output, events: Int16(POLLIN), revents: 0)
             let ready = poll(&pfd, 1, Int32(min(left, 1) * 1000))
             if ready <= 0 { continue }
@@ -397,8 +409,13 @@ final class MTPHelper: @unchecked Sendable {
 
     var isRunning: Bool { process.isRunning }
 
+    /// Zamknięcie w trakcie polecenia (np. pobierania dużego pliku) nie czeka na jego koniec:
+    /// zakończenie procesu przerywa polecenie błędem „połączenie przerwane”.
     func close() {
-        lock.lock()
+        guard lock.try() else {
+            if process.isRunning { process.terminate() }
+            return
+        }
         defer { lock.unlock() }
         if process.isRunning {
             try? input.write(contentsOf: Data("quit\n".utf8))
@@ -434,17 +451,18 @@ public enum DeviceDetector {
     }
 
     public static func androids(helper: String?) -> [DeviceInfo] {
-        guard let helper, FileManager.default.isExecutableFile(atPath: helper) else { return [] }
-        let p = Process()
-        p.executableURL = URL(filePath: helper)
-        p.arguments = ["detect"]
-        let out = Pipe()
-        p.standardOutput = out
-        p.standardError = FileHandle.nullDevice
-        guard (try? p.run()) != nil else { return [] }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        return parseMTPDetect(data)
+        // stderr osobno: pomocnik kieruje tam komunikaty libmtp, stdout to sam JSON.
+        guard let helper, FileManager.default.isExecutableFile(atPath: helper),
+              let (_, out) = try? ToolRunner.run(helper, ["detect"], timeout: 15, includeErrors: false) else { return [] }
+        return parseMTPDetect(Data(out.utf8))
+    }
+
+    /// Czy pomocnik MTP się uruchamia. Jest wbudowany w aplikację, ale linkowany z libmtp z Homebrew —
+    /// bez biblioteki dyld go nie uruchomi i telefon wygląda jak niepodłączony.
+    public static func mtpHelperWorks(_ helper: String?) -> Bool {
+        guard let helper, FileManager.default.isExecutableFile(atPath: helper),
+              let r = try? ToolRunner.run(helper, ["detect"], timeout: 15, includeErrors: false) else { return false }
+        return r.status == 0
     }
 
     /// Pomocnik MTP: obok programu w pakiecie aplikacji albo `BIFOLD_MTP_HELPER` (testy).

@@ -4,6 +4,36 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — przegląd kodu
+- Długa nazwa pliku w widoku szczegółów (i w widoku skróconym) zawijała się do drugiej linii w wierszu
+  o stałej wysokości: tekst z atrybutami bez stylu akapitu pomijał obcinanie z pola. Teraz jedna linia
+  z „…” w środku nazwy, pełna nazwa w podpowiedzi po najechaniu.
+- Telefony z Androidem: nazwy plików z telefonu z `/`, `..` albo znakami sterującymi są pomijane (trafiały
+  do ścieżek lokalnych przy kopiowaniu i do poleceń pomocnika `bifold-mtp`); pomocnik odrzuca też takie
+  ścieżki docelowe i zamienia niepoprawne UTF-8 na „�” zamiast psuć cały listing.
+- Zamknięcie telefonu w trakcie kopiowania nie czeka na koniec pobierania (przerywa je).
+- Narzędzia urządzeń (`afcclient`, `idevice_id`, `bifold-mtp detect`) mają limit czasu — zawieszone
+  narzędzie nie blokuje już wątku na zawsze.
+- Bez libmtp z Homebrew komunikat „Nie wykryto telefonu” podpowiada `brew install libmtp`.
+- Panel agenta: „Zakończ” dobija grupę procesów CLI także wtedy, gdy powłoka zakończyła się pierwsza.
+- Zapis sesji z panelem samych kart-terminali — karta w katalogu domowym zamiast serwera.
+- Terminal SSH: `LANG` z ustawień systemu zamiast zawsze `pl_PL.UTF-8`; argument `side` sprawdzany.
+- Możliwe zakleszczenie przy kilku równoczesnych operacjach na archiwach (7zz) i przez SSH: wątki czytające
+  wyjście procesów czekały na pulę GCD, której wątki były zajęte — teraz mają własne wątki.
+- Wolno wczytujący się katalog (serwer, odświeżenie przy obciążeniu) nadpisywał kartę, jeśli w międzyczasie
+  przeszło się gdzie indziej — karta pokazywała poprzedni katalog, a kursor wracał na początek. Teraz
+  wygrywa ostatnia nawigacja.
+- Dziennik połączeń agenta: odmowa jest zapisywana przed wysłaniem odpowiedzi (bez wyścigu); zatrzymanie
+  agenta zapisuje zaległe wpisy dziennika na dysk.
+- Testy: `Workspace` bez cyklu referencji z `RemoteManager` (porzucone obiekty odświeżały w kółko
+  `$TMPDIR` i zawieszały `make test`), katalogi `bifold-tests-ssh-*` usuwane po teście, testy SCP nie
+  porzucają już swojego katalogu tymczasowego (zapis połączeń odtwarzał go po usunięciu).
+- Budowanie bez ostrzeżeń kompilatora; kroki skryptów z wejściami i wyjściami (bez uruchamiania przy
+  każdym budowaniu).
+
+### Zmienione
+- SwiftTerm 1.99.1, Sparkle 2.10.1, swift-log 1.16.2, swift-collections 1.7.4.
+
 ### Zmienione — każda karta ma swoją „maszynę”
 - Karta jest związana z dyskiem lokalnym, serwerem albo telefonem, a nie cały panel. Otwarcie połączenia
   (Menedżer połączeń, „Otwórz połączenie…”, ścieżka `alias:/…`) i telefonu (Ctrl+Alt+P) otwiera nową kartę

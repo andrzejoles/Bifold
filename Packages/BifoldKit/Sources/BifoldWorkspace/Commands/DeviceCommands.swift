@@ -52,7 +52,14 @@ var deviceCommands: [Command] { [
         summary: L10n.tr("Otwiera telefon w nowej karcie panelu (tylko odczyt). iPhone: tylko zdjęcia/nagrania (DCIM) i katalogi aplikacji z udostępnianiem plików."))
     ) { ctx in
         let devices = await ctx.workspace.connectedDevices()
-        guard !devices.isEmpty else { throw CommandError.notAvailable(L10n.tr("Nie wykryto telefonu. Podłącz go kablem, odblokuj i zaakceptuj „Ufaj temu komputerowi” (iPhone) albo wybierz tryb „Przesyłanie plików” (Android).")) }
+        guard !devices.isEmpty else {
+            var message = L10n.tr("Nie wykryto telefonu. Podłącz go kablem, odblokuj i zaakceptuj „Ufaj temu komputerowi” (iPhone) albo wybierz tryb „Przesyłanie plików” (Android).")
+            let helper = DeviceDetector.mtpHelperPath
+            if await (try? runBlocking(qos: .userInitiated) { DeviceDetector.mtpHelperWorks(helper) }) != true {
+                message += " " + L10n.tr("Android wymaga libmtp (brew install libmtp)")
+            }
+            throw CommandError.notAvailable(message)
+        }
         let device = ctx.arguments.string("id").flatMap { id in devices.first { $0.id == id } } ?? devices[0]
         let provider = try await ctx.workspace.deviceProvider(device, appContainer: ctx.arguments.string("app"))
         ctx.workspace.providers.register(provider)

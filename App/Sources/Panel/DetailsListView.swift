@@ -207,6 +207,9 @@ extension DetailsListView: NSTableViewDataSource, NSTableViewDelegate {
         cell.identifier = id
         let field = NSTextField(labelWithString: "")
         field.lineBreakMode = .byTruncatingMiddle
+        field.maximumNumberOfLines = 1
+        // Obcięta nazwa — pełna w podpowiedzi po najechaniu (jak w Finderze).
+        field.allowsExpansionToolTips = true
         field.translatesAutoresizingMaskIntoConstraints = false
         cell.addSubview(field)
         cell.textField = field

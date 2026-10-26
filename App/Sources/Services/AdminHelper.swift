@@ -72,11 +72,11 @@ final class AdminHelperClient {
         let auth = try authorize(request.operation)
         let data = try JSONEncoder().encode(request)
         let connection = NSXPCConnection(machServiceName: HelperConstants.machService, options: .privileged)
-        connection.remoteObjectInterface = NSXPCInterface(with: BifoldHelperProtocol.self)
+        connection.remoteObjectInterface = NSXPCInterface(with: (any BifoldHelperProtocol).self)
         connection.resume()
         defer { connection.invalidate() }
         let replyData: Data = try await withCheckedThrowingContinuation { c in
-            let proxy = connection.remoteObjectProxyWithErrorHandler { c.resume(throwing: $0) } as? BifoldHelperProtocol
+            let proxy = connection.remoteObjectProxyWithErrorHandler { c.resume(throwing: $0) } as? any BifoldHelperProtocol
             guard let proxy else { c.resume(throwing: HelperError.failed("XPC")); return }
             proxy.perform(data, authorization: auth) { c.resume(returning: $0) }
         }

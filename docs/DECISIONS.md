@@ -287,3 +287,20 @@ trafia do aplikacji) otwiera urządzenie bez pamięci podręcznej (`LIBMTP_Open_
 odpowiada na `storages`/`list`/`get` w jednej sesji. Samsung nie pokazuje nośników, dopóki na telefonie
 nie wybrano „Zezwól” — wtedy komunikat i ponowna próba bez zamykania sesji. Testy na fałszywym pomocniku
 (skrypt z tym samym protokołem).
+
+### D46 · 2026-10-26 — Nazwy z urządzeń są niezaufane; jedna linia nazwy w wierszu
+Telefon (albo udające go urządzenie USB) podaje dowolne nazwy. `MTPDeviceFS` pomija nazwy, których nie można
+użyć jako składnika ścieżki (`validateFileName` + znaki sterujące), bo trafiają do ścieżek lokalnych przy
+kopiowaniu i do wierszowego protokołu `bifold-mtp` (znak nowej linii dodałby polecenie `get` z dowolną
+ścieżką docelową); pomocnik dodatkowo odrzuca ścieżki ze znakami sterującymi. Narzędzia urządzeń idą
+przez `Spawn` z limitem czasu.
+Długie nazwy w listach: jedna linia z wielokropkiem w środku i pełną nazwą w podpowiedzi (jak Finder i TC),
+a nie wiersze o zmiennej wysokości — przy 100 000 elementów wysokość każdego wiersza wymagałaby mierzenia
+tekstu przy każdym przeładowaniu, a stała wysokość jest potrzebna do przewijania i nawigacji klawiaturą.
+
+### D47 · 2026-10-26 — Wygrywa ostatnia nawigacja; odświeżenie jej nie unieważnia (rozszerza D34)
+Wykryte w przeglądzie: wynik wolnego wczytania katalogu (serwer, odświeżenie po FSEvents przy obciążeniu)
+nadpisywał kartę, nawet jeśli w międzyczasie przeszło się gdzie indziej. Teraz wynik wczytania obowiązuje
+tylko, gdy od jego początku nie było nowszej nawigacji. Odświeżenie nie podbija numeru nawigacji (nie może
+unieważnić jawnej nawigacji, np. wejścia do archiwum) i jego wynik obowiązuje tylko w tym samym katalogu.
+Testy `NavigationRaceTests` (dostawca z wolnym katalogiem) sprawdzają oba kierunki wyścigu.

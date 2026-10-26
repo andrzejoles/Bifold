@@ -79,7 +79,9 @@
   `remote.open` wywołane przez agenta nigdy nie otwiera terminala — test).
 - **Archiwa z hasłem**: hasło podaje tylko użytkownik (pole maskowane), trafia do `7zz` przez stdin,
   nie jest zapisywane. Agent dostaje `password_required`.
-- **Urządzenia**: tylko odczyt; dla agenta poziom „Odczyt”.
+- **Urządzenia**: tylko odczyt; dla agenta poziom „Odczyt”. Nazwy z telefonu są niezaufane: nazwy z `/`,
+  `.`/`..` albo znakami sterującymi są pomijane (ścieżki lokalne przy kopiowaniu, protokół `bifold-mtp`),
+  narzędzia urządzeń mają limit czasu (D46).
 - **Pomocnik administratora**: klient weryfikowany wymaganiem podpisu kodu (`setCodeSigningRequirement`
   na połączeniu XPC), stała lista operacji, każda z osobnym prawem w bazie autoryzacji (hasło
   administratora przy każdej operacji, bez współdzielenia), walidacja ścieżek (realpath rodzica, katalogi
