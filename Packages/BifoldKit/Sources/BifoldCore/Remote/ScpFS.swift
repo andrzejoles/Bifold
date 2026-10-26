@@ -30,20 +30,28 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
         id = RemoteFS.providerID(connection.alias)
     }
 
+    /// - Parameter session: wspólna sesja SSH serwera (jedna na gniazdo połączenia głównego — także dla
+    ///   terminala); `nil` — nowa.
     public static func connect(_ c: RemoteConnection, runDirectory: URL, sshConfigFile: String? = nil, knownHostsFile: String? = nil,
-                               secret: @escaping @Sendable () -> String?) async throws -> ScpFS {
+                               session existing: SSHSession? = nil, secret: @escaping @Sendable () -> String?) async throws -> ScpFS {
         try RemoteFS.validateAlias(c.alias)
-        let config = SSHSession.Config(host: c.host, port: c.port, user: c.user, keyFile: c.keyFile, legacyAlgorithms: c.legacyAlgorithms ?? false,
-                                       encoding: c.nameEncoding ?? .utf8, configFile: sshConfigFile, knownHostsFile: knownHostsFile)
-        let session = try SSHSession(config: config, runDirectory: runDirectory, secret: secret)
+        let session = try existing ?? SSHSession(config: sessionConfig(c, sshConfigFile: sshConfigFile, knownHostsFile: knownHostsFile),
+                                                 runDirectory: runDirectory, secret: secret)
         let base = try await runBlocking(qos: .userInitiated) { () -> String in
             try session.connect()
             let start = c.path.trimmingCharacters(in: .whitespaces)
-            let r = try session.run(start.isEmpty ? "pwd" : "cd \(SSHSession.shellQuote(start)) && pwd")
+            // Znacznik: `.bashrc` wypisujący tekst nie może zepsuć ścieżki.
+            let r = try session.run(SSHSession.markedOutput(start.isEmpty ? "pwd" : "cd \(SSHSession.shellQuote(start)) && pwd"))
             guard r.status == 0 else { throw RemoteError.ssh(r.errorText.isEmpty ? L10n.tr("Brak katalogu \(start)") : r.errorText) }
-            return config.encoding.decode(r.output).trimmingCharacters(in: .whitespacesAndNewlines)
+            return SSHSession.textAfterMarker(session.config.encoding.decode(r.output)).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return ScpFS(connection: c, session: session, base: base.isEmpty ? "/" : base)
+    }
+
+    /// Konfiguracja SSH połączenia (SCP i terminal tego samego serwera dzielą sesję).
+    public static func sessionConfig(_ c: RemoteConnection, sshConfigFile: String?, knownHostsFile: String?) -> SSHSession.Config {
+        SSHSession.Config(host: c.host, port: c.port, user: c.user, keyFile: c.keyFile, legacyAlgorithms: c.legacyAlgorithms ?? false,
+                          encoding: c.nameEncoding ?? .utf8, configFile: sshConfigFile, knownHostsFile: knownHostsFile)
     }
 
     public var root: VFSPath { VFSPath(provider: id, path: "/") }
@@ -56,12 +64,18 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
         return base == "/" ? "/" + inner : base + "/" + inner
     }
 
-    func shell(_ command: String, timeout: TimeInterval = 120) throws -> String {
-        let r = try session.run("LC_ALL=C; export LC_ALL; " + command, timeout: timeout)
+    /// Polecenie powłoki na serwerze. `path` — element, którego dotyczy (komunikaty „nie znaleziono” /
+    /// „brak uprawnień”); `idempotent: false` dla poleceń zmieniających (`mv`, `mkdir`), których nie
+    /// wolno powtórzyć po zerwaniu połączenia.
+    func shell(_ command: String, path: VFSPath? = nil, idempotent: Bool = true, timeout: TimeInterval = 120) throws -> String {
+        let r = try session.run("LC_ALL=C; export LC_ALL; " + command, timeout: timeout, idempotent: idempotent)
+        let target = path ?? root
+        if r.timedOut { throw VFSError.io(path: target, code: ETIMEDOUT) }
         guard r.status == 0 else {
             let text = session.config.encoding.decode(r.error).trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.contains("No such file") || text.contains("does not exist") { throw VFSError.notFound(root) }
-            if text.contains("Permission denied") { throw VFSError.permissionDenied(root) }
+            if text.contains("No such file") || text.contains("does not exist") { throw VFSError.notFound(target) }
+            if text.contains("Permission denied") { throw VFSError.permissionDenied(target) }
+            if text.contains("File exists") { throw VFSError.alreadyExists(target) }
             throw RemoteError.ssh(text.isEmpty ? "status \(r.status)" : text)
         }
         return session.config.encoding.decode(r.output)
@@ -76,17 +90,22 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
 
     /// Listing (z ukrytymi) — wersja blokująca dla wątków zadań.
     public func listSync(_ directory: VFSPath) throws -> [FileItem] {
+        try entriesSync(directory).map(\.item)
+    }
+
+    /// Listing z celami dowiązań (pobieranie katalogu odtwarza dowiązania zamiast w nie wchodzić).
+    func entriesSync(_ directory: VFSPath) throws -> [ListingEntry] {
         let dir = remotePath(directory)
         // Dowiązania do katalogów osobno: `ls -la` nie mówi, na co wskazuje dowiązanie.
         let command = "cd \(SSHSession.shellQuote(dir)) && ls -la && echo '\(Self.linkMarker)' && for f in .* *; do [ -h \"$f\" ] && [ -d \"$f\" ] && echo \"$f\"; done; true"
-        let text = try shell(command)
+        let text = try shell(command, path: directory)
         let parts = text.components(separatedBy: Self.linkMarker + "\n")
         let linkDirs = Set((parts.count > 1 ? parts[1] : "").split(separator: "\n").map(String.init))
-        var items = Self.parseListing(parts[0], in: directory)
-        for i in items.indices where items[i].kind == .symlink && linkDirs.contains(items[i].name) {
-            items[i].flags.insert(.symlinkToDirectory)
+        var entries = Self.parseEntries(parts[0], in: directory)
+        for i in entries.indices where entries[i].item.kind == .symlink && linkDirs.contains(entries[i].item.name) {
+            entries[i].item.flags.insert(.symlinkToDirectory)
         }
-        return items
+        return entries
     }
 
     public func item(at path: VFSPath) async throws -> FileItem {
@@ -97,7 +116,7 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
         if path.isRoot { return FileItem(path: root, name: connection.alias, kind: .directory) }
         guard let parent = path.parent else { throw VFSError.notFound(path) }
         let remote = SSHSession.shellQuote(remotePath(path))
-        let text = try shell("ls -lad \(remote) && if [ -h \(remote) ] && [ -d \(remote) ]; then echo '\(Self.linkMarker)'; fi")
+        let text = try shell("ls -lad \(remote) && if [ -h \(remote) ] && [ -d \(remote) ]; then echo '\(Self.linkMarker)'; fi", path: path)
         guard let parsed = Self.parseListing(text, in: parent, keepDots: true).first else { throw VFSError.notFound(path) }
         var item = FileItem(path: path, kind: parsed.kind, size: parsed.size, modified: parsed.modified, permissions: parsed.permissions)
         if text.contains(Self.linkMarker) { item.flags.insert(.symlinkToDirectory) }
@@ -112,10 +131,20 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
 
     static let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
+    /// Element listingu z celem dowiązania (tekst po „ -> ”).
+    struct ListingEntry: Sendable {
+        var item: FileItem
+        var linkTarget: String?
+    }
+
     /// `ls -la` w lokalizacji C (AIX, Linux, BSD): typ i prawa, liczba dowiązań, właściciel, grupa,
     /// rozmiar (albo „główny, poboczny” dla urządzeń), data „Mon DD HH:MM” lub „Mon DD  YYYY”, nazwa.
     public static func parseListing(_ text: String, in dir: VFSPath, now: Date = Date(), keepDots: Bool = false) -> [FileItem] {
-        var out: [FileItem] = []
+        parseEntries(text, in: dir, now: now, keepDots: keepDots).map(\.item)
+    }
+
+    static func parseEntries(_ text: String, in dir: VFSPath, now: Date = Date(), keepDots: Bool = false) -> [ListingEntry] {
+        var out: [ListingEntry] = []
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         let currentYear = calendar.component(.year, from: now)
@@ -140,9 +169,10 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
                 }
             }
             guard let k = m else { continue }
-            let nameStart = line.index(after: words[k + 2].1.upperBound)
-            guard nameStart <= line.endIndex else { continue }
-            var name = String(line[nameStart...])
+            // Wiersz kończący się na polu daty (bez nazwy — np. podrzucony nową linią w nazwie pliku).
+            let dateEnd = words[k + 2].1.upperBound
+            guard dateEnd < line.endIndex else { continue }
+            var name = String(line[line.index(after: dateEnd)...])
             let mode = words[0].0
             let kind: FileKind = switch mode.first {
             case "d": .directory
@@ -150,7 +180,11 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
             case "-": .file
             default: .other
             }
-            if kind == .symlink, let arrow = name.range(of: " -> ") { name = String(name[..<arrow.lowerBound]) }
+            var linkTarget: String?
+            if kind == .symlink, let arrow = name.range(of: " -> ") {
+                linkTarget = String(name[arrow.upperBound...])
+                name = String(name[..<arrow.lowerBound])
+            }
             if keepDots, name.contains("/") { name = (name as NSString).lastPathComponent }
             // Wyjście `ls` z serwera jest niezaufane: nazwa z `/` albo podrzucony wierszem z nową linią
             // `../…` zapisałby przy pobieraniu katalogu plik poza katalogiem docelowym.
@@ -175,7 +209,8 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
                 comps.year = currentYear - 1
                 date = calendar.date(from: comps)
             }
-            out.append(FileItem(path: dir.appending(name), kind: kind, size: kind == .directory ? -1 : size, modified: date, permissions: parseMode(mode)))
+            let item = FileItem(path: dir.appending(name), kind: kind, size: kind == .directory ? -1 : size, modified: date, permissions: parseMode(mode))
+            out.append(ListingEntry(item: item, linkTarget: linkTarget))
         }
         return out
     }
@@ -195,17 +230,24 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
 
     // MARK: Operacje
 
+    /// Nowa nazwa wpisana przez użytkownika (albo z dysku lokalnego) w postaci NFC — jak dotąd. Nazw
+    /// z listingu serwera nie normalizujemy: plik w NFD (wgrany np. ze starego macOS) byłby nieosiągalny.
+    static func newName(_ path: VFSPath) -> VFSPath {
+        path.parent.map { $0.appending(path.name.precomposedStringWithCanonicalMapping) } ?? path
+    }
+
     public func readContents(_ path: VFSPath, range: Range<Int64>?) async throws -> Data {
         let url = try await download(path)
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         return try LocalFS().readSync(.local(url), range: range)
     }
 
+    /// Pobranie do własnego katalogu tymczasowego (`.bifold-scp-…`); usuwa go wywołujący
+    /// (`readContents`, koniec edycji zdalnej).
     public func download(_ path: VFSPath) async throws -> URL {
-        let (temp, items) = try await runBlocking(qos: .userInitiated) {
+        let (_, items) = try await runBlocking(qos: .userInitiated) {
             try self.extract([path], toTemporaryIn: .local(NSTemporaryDirectory()), isCancelled: { false })
         }
-        _ = temp
         return URL(filePath: items[0].path)
     }
 
@@ -221,28 +263,30 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
 
     public func createDirectory(_ path: VFSPath) async throws {
         try validateFileName(path.name)
-        let p = SSHSession.shellQuote(remotePath(path))
-        _ = try await runBlocking(qos: .userInitiated) { try self.shell("mkdir \(p)") }
+        let target = Self.newName(path)
+        let p = SSHSession.shellQuote(remotePath(target))
+        _ = try await runBlocking(qos: .userInitiated) { try self.shell("mkdir \(p)", path: target, idempotent: false) }
     }
 
     public func createFile(_ path: VFSPath, contents: Data) async throws {
         try validateFileName(path.name)
-        guard await !exists(path) else { throw VFSError.alreadyExists(path) }
+        let target = Self.newName(path)
+        guard await !exists(target) else { throw VFSError.alreadyExists(target) }
         let dir = FileManager.default.temporaryDirectory.appending(path: "bifold-up-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
-        let url = dir.appending(path: path.name)
+        let url = dir.appending(path: target.name)
         try contents.write(to: url)
-        try await upload(url, to: path)
+        try await upload(url, to: target)
     }
 
     public func rename(_ path: VFSPath, to newName: String) async throws -> VFSPath {
         try validateFileName(newName)
         guard let parent = path.parent, !path.isRoot else { throw VFSError.unsupported("rename /") }
-        let target = parent.appending(newName)
+        let target = Self.newName(parent.appending(newName))
         let a = SSHSession.shellQuote(remotePath(path)), b = SSHSession.shellQuote(remotePath(target))
         _ = try await runBlocking(qos: .userInitiated) {
-            try self.shell("if [ -e \(b) ] || [ -h \(b) ]; then echo 'File exists' >&2; exit 17; fi; mv \(a) \(b)")
+            try self.shell("if [ -e \(b) ] || [ -h \(b) ]; then echo 'File exists' >&2; exit 17; fi; mv \(a) \(b)", path: target, idempotent: false)
         }
         return target
     }
@@ -251,12 +295,14 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
     public func deletePermanently(_ path: VFSPath) async throws {
         let remote = remotePath(path)
         guard !path.isRoot, remote != "/", remote != base else { throw VFSError.unsupported("delete /") }
-        _ = try await runBlocking(qos: .userInitiated) { try self.shell("rm -r -f \(SSHSession.shellQuote(remote))") }
+        // `rm -r -f` jest idempotentne — ponowienie po zerwaniu połączenia nie daje fałszywego błędu.
+        _ = try await runBlocking(qos: .userInitiated) { try self.shell("rm -r -f \(SSHSession.shellQuote(remote))", path: path) }
     }
 
     // MARK: Pobieranie i wysyłanie
 
     /// Pobiera elementy (katalogi rekurencyjnie, plik po pliku) do nowego katalogu tymczasowego.
+    /// Pobrane pliki dostają atrybut kwarantanny (program z serwera przejdzie przez Gatekeepera).
     public func extract(_ paths: [VFSPath], toTemporaryIn directory: VFSPath, isCancelled: @escaping @Sendable () -> Bool) throws -> (temp: VFSPath, items: [VFSPath]) {
         let temp = directory.appending(".bifold-scp-\(UUID().uuidString.prefix(8))")
         try FileManager.default.createDirectory(atPath: temp.path, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -264,7 +310,8 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
         do {
             for p in paths {
                 let local = temp.appending(p.name)
-                try fetch(p, to: local, isCancelled: isCancelled, isPaused: { false }) { _ in }
+                try fetch(ListingEntry(item: try itemSync(p), linkTarget: nil), to: local, topLevel: true, isCancelled: isCancelled, isPaused: { false }) { _ in }
+                Quarantine.mark(local.path)
                 items.append(local)
             }
         } catch {
@@ -274,33 +321,32 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
         return (temp, items)
     }
 
-    func fetch(_ path: VFSPath, to local: VFSPath, isCancelled: @escaping @Sendable () -> Bool, isPaused: @escaping @Sendable () -> Bool, done: (Int64) -> Void) throws {
+    /// Pobiera element opisany listingiem (bez ponownego `ls` dla każdego dziecka). Wchodzi tylko do
+    /// katalogów — dowiązania wewnątrz pobieranego katalogu są odtwarzane jako dowiązania (`link -> ..`
+    /// albo `root -> /` pobierałyby w kółko albo cały serwer); dowiązanie wybrane wprost jest pobierane
+    /// jak jego cel. Pliki specjalne (urządzenia, potoki) są pomijane.
+    func fetch(_ entry: ListingEntry, to local: VFSPath, topLevel: Bool, isCancelled: @escaping @Sendable () -> Bool,
+               isPaused: @escaping @Sendable () -> Bool, done: (Int64) -> Void) throws {
         if isCancelled() { throw VFSError.cancelled }
-        let info = try itemSync(path)
-        if info.isNavigable {
+        let info = entry.item
+        if info.kind == .directory || (topLevel && info.isNavigable) {
             try FileManager.default.createDirectory(atPath: local.path, withIntermediateDirectories: false)
-            for child in try listSync(path) {
-                try fetch(child.path, to: local.appending(child.name), isCancelled: isCancelled, isPaused: isPaused, done: done)
+            // APFS nie rozróżnia wielkości liter ani postaci Unicode: „README” i „Readme” z serwera
+            // zapisałyby się w jeden plik — drugi dostaje wolną nazwę („Readme (2)”).
+            var taken = Set<String>()
+            for child in try entriesSync(info.path) {
+                var target = local.appending(child.item.name)
+                if !taken.insert(child.item.name.precomposedStringWithCanonicalMapping.lowercased()).inserted {
+                    target = TransferEngine.uniqueName(for: target)
+                }
+                try fetch(child, to: target, topLevel: false, isCancelled: isCancelled, isPaused: isPaused, done: done)
             }
-        } else {
-            try session.scp(download: remotePath(path), to: local.path, isCancelled: isCancelled, isPaused: isPaused)
+        } else if info.kind == .symlink && !topLevel {
+            guard let link = entry.linkTarget, !link.isEmpty, !link.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else { return }
+            try FileManager.default.createSymbolicLink(atPath: local.path, withDestinationPath: link)
+        } else if info.kind == .file || info.kind == .symlink {
+            try session.scp(download: remotePath(info.path), to: local.path, isCancelled: isCancelled, isPaused: isPaused)
             done(max(0, info.size))
-        }
-    }
-
-    /// Wysyła plik lub katalog (rekurencyjnie) pod ścieżkę `target` na serwerze.
-    func send(_ local: VFSPath, to target: VFSPath, isCancelled: @escaping @Sendable () -> Bool, isPaused: @escaping @Sendable () -> Bool, done: (Int64) -> Void) throws {
-        if isCancelled() { throw VFSError.cancelled }
-        let item = try LocalFS().itemSync(at: local)
-        if item.isDirectory {
-            _ = try shell("mkdir -p \(SSHSession.shellQuote(remotePath(target)))")
-            let children = try FileManager.default.contentsOfDirectory(atPath: local.path).sorted()
-            for name in children {
-                try send(local.appending(name), to: target.appending(name), isCancelled: isCancelled, isPaused: isPaused, done: done)
-            }
-        } else if item.kind == .file {
-            try session.scp(upload: local.path, to: remotePath(target), isCancelled: isCancelled, isPaused: isPaused)
-            done(max(0, item.size))
         }
     }
 
@@ -308,51 +354,147 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
 }
 
 /// Wysyłanie na serwer SCP jako zadanie w tle (pauza = SIGSTOP procesu `scp`, anulowanie = zakończenie).
+/// Konflikty jak przy kopiowaniu lokalnym: katalog do istniejącego katalogu — scalanie (nic spoza
+/// wysyłanego drzewa nie znika), plik na istniejący — decyzja polityki albo delegata (okno pytania).
 public struct ScpUpload: Sendable {
     public var fs: ScpFS
     public var sources: [VFSPath]
     public var destination: VFSPath
-    public var skipExisting: Bool
+    /// Stała decyzja przy konflikcie (`nil` — pyta `delegate`, bez delegata pomija).
+    public var conflict: ConflictResolution?
+    public var delegate: (any TransferDelegate)?
 
-    public init(fs: ScpFS, sources: [VFSPath], destination: VFSPath, skipExisting: Bool) {
+    public init(fs: ScpFS, sources: [VFSPath], destination: VFSPath, conflict: ConflictResolution? = nil, delegate: (any TransferDelegate)? = nil) {
         self.fs = fs
         self.sources = sources
         self.destination = destination
-        self.skipExisting = skipExisting
+        self.conflict = conflict
+        self.delegate = delegate
+    }
+
+    /// Stan jednego wysyłania (decyzja „dla wszystkich”, błędy, postęp) — tylko wątek zadania.
+    final class State: @unchecked Sendable {
+        var applyToAll: ConflictResolution?
+        var errors: [String] = []
+        var progress = TransferProgress()
     }
 
     public func run(control: JobControl, progress: @Sendable (TransferProgress) -> Void) throws -> [String] {
-        var p = TransferProgress()
-        p.filesTotal = sources.count
-        p.bytesTotal = sources.reduce(0) { $0 + ((try? DirectorySizer.sizeSync(of: $1, isCancelled: { false }))?.bytes ?? 0) }
-        let existing = Set(((try? fs.listSync(destination)) ?? []).map(\.name))
-        var errors: [String] = []
+        let state = State()
+        state.progress.filesTotal = sources.count
+        state.progress.bytesTotal = sources.reduce(0) { $0 + ((try? DirectorySizer.sizeSync(of: $1, isCancelled: { false }))?.bytes ?? 0) }
+        let existing = Self.byName((try? fs.listSync(destination)) ?? [])
         for source in sources {
             guard control.checkpoint() else { throw VFSError.cancelled }
-            p.currentItem = source.name
-            progress(p)
-            if existing.contains(source.name) {
-                if skipExisting {
-                    errors.append(L10n.tr("\(source.name): istnieje na serwerze — pominięto"))
-                    p.filesDone += 1
-                    continue
-                }
-                let target = SSHSession.shellQuote(fs.remotePath(destination.appending(source.name)))
-                _ = try? fs.shell("rm -r -f \(target)")
-            }
+            state.progress.currentItem = source.name
+            progress(state.progress)
             do {
-                try fs.send(source, to: destination.appending(source.name), isCancelled: { control.isCancelled }, isPaused: { control.isPaused }) { bytes in
-                    p.bytesDone += bytes
-                    progress(p)
-                }
+                try put(source, into: destination, existing: existing[source.name], siblings: existing, state: state, control: control, progress: progress)
             } catch VFSError.cancelled {
                 throw VFSError.cancelled
             } catch {
-                errors.append("\(source.name): \(error.localizedDescription)")
+                state.errors.append("\(source.name): \(error.localizedDescription)")
             }
-            p.filesDone += 1
-            progress(p)
+            state.progress.filesDone += 1
+            progress(state.progress)
         }
-        return errors
+        return state.errors
+    }
+
+    /// Elementy wg nazwy (Swift porównuje napisy kanonicznie — nazwa NFD lokalnie trafia w NFC na serwerze).
+    static func byName(_ items: [FileItem]) -> [String: FileItem] {
+        Dictionary(items.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
+    }
+
+    private func decide(_ local: FileItem, _ remote: FileItem, state: State) throws -> ConflictResolution {
+        if let conflict { return conflict }
+        if let d = state.applyToAll { return d }
+        guard let delegate else { return .skip }
+        let question = FileConflict(source: local, destination: remote, kind: .copy)
+        let decision = waitFor { await delegate.resolveConflict(question) }
+        if decision.applyToAll { state.applyToAll = decision.resolution }
+        if decision.resolution == .cancel { throw VFSError.cancelled }
+        return decision.resolution
+    }
+
+    /// Wysyła `local` do katalogu `directory` na serwerze; `existing` — element o tej nazwie na serwerze.
+    private func put(_ local: VFSPath, into directory: VFSPath, existing: FileItem?, siblings: [String: FileItem], state: State,
+                     control: JobControl, progress: @Sendable (TransferProgress) -> Void) throws {
+        guard control.checkpoint() else { throw VFSError.cancelled }
+        let item = try LocalFS().itemSync(at: local)
+        guard item.kind == .directory || item.kind == .file else {
+            if item.kind == .symlink { state.errors.append(L10n.tr("\(item.name): dowiązanie symboliczne — pominięto")) }
+            return
+        }
+        var target = existing?.path ?? ScpFS.newName(directory.appending(item.name))
+        var replace = false
+        // Katalog do katalogu (także dowiązania do katalogu): scalanie bez pytania — jak lokalnie.
+        if let existing, !(item.kind == .directory && existing.isNavigable) {
+            switch try decide(item, existing, state: state) {
+            case .skip, .cancel:
+                state.errors.append(L10n.tr("\(item.name): istnieje na serwerze — pominięto"))
+                return
+            case .rename:
+                target = Self.unique(item.name, in: directory, taken: siblings)
+            case .overwriteOlder:
+                if let mine = item.modified, let theirs = existing.modified, theirs >= mine {
+                    state.errors.append(L10n.tr("\(item.name): istnieje na serwerze — pominięto"))
+                    return
+                }
+                replace = true
+            case .overwrite:
+                replace = true
+            }
+            // Niezgodny typ (katalog ⇄ plik, dowiązanie): stary element trzeba usunąć; plik na plik scp nadpisuje sam.
+            if replace, item.kind == .directory || existing.kind != .file {
+                _ = try fs.shell("rm -r -f \(SSHSession.shellQuote(fs.remotePath(target)))", path: target)
+            }
+        }
+        // Czy na serwerze nie było niczego pod `target` (nowy element).
+        let isNew = existing == nil || target != existing?.path || (replace && existing?.kind != .file)
+        if item.kind == .directory {
+            let remoteChildren = isNew ? [:] : Self.byName((try? fs.listSync(target)) ?? [])
+            _ = try fs.shell("mkdir -p \(SSHSession.shellQuote(fs.remotePath(target)))", path: target)
+            for name in try FileManager.default.contentsOfDirectory(atPath: local.path).sorted() {
+                try put(local.appending(name), into: target, existing: remoteChildren[name], siblings: remoteChildren, state: state, control: control, progress: progress)
+            }
+            return
+        }
+        do {
+            try fs.session.scp(upload: local.path, to: fs.remotePath(target), isCancelled: { control.isCancelled }, isPaused: { control.isPaused })
+        } catch {
+            // Urwany plik nie może zostać na serwerze: po anulowaniu zawsze, po błędzie — tylko nowy
+            // (istniejący, którego nie dało się nadpisać, zostaje nietknięty).
+            if error as? VFSError == .cancelled || isNew {
+                _ = try? fs.shell("rm -f \(SSHSession.shellQuote(fs.remotePath(target)))", path: target)
+            }
+            throw error
+        }
+        state.progress.bytesDone += max(0, item.size)
+        progress(state.progress)
+    }
+
+    /// „nazwa (2).ext” wolna w katalogu na serwerze.
+    static func unique(_ name: String, in directory: VFSPath, taken: [String: FileItem]) -> VFSPath {
+        let stem = name.fileStem, ext = name.fileExtension
+        var n = 2
+        while true {
+            let candidate = (ext.isEmpty ? "\(stem) (\(n))" : "\(stem) (\(n)).\(ext)").precomposedStringWithCanonicalMapping
+            if taken[candidate] == nil { return directory.appending(candidate) }
+            n += 1
+        }
+    }
+
+    /// Most z okna pytania (async) do wątku zadania.
+    private func waitFor<T: Sendable>(_ body: @escaping @Sendable () async -> T) -> T {
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = Mutex<T?>(nil)
+        Task.detached {
+            let value = await body()
+            box.withLock { $0 = value }
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return box.withLock { $0! }
     }
 }

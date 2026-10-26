@@ -22,25 +22,80 @@ public enum RemoteError: Error, LocalizedError, Equatable, Sendable {
     }
 }
 
+/// Koordynator limitu prędkości: `core/bwlimit` działa na wszystkie transfery procesu rclone naraz,
+/// więc limit wynika ze wszystkich zadań — najmniejszy z limitów zadań niewstrzymanych, a 1 B/s
+/// (pauza — rclone nie ma pauzy zadania) tylko wtedy, gdy wstrzymane są wszystkie.
+public final class RcloneBandwidth: Sendable {
+    struct Entry: Sendable, Equatable {
+        var paused: Bool
+        var limit: Int64
+    }
+
+    private let state = Mutex<(entries: [UUID: Entry], applied: String?)>(([:], nil))
+    private let apply: @Sendable (String) -> Void
+
+    public init(apply: @escaping @Sendable (String) -> Void) {
+        self.apply = apply
+    }
+
+    static func rate(_ entries: [Entry]) -> String {
+        guard !entries.isEmpty else { return "off" }
+        let running = entries.filter { !$0.paused }
+        guard !running.isEmpty else { return "1" }
+        return running.map(\.limit).filter { $0 > 0 }.min().map { "\($0)" } ?? "off"
+    }
+
+    public func update(_ id: UUID, paused: Bool, limit: Int64) {
+        change { $0[id] = Entry(paused: paused, limit: limit) }
+    }
+
+    public func remove(_ id: UUID) {
+        change { $0[id] = nil }
+    }
+
+    /// Zmiana i ustawienie limitu pod blokadą (kolejność wywołań `core/bwlimit` = kolejność zmian).
+    private func change(_ body: (inout [UUID: Entry]) -> Void) {
+        state.withLock { s in
+            body(&s.entries)
+            let rate = Self.rate(Array(s.entries.values))
+            if rate != s.applied {
+                s.applied = rate
+                apply(rate)
+            }
+        }
+    }
+}
+
 /// Proces `rclone rcd` z API zdalnego sterowania na gnieździe Unix (bez portów TCP) i z
 /// konfiguracją tylko w pamięci (`--config ""`) — dane logowania nie trafiają do pliku.
 public final class Rclone: Sendable {
     public let executable: String
     public let socket: URL
     private let process = Mutex<Process?>(nil)
+    /// Wspólny limit prędkości wszystkich zadań tego procesu (`core/bwlimit` jest globalny).
+    public let bandwidth: RcloneBandwidth
 
     public init(executable: String, socket: URL) {
         self.executable = executable
         self.socket = socket
+        let path = socket.path
+        bandwidth = RcloneBandwidth { rate in
+            _ = try? Rclone.decode(Rclone.post(socket: path, path: "/core/bwlimit", body: Data(#"{"rate":"\#(rate)"}"#.utf8)))
+        }
     }
 
     public var isRunning: Bool { process.withLock { $0?.isRunning ?? false } }
+
+    /// Plik z PID procesu `rcd` (obok gniazda) — po awarii aplikacji stary proces z hasłami w pamięci
+    /// jest zamykany przy następnym starcie.
+    var pidFile: String { socket.deletingPathExtension().path + ".pid" }
 
     public func start() throws {
         if isRunning { return }
         let dir = socket.deletingLastPathComponent().path
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         chmod(dir, 0o700)
+        killOrphan()
         unlink(socket.path)
         let p = Process()
         p.executableURL = URL(filePath: executable)
@@ -54,20 +109,67 @@ public final class Rclone: Sendable {
         p.standardError = FileHandle.nullDevice
         try p.run()
         process.withLock { $0 = p }
+        FileManager.default.createFile(atPath: pidFile, contents: Data("\(p.processIdentifier)\n".utf8), attributes: [.posixPermissions: 0o600])
         // Czekamy na gniazdo.
         for _ in 0..<100 {
             if FileManager.default.fileExists(atPath: socket.path), (try? callSync("rc/noop", [:])) != nil { return }
+            if !p.isRunning { break }
             usleep(50_000)
         }
+        // Nieudany start: proces nie może zostać osierocony.
+        stop()
         throw RemoteError.notRunning
     }
 
     public func stop() {
-        process.withLock {
-            $0?.terminate()
-            $0 = nil
+        let p = process.withLock { p in
+            defer { p = nil }
+            return p
+        }
+        if let p, p.isRunning {
+            p.terminate()
+            let deadline = Date().addingTimeInterval(2)
+            while p.isRunning, Date() < deadline { usleep(20_000) }
+            if p.isRunning { kill(p.processIdentifier, SIGKILL) }
         }
         unlink(socket.path)
+        unlink(pidFile)
+    }
+
+    /// Kończy proces z pliku PID, jeśli to nadal `rclone rcd` na tym gnieździe (PID mógł zostać
+    /// użyty ponownie przez inny program — wtedy nic nie robi).
+    func killOrphan() {
+        defer { unlink(pidFile) }
+        guard let text = try? String(contentsOfFile: pidFile, encoding: .utf8),
+              let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 1,
+              let args = Self.arguments(of: pid), args.count > 1,
+              (args[0] as NSString).lastPathComponent == "rclone", args.contains("rcd"), args.contains("unix://" + socket.path)
+        else { return }
+        kill(pid, SIGTERM)
+        for _ in 0..<100 where kill(pid, 0) == 0 { usleep(20_000) }
+        if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+    }
+
+    /// Argumenty procesu (`KERN_PROCARGS2`) — tylko procesy tego samego użytkownika.
+    static func arguments(of pid: pid_t) -> [String]? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+        let argc = buffer.withUnsafeBytes { $0.load(as: Int32.self) }
+        var i = MemoryLayout<Int32>.size
+        // Ścieżka programu, potem zera wyrównania, potem argv.
+        while i < size, buffer[i] != 0 { i += 1 }
+        while i < size, buffer[i] == 0 { i += 1 }
+        var args: [String] = []
+        while args.count < argc, i < size {
+            let start = i
+            while i < size, buffer[i] != 0 { i += 1 }
+            args.append(String(decoding: buffer[start..<i], as: UTF8.self))
+            i += 1
+        }
+        return args
     }
 
     // MARK: API

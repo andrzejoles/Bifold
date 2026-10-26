@@ -10,6 +10,8 @@
 	<string>6.0</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>BifoldHelperMachService</key>
+	<string>$(BIFOLD_BUNDLE_ID).helper</string>
 	<key>BifoldClientRequirement</key>
 	<string>$(BIFOLD_CLIENT_REQUIREMENT)</string>
 </dict>

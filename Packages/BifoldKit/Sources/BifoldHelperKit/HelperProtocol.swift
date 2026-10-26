@@ -23,10 +23,20 @@ public enum HelperOperation: String, Codable, Sendable, CaseIterable {
 }
 
 public enum HelperConstants {
-    /// Nazwa usługi Mach = etykieta demona (`Config/Brand.xcconfig` → `local.aoles.bifold.helper`).
-    public static let machService = "local.aoles.bifold.helper"
-    public static let plistName = "local.aoles.bifold.helper.plist"
+    /// Nazwa usługi Mach = etykieta demona = `$(BIFOLD_BUNDLE_ID).helper` (`Config/Brand.xcconfig`):
+    /// z klucza `BifoldHelperMachService` w Info.plist, a bez niego z identyfikatora pakietu (aplikacja
+    /// `X` → `X.helper`; pomocnik ma już identyfikator `X.helper`).
+    public static let machService: String = machService(info: Bundle.main.object(forInfoDictionaryKey: "BifoldHelperMachService") as? String,
+                                                        bundleIdentifier: Bundle.main.bundleIdentifier)
+    /// Plik demona w `Contents/Library/LaunchDaemons` (generowany przy budowaniu z `Brand.xcconfig`).
+    public static var plistName: String { machService + ".plist" }
     public static let protocolVersion = 1
+
+    static func machService(info: String?, bundleIdentifier: String?) -> String {
+        if let info, !info.isEmpty, !info.hasPrefix("$(") { return info }
+        guard let id = bundleIdentifier, !id.isEmpty else { return "bifold.helper" }
+        return id.hasSuffix(".helper") ? id : id + ".helper"
+    }
 }
 
 public struct HelperRequest: Codable, Sendable, Equatable {
@@ -83,7 +93,16 @@ public enum HelperOperations {
     /// Katalogi, których pomocnik nie ruszy nigdy (SIP i tak chroni część z nich).
     public static let forbiddenPrefixes = [
         "/System", "/bin", "/sbin", "/usr/bin", "/usr/sbin", "/usr/lib", "/usr/libexec", "/private/var/db",
-        "/Library/Apple", "/private/etc/sudoers", "/etc/sudoers", "/private/var/root", "/Library/Keychains",
+        "/Library/Apple", "/private/etc/sudoers", "/etc/sudoers", "/private/etc/sudoers.d", "/etc/sudoers.d",
+        "/private/var/root", "/Library/Keychains", "/Library/LaunchDaemons", "/Library/LaunchAgents",
+        "/private/etc/pam.d", "/private/etc/ssh",
+    ]
+
+    /// Katalogi najwyższego poziomu: zawartość wolno zmieniać (np. program w /Applications), ale nie
+    /// sam katalog (usunięcie /Users albo zmiana właściciela /usr zniszczyłyby system).
+    public static let protectedDirectories = [
+        "/Library", "/private", "/usr", "/Applications", "/Users", "/System", "/Volumes", "/etc", "/var", "/tmp",
+        "/private/var", "/private/etc", "/private/tmp", "/usr/local", "/opt", "/cores", "/Network",
     ]
 
     /// Ścieżka absolutna, znormalizowana; rodzic rozwiązany przez realpath (bez sztuczek z `..`
@@ -100,7 +119,12 @@ public enum HelperOperations {
         // Bez rozróżniania wielkości liter: APFS domyślnie jej nie rozróżnia, a realpath poprawia tylko
         // rodzica — „/private/etc/SUDOERS” to ten sam plik co „/private/etc/sudoers”.
         let folded = path.lowercased()
-        for f in forbiddenPrefixes.map({ $0.lowercased() }) where folded == f || folded.hasPrefix(f + "/") {
+        // Katalog zabroniony, jego wnętrze albo jego przodek (`remove /Library` usunąłby też
+        // /Library/Keychains, `move /private/etc` — sudoers).
+        for f in forbiddenPrefixes.map({ $0.lowercased() }) where folded == f || folded.hasPrefix(f + "/") || f.hasPrefix(folded + "/") {
+            throw HelperError.forbiddenPath(path)
+        }
+        for d in protectedDirectories.map({ $0.lowercased() }) where folded == d {
             throw HelperError.forbiddenPath(path)
         }
         guard path != "/" else { throw HelperError.forbiddenPath(path) }

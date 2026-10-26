@@ -33,13 +33,16 @@ public final class RemoteManager {
         if let secret { try keychain.set(secret, for: c.alias) }
         try JSONStore.save(connections, to: url)
         connected.remove(c.alias)
-        scpSessions.removeValue(forKey: c.alias)?.disconnect()
+        // Zmieniony host/użytkownik: stara sesja SSH (także terminali) nie może zostać.
+        scpSessions.removeValue(forKey: c.alias)
+        sshSessions.removeValue(forKey: c.alias)?.disconnect()
     }
 
     public func remove(_ alias: String) throws {
         connections.removeAll { $0.alias == alias }
         keychain.delete(alias)
-        scpSessions.removeValue(forKey: alias)?.disconnect()
+        scpSessions.removeValue(forKey: alias)
+        sshSessions.removeValue(forKey: alias)?.disconnect()
         try JSONStore.save(connections, to: url)
         workspace.providers.unregister(RemoteFS.providerID(alias))
         connected.remove(alias)
@@ -47,22 +50,43 @@ public final class RemoteManager {
 
     /// Katalog na gniazda (rclone, połączenia główne SSH). Limit sun_path to 104 B, a `ssh` dokleja
     /// do ścieżki 17 znaków — przy długiej ścieżce prywatny katalog 0700 w /tmp (gniazda bez
-    /// uwierzytelnienia muszą być niedostępne dla innych użytkowników).
+    /// uwierzytelnienia muszą być niedostępne dla innych użytkowników). Katalog w /tmp ma stałą nazwę
+    /// (skrót katalogu danych) i jest usuwany przy `stop()` — wcześniej każdy Workspace zostawiał nowy.
     func socketDirectory() throws -> URL {
         if let socketDir { return socketDir }
         var dir = workspace.paths.run
         if dir.path.utf8.count + 40 > 100 {
-            dir = URL(filePath: "/tmp/bifold-\(getuid())-\(UUID().uuidString.prefix(6))", directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+            dir = try Self.privateTemporaryDirectory(for: dir.path)
+            ownsSocketDir = true
         }
         socketDir = dir
         return dir
     }
 
+    /// `/tmp/bifold-<uid>-<skrót>`: utworzony z 0700 albo istniejący, ale tylko jeśli to zwykły katalog
+    /// (nie dowiązanie) bieżącego użytkownika z prawami 0700 — inaczej (np. podrzucony przez innego
+    /// użytkownika) nowy katalog o losowej nazwie.
+    static func privateTemporaryDirectory(for key: String) throws -> URL {
+        let hash = key.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { ($0 ^ UInt64($1)) &* 1_099_511_628_211 }
+        let stable = "/tmp/bifold-\(getuid())-\(String(hash, radix: 36).prefix(8))"
+        for candidate in [stable, "/tmp/bifold-\(getuid())-\(UUID().uuidString.prefix(8))"] {
+            if mkdir(candidate, 0o700) == 0 { return URL(filePath: candidate, directoryHint: .isDirectory) }
+            var st = stat()
+            if errno == EEXIST, lstat(candidate, &st) == 0, st.st_mode & S_IFMT == S_IFDIR, st.st_uid == getuid(), st.st_mode & 0o777 == 0o700 {
+                return URL(filePath: candidate, directoryHint: .isDirectory)
+            }
+        }
+        throw VFSError.io(path: .local(stable), code: EEXIST)
+    }
+
     @ObservationIgnored private var socketDir: URL?
+    /// Katalog gniazd w /tmp utworzony przez ten menedżer (usuwany przy `stop()`).
+    @ObservationIgnored private var ownsSocketDir = false
     @ObservationIgnored private var scpSessions: [String: ScpFS] = [:]
-    /// Sesje SSH dla terminali połączeń SFTP (SCP korzysta z sesji ScpFS).
-    @ObservationIgnored private var terminalSessions: [String: SSHSession] = [:]
+    /// Jedna sesja SSH na serwer (gniazdo połączenia głównego) — wspólna dla SCP i terminali.
+    @ObservationIgnored private var sshSessions: [String: SSHSession] = [:]
+    /// Trwające łączenie (drugie wywołanie `provider` czeka na to samo zamiast rozłączać pierwsze).
+    @ObservationIgnored private var connecting: [String: Task<any RemoteFileProvider, any Error>] = [:]
     /// Testy: własna konfiguracja SSH zamiast ~/.ssh/config i ~/.ssh/known_hosts.
     @ObservationIgnored public var sshConfigFile: String?
     @ObservationIgnored public var sshKnownHostsFile: String?
@@ -83,15 +107,31 @@ public final class RemoteManager {
     public func provider(_ alias: String) async throws -> any RemoteFileProvider {
         guard let c = connection(alias) else { throw RemoteError.unknownRemote(alias) }
         if connected.contains(alias), let p = try? workspace.providers.provider(for: RemoteFS.providerID(alias)) as? any RemoteFileProvider { return p }
+        if let pending = connecting[alias] { return try await pending.value }
+        let task = Task { try await self.establish(c) }
+        connecting[alias] = task
+        defer { if connecting[alias] == task { connecting[alias] = nil } }
+        return try await task.value
+    }
+
+    /// Sesja SSH serwera — jedna na alias (i gniazdo połączenia głównego), wspólna dla SCP i terminala;
+    /// po zmianie konfiguracji stara jest zamykana.
+    func sshSession(_ c: RemoteConnection) throws -> SSHSession {
+        let config = ScpFS.sessionConfig(c, sshConfigFile: sshConfigFile, knownHostsFile: sshKnownHostsFile)
+        if let existing = sshSessions[c.alias], existing.config == config { return existing }
+        sshSessions.removeValue(forKey: c.alias)?.disconnect()
+        let keychain = keychain, alias = c.alias
+        let session = try SSHSession(config: config, runDirectory: try socketDirectory(), secret: { keychain.get(alias) })
+        sshSessions[c.alias] = session
+        return session
+    }
+
+    private func establish(_ c: RemoteConnection) async throws -> any RemoteFileProvider {
+        let alias = c.alias
         if c.kind == .scp {
-            let keychain = keychain
-            // Stara sesja przed nową: obie używają tego samego gniazda połączenia głównego.
-            if let old = scpSessions.removeValue(forKey: alias) {
-                _ = try? await runBlocking(qos: .userInitiated) { old.disconnect() }
-            }
-            let fs = try await ScpFS.connect(c, runDirectory: try socketDirectory(), sshConfigFile: sshConfigFile, knownHostsFile: sshKnownHostsFile) {
-                keychain.get(alias)
-            }
+            scpSessions.removeValue(forKey: alias)
+            let session = try sshSession(c)
+            let fs = try await ScpFS.connect(c, runDirectory: try socketDirectory(), session: session) { nil }
             scpSessions[alias] = fs
             workspace.providers.register(fs)
             connected.insert(alias)
@@ -121,23 +161,12 @@ public final class RemoteManager {
     public func terminalSpec(_ alias: String, directory: String?) async throws -> TerminalSpec {
         guard let c = connection(alias) else { throw RemoteError.unknownRemote(alias) }
         guard c.kind.usesSSH else { throw RemoteError.ssh(L10n.tr("Terminal SSH działa dla połączeń SFTP i SCP")) }
-        let session: SSHSession
-        if let scp = scpSessions[alias] {
-            session = scp.session
-        } else if let existing = terminalSessions[alias] {
-            session = existing
-        } else {
-            let keychain = keychain
-            session = try SSHSession(
-                config: .init(host: c.host, port: c.port, user: c.user, keyFile: c.keyFile, legacyAlgorithms: c.legacyAlgorithms ?? false,
-                              encoding: c.nameEncoding ?? .utf8, configFile: sshConfigFile, knownHostsFile: sshKnownHostsFile),
-                runDirectory: try socketDirectory(), secret: { keychain.get(alias) })
-            terminalSessions[alias] = session
-        }
+        let session = try scpSessions[alias]?.session ?? sshSession(c)
         let shell = try await runBlocking(qos: .userInitiated) { () -> String in
             try session.connect()
-            let r = try session.run("echo $SHELL")
-            return session.config.encoding.decode(r.output).trimmingCharacters(in: .whitespacesAndNewlines)
+            // Znacznik: `.bashrc`, który coś wypisuje, nie może zepsuć nazwy powłoki.
+            let r = try session.run(SSHSession.markedOutput("echo $SHELL"))
+            return SSHSession.textAfterMarker(session.config.encoding.decode(r.output)).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         let command = SSHSession.loginCommand(directory: directory, shell: shell, encoding: session.config.encoding)
         return TerminalSpec(alias: alias, executable: "/usr/bin/ssh", arguments: session.terminalArguments(remoteCommand: command), term: c.effectiveTerminalType)
@@ -146,12 +175,11 @@ public final class RemoteManager {
     /// Zamyka połączenie: sesję SSH (SCP), zasób w pamięci rclone (SFTP, FTP, WebDAV, chmury),
     /// edycje plików z tego serwera. Karty przenosi wywołujący (komenda `remote.disconnect`).
     public func disconnect(_ alias: String) async {
-        if let scp = scpSessions.removeValue(forKey: alias) {
-            _ = try? await runBlocking(qos: .userInitiated) { scp.disconnect() }
-        }
+        connecting.removeValue(forKey: alias)?.cancel()
+        let scp = scpSessions.removeValue(forKey: alias)
         // Zamknięcie połączenia głównego kończy też terminale SSH tego serwera.
-        if let terminal = terminalSessions.removeValue(forKey: alias) {
-            _ = try? await runBlocking(qos: .userInitiated) { terminal.disconnect() }
+        if let session = sshSessions.removeValue(forKey: alias) ?? scp?.session {
+            _ = try? await runBlocking(qos: .userInitiated) { session.disconnect() }
         }
         if let rclone, rclone.isRunning, connected.contains(alias) {
             _ = try? await rclone.call("config/delete", ["name": alias])
@@ -174,15 +202,28 @@ public final class RemoteManager {
     }
 
     public func stop() {
-        for fs in scpSessions.values { fs.disconnect() }
+        connecting.values.forEach { $0.cancel() }
+        connecting = [:]
+        sshSessions.values.forEach { $0.disconnect() }
+        for fs in scpSessions.values where !sshSessions.values.contains(where: { $0 === fs.session }) { fs.disconnect() }
         scpSessions = [:]
-        for session in terminalSessions.values { session.disconnect() }
-        terminalSessions = [:]
+        sshSessions = [:]
         rclone?.stop()
         rclone = nil
         connected = []
         editSessions.values.forEach { $0.stop() }
         editSessions = [:]
+        // Własny katalog gniazd w /tmp (połączenia główne już zamknięte) — nie zostaje po zamknięciu.
+        if ownsSocketDir, let dir = socketDir {
+            try? FileManager.default.removeItem(at: dir)
+            socketDir = nil
+            ownsSocketDir = false
+        }
+    }
+
+    /// Czy połączenie ma otwarte edycje plików (agent nie może ich przerwać rozłączeniem).
+    public func hasEditSessions(_ alias: String) -> Bool {
+        editSessions.values.contains { RemoteFS.alias(of: $0.remote) == alias }
     }
 
     // MARK: SMB/NFS przez NetFS
@@ -212,10 +253,15 @@ public final class RemoteManager {
         let session = RemoteEditSession(local: local, remote: path, fs: fs) { [weak self] message in
             self?.workspace.setStatus(message)
         }
+        // Ponowna edycja tej samej ścieżki: stara obserwacja kończy się (i jej kopia znika).
+        editSessions[path.description]?.stop()
         editSessions[path.description] = session
         session.start()
         return local
     }
+
+    /// Do testów: lokalna kopia edytowanego pliku.
+    func editedCopy(_ path: VFSPath) -> URL? { editSessions[path.description]?.local }
 }
 
 /// Obserwuje lokalną kopię pliku zdalnego i wysyła ją po zapisie.
@@ -226,7 +272,10 @@ final class RemoteEditSession {
     let fs: any RemoteFileProvider
     let report: (String) -> Void
     private var source: (any DispatchSourceFileSystemObject)?
-    private var lastUpload = Date.distantPast
+    /// Wysyłka zaplanowana po ostatnim zdarzeniu (każdy kolejny zapis ją przesuwa).
+    private var pending: Task<Void, Never>?
+    /// Opóźnienie wysyłki od ostatniego zdarzenia (edytory zapisują w kilku krokach).
+    var delay: Duration = .milliseconds(500)
 
     init(local: URL, remote: VFSPath, fs: any RemoteFileProvider, report: @escaping (String) -> Void) {
         self.local = local
@@ -248,20 +297,35 @@ final class RemoteEditSession {
         source = src
     }
 
-    func stop() { source?.cancel() }
+    /// Koniec edycji: obserwacja i lokalna kopia (katalog `bifold-remote-…` / `.bifold-scp-…` z
+    /// pobrania) znikają. Zaplanowana wysyłka ostatniego zapisu jeszcze się wykona.
+    func stop() {
+        source?.cancel()
+        source = nil
+        let dir = local.deletingLastPathComponent()
+        let name = dir.lastPathComponent
+        guard name.hasPrefix("bifold-remote-") || name.hasPrefix(".bifold-scp-") else { return }
+        if let pending {
+            Task { _ = await pending.value; try? FileManager.default.removeItem(at: dir) }
+        } else {
+            try? FileManager.default.removeItem(at: dir)
+        }
+    }
 
     private func changed() {
-        guard Date().timeIntervalSince(lastUpload) > 0.5 else { return }
-        lastUpload = Date()
-        let local = local, remote = remote, fs = fs
-        Task {
-            try? await Task.sleep(for: .milliseconds(300))
+        pending?.cancel()
+        let local = local, remote = remote, fs = fs, delay = delay
+        pending = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
             do {
                 try await fs.upload(local, to: remote)
-                report(L10n.tr("Wysłano \(remote.name) na \(fs.connection.alias)"))
+                self?.report(L10n.tr("Wysłano \(remote.name) na \(fs.connection.alias)"))
             } catch {
-                report(L10n.tr("Nie udało się wysłać \(remote.name): \(error.localizedDescription)"))
+                self?.report(L10n.tr("Nie udało się wysłać \(remote.name): \(error.localizedDescription)"))
             }
+            // Ostatnia zaplanowana wysyłka zakończona (nowsze zdarzenie anulowałoby to zadanie wcześniej).
+            if !Task.isCancelled { self?.pending = nil }
         }
     }
 }

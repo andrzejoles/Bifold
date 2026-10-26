@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 import Testing
 @testable import BifoldCore
 
@@ -66,6 +67,20 @@ final class TestServer {
         #expect(try server.root.read("nowy/plik.txt") == "x")
         let renamed = try await fs.rename(fs.root.appending("nowy/plik.txt"), to: "inny.txt")
         #expect(renamed.name == "inny.txt" && server.root.exists("nowy/inny.txt"))
+        // Istniejący cel: rclone zastąpiłby plik (movefile/copyfile), scalił katalogi (sync/move) albo
+        // zgłosił sukces mkdir — teraz błąd „już istnieje”, a dane na serwerze bez zmian.
+        try await fs.createFile(fs.root.appending("nowy/drugi.txt"), contents: Data("drugi".utf8))
+        try await fs.createDirectory(fs.root.appending("nowy/pod"))
+        try await fs.createFile(fs.root.appending("nowy/pod/p.txt"), contents: Data("p".utf8))
+        try await fs.createDirectory(fs.root.appending("nowy/pod2"))
+        await #expect(throws: VFSError.alreadyExists(fs.root.appending("nowy/drugi.txt"))) {
+            _ = try await fs.rename(fs.root.appending("nowy/inny.txt"), to: "drugi.txt")
+        }
+        await #expect(throws: VFSError.self) { _ = try await fs.rename(fs.root.appending("nowy/pod2"), to: "pod") }
+        await #expect(throws: VFSError.self) { try await fs.createFile(fs.root.appending("nowy/drugi.txt"), contents: Data("nadpisany".utf8)) }
+        await #expect(throws: VFSError.self) { try await fs.createDirectory(fs.root.appending("nowy/pod")) }
+        #expect(try server.root.read("nowy/drugi.txt") == "drugi" && server.root.read("nowy/inny.txt") == "x")
+        #expect(server.root.exists("nowy/pod2") && server.root.exists("nowy/pod/p.txt"))
         try await fs.deletePermanently(fs.root.appending("nowy"))
         #expect(!server.root.exists("nowy"))
         // Agent widzi tylko alias.
@@ -113,6 +128,47 @@ final class TestServer {
         #expect(plan.conflicts.isEmpty)
         _ = UndoPlanner.execute(plan, journal: journal)
         #expect(!local.exists("zdalne"))
+    }
+
+    /// Nieudany start `rcd` nie zostawia procesu; po awarii aplikacji (stary proces z plikiem PID)
+    /// nowy start zamyka stary `rclone rcd`.
+    @Test func failedStartAndOrphanedProcessAreTerminated() throws {
+        let dir = try TempDir()
+        let pidLog = dir.url.path + "/fake.pid"
+        let fake = dir.url.path + "/fake-rclone"
+        try Data("#!/bin/sh\necho $$ > '\(pidLog)'\nexec /bin/sleep 30\n".utf8).write(to: URL(filePath: fake))
+        chmod(fake, 0o755)
+        let socket = URL(filePath: "/tmp/bfr-\(UUID().uuidString.prefix(6)).sock")
+        #expect(throws: RemoteError.notRunning) { try Rclone(executable: fake, socket: socket).start() }
+        let fakePid = pid_t(try String(contentsOfFile: pidLog, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines))!
+        #expect(kill(fakePid, 0) != 0, "proces po nieudanym starcie zakończony")
+
+        let crashed = Rclone(executable: rclonePath!, socket: socket)
+        try crashed.start()
+        let orphanPid = pid_t(try String(contentsOfFile: crashed.pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines))!
+        #expect(Rclone.arguments(of: orphanPid)?.contains("rcd") == true)
+        // Nowy obiekt (jak po ponownym uruchomieniu aplikacji) przejmuje gniazdo i kończy stary proces.
+        let fresh = Rclone(executable: rclonePath!, socket: socket)
+        try fresh.start()
+        defer { fresh.stop() }
+        #expect(!crashed.isRunning && kill(orphanPid, 0) != 0)
+        #expect((try? fresh.callSync("rc/noop", [:])) != nil)
+    }
+
+    /// Limit prędkości jest wspólny dla procesu rclone: wstrzymanie jednego zadania nie może zatrzymać
+    /// pozostałych, a limit jednego — ograniczać zadania bez limitu ponad potrzebę.
+    @Test func bandwidthCoordinator() {
+        let applied = Mutex<[String]>([])
+        let bw = RcloneBandwidth { rate in applied.withLock { $0.append(rate) } }
+        let a = UUID(), b = UUID()
+        bw.update(a, paused: false, limit: 0)
+        bw.update(b, paused: false, limit: 1000)
+        bw.update(a, paused: true, limit: 0)
+        bw.update(b, paused: true, limit: 1000)
+        bw.update(a, paused: false, limit: 500)
+        bw.remove(a)
+        bw.remove(b)
+        #expect(applied.withLock { $0 } == ["off", "1000", "1", "500", "1", "off"])
     }
 
     @Test func inMemoryConfigOnly() async throws {

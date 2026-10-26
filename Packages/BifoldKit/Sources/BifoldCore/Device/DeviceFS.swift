@@ -12,12 +12,23 @@ extension ArchiveFS: ExtractingProvider {
     public var displayName: String { archive.name }
 }
 
+/// Prywatny katalog tymczasowy dla plików z telefonu (0700 — w katalogu docelowym, do którego mogą
+/// zaglądać inni użytkownicy, zanim pliki trafią na miejsce).
+func makeDeviceTemp(in directory: VFSPath) throws -> VFSPath {
+    let temp = directory.appending(".bifold-device-\(UUID().uuidString.prefix(8))")
+    try FileManager.default.createDirectory(atPath: temp.path, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    return temp
+}
+
 public enum DeviceKind: String, Codable, Sendable { case iPhone, android }
 
 public struct DeviceInfo: Sendable, Hashable, Identifiable {
     public var id: String
     public var kind: DeviceKind
     public var name: String
+    /// Android: „vid pid bus dev” z `bifold-mtp detect` — ponowne otwarcie sesji (po odłączeniu albo
+    /// po „Zezwól”) trafia w ten sam telefon, a nie w ten, który ma teraz ten sam numer na liście.
+    public var usb: String? = nil
 }
 
 /// Uruchamianie narzędzi CLI z lokalizacją C (stały format dat) i bez kolorów. Przez `Spawn`
@@ -25,12 +36,14 @@ public struct DeviceInfo: Sendable, Hashable, Identifiable {
 /// (np. telefon, który przestał odpowiadać) nie blokuje wątku na zawsze.
 struct ToolRunner {
     /// - Parameter includeErrors: dołącza stderr do wyniku (komunikaty błędów narzędzia).
-    static func run(_ executable: String, _ args: [String], timeout: Double = 30, includeErrors: Bool = true) throws -> (status: Int32, output: String) {
+    /// - Parameter isCancelled: anulowanie kończy narzędzie (np. długie `afcclient get -rf`).
+    static func run(_ executable: String, _ args: [String], timeout: Double = 30, includeErrors: Bool = true,
+                    isCancelled: @Sendable () -> Bool = { false }) throws -> (status: Int32, output: String) {
         var env = ProcessInfo.processInfo.environment
         env["LC_ALL"] = "C"
         env["NO_COLOR"] = "1"
         env["TERM"] = "dumb"
-        let r = try Spawn.run(executable, args.map { Array($0.utf8) }, environment: env, timeout: timeout)
+        let r = try Spawn.run(executable, args.map { Array($0.utf8) }, environment: env, timeout: timeout, isCancelled: isCancelled)
         if r.timedOut { throw VFSError.io(path: .local(executable), code: ETIMEDOUT) }
         let data = includeErrors ? r.output + r.error : r.output
         return (r.status, stripANSI(String(decoding: data, as: UTF8.self)))
@@ -60,7 +73,8 @@ public final class AFCDeviceFS: ExtractingProvider {
         self.device = device
         self.afcclient = afcclient
         self.appContainer = appContainer
-        id = ProviderID("device:\(device.id.prefix(12))\(appContainer.map { ":" + $0 } ?? "")")
+        // Pełny UDID: dwa iPhone’y z tym samym układem mają wspólny początek identyfikatora.
+        id = ProviderID("device:\(device.id)\(appContainer.map { ":" + $0 } ?? "")")
     }
 
     public var displayName: String { device.name }
@@ -84,7 +98,8 @@ public final class AFCDeviceFS: ExtractingProvider {
             let dateText = parts[5...8].joined(separator: " ")
             guard let nameStart = line.range(of: dateText)?.upperBound else { continue }
             let name = String(line[nameStart...].dropFirst())
-            guard !name.isEmpty, name != ".", name != ".." else { continue }
+            // Nazwy z telefonu są niezaufane (D46): `/`, `..` albo znaki sterujące trafiłyby do ścieżek lokalnych.
+            guard isSafeComponentName(name) else { continue }
             let kind: FileKind = mode.hasPrefix("d") ? .directory : (mode.hasPrefix("l") ? .symlink : .file)
             out.append(FileItem(path: dir.appending(name), kind: kind, size: kind == .directory ? -1 : size, modified: f.date(from: dateText)))
         }
@@ -117,18 +132,23 @@ public final class AFCDeviceFS: ExtractingProvider {
     }
 
     public func extract(_ paths: [VFSPath], toTemporaryIn directory: VFSPath, isCancelled: @escaping @Sendable () -> Bool) throws -> (temp: VFSPath, items: [VFSPath]) {
-        let temp = directory.appending(".bifold-device-\(UUID().uuidString.prefix(8))")
-        try FileManager.default.createDirectory(atPath: temp.path, withIntermediateDirectories: true)
+        let temp = try makeDeviceTemp(in: directory)
         var items: [VFSPath] = []
-        for p in paths {
-            if isCancelled() { throw VFSError.cancelled }
-            let local = temp.appending(p.name)
-            let (status, output) = try ToolRunner.run(afcclient, baseArgs + ["get", "-rf", p.path, local.path], timeout: 3600)
-            guard status == 0, FileManager.default.fileExists(atPath: local.path) else {
-                try? FileManager.default.removeItem(atPath: temp.path)
-                throw VFSError.unsupported(output.trimmingCharacters(in: .whitespacesAndNewlines))
+        do {
+            for p in paths {
+                if isCancelled() { throw VFSError.cancelled }
+                let local = temp.appending(p.name)
+                let (status, output) = try ToolRunner.run(afcclient, baseArgs + ["get", "-rf", p.path, local.path], timeout: 3600, isCancelled: isCancelled)
+                guard status == 0, FileManager.default.fileExists(atPath: local.path) else {
+                    throw VFSError.unsupported(output.trimmingCharacters(in: .whitespacesAndNewlines))
+                }
+                Quarantine.mark(local.path)
+                items.append(local)
             }
-            items.append(local)
+        } catch {
+            // Także po anulowaniu: katalog tymczasowy nie może zostać w katalogu docelowym.
+            try? FileManager.default.removeItem(atPath: temp.path)
+            throw error
         }
         return (temp, items)
     }
@@ -144,7 +164,8 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
     public let device: DeviceInfo
     public let model: String
     let helperPath: String
-    let index: Int
+    /// Argumenty `bifold-mtp` (sesja i każda ponowna sesja — ten sam telefon).
+    let arguments: [String]
     /// Sesja MTP; po „Zezwól” Samsung łączy się z USB od nowa, więc stara sesja nie widzi nośników —
     /// wtedy otwierana jest nowa.
     private let session = NSLock()
@@ -186,9 +207,11 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
     public init(device: DeviceInfo, helperPath: String) throws {
         self.device = device
         guard let index = Int(device.id) else { throw MTPError.helper("index") }
-        let (helper, hello) = try MTPHelper.open(helperPath, index: index)
+        // Z identyfikatorem USB pomocnik wybiera telefon po vid:pid (i bus:dev), nie po numerze na liście.
+        let arguments = ["serve", String(index)] + (device.usb?.split(separator: " ").map(String.init) ?? [])
+        let (helper, hello) = try MTPHelper.open(helperPath, arguments: arguments)
         self.helperPath = helperPath
-        self.index = index
+        self.arguments = arguments
         current = helper
         model = (hello["model"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? device.name
         id = ProviderID("device:mtp-\(device.id)")
@@ -199,25 +222,37 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
 
     var helper: MTPHelper { session.withLock { current } }
 
-    /// Nowa sesja w miejsce starej (po ponownym podłączeniu telefonu do USB).
+    /// Nowa sesja w miejsce starej (po ponownym podłączeniu telefonu do USB). Po `close()` — nie.
     func reopen() throws {
         session.lock()
         defer { session.unlock() }
+        if closed.withLock({ $0 }) { throw VFSError.cancelled }
         current.close()
-        current = try MTPHelper.open(helperPath, index: index).0
+        current = try MTPHelper.open(helperPath, arguments: arguments).0
         cache.withLock { $0 = [:] }
     }
 
     /// Polecenie; gdy sesja przestała odpowiadać (telefon odłączony i podłączony ponownie) — raz w nowej sesji.
+    /// Po `close()` każdy błąd pomocnika (koniec strumienia, „przerwane”, EPIPE przy zapisie) to anulowanie —
+    /// zamknięcie zabija proces, więc błąd może przyjść, zanim polecenie zobaczy flagę.
     func request(_ command: String, timeout: TimeInterval) throws -> [String: Any] {
         do {
             return try helper.request(command, timeout: timeout)
-        } catch MTPError.timeout {
-        } catch MTPError.helper(_) where !helper.isRunning {
+        } catch {
+            if closed.withLock({ $0 }) { throw VFSError.cancelled }
+            switch error {
+            case MTPError.timeout: break
+            case MTPError.helper(_) where !helper.isRunning: break
+            default: throw error
+            }
         }
-        if closed.withLock({ $0 }) { throw VFSError.cancelled }
         try reopen()
-        return try helper.request(command, timeout: timeout)
+        do {
+            return try helper.request(command, timeout: timeout)
+        } catch {
+            if closed.withLock({ $0 }) { throw VFSError.cancelled }
+            throw error
+        }
     }
 
     static func entries(_ items: Any?, storage: UInt32) -> [Entry] {
@@ -233,6 +268,7 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
 
     /// Nośniki („Pamięć wewnętrzna”, karta SD) jako foldery w korzeniu.
     func storages() throws -> [Entry] {
+        if closed.withLock({ $0 }) { throw VFSError.cancelled }
         var r = try request("storages", timeout: 60)
         if (r["storages"] as? [Any])?.isEmpty ?? true {
             // Sesja sprzed „Zezwól” nie zobaczy nośników — nowa sesja.
@@ -308,8 +344,7 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
 
     /// Pobiera pliki (katalogi rekurencyjnie) do nowego katalogu tymczasowego.
     public func extract(_ paths: [VFSPath], toTemporaryIn directory: VFSPath, isCancelled: @escaping @Sendable () -> Bool) throws -> (temp: VFSPath, items: [VFSPath]) {
-        let temp = directory.appending(".bifold-device-\(UUID().uuidString.prefix(8))")
-        try FileManager.default.createDirectory(atPath: temp.path, withIntermediateDirectories: true)
+        let temp = try makeDeviceTemp(in: directory)
         func fetch(_ devicePath: String, to local: VFSPath) throws {
             if isCancelled() { throw VFSError.cancelled }
             let e = try resolve(devicePath)
@@ -325,6 +360,7 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
             for p in paths {
                 let local = temp.appending(p.name)
                 try fetch(p.path, to: local)
+                Quarantine.mark(local.path)
                 items.append(local)
             }
         } catch {
@@ -358,14 +394,16 @@ final class MTPHelper: @unchecked Sendable {
         self.output = output
     }
 
-    static func open(_ executable: String, index: Int) throws -> (MTPHelper, [String: Any]) {
+    static func open(_ executable: String, arguments: [String]) throws -> (MTPHelper, [String: Any]) {
         let p = Process()
         p.executableURL = URL(filePath: executable)
-        p.arguments = ["serve", String(index)]
+        p.arguments = arguments
         let stdin = Pipe(), stdout = Pipe()
         p.standardInput = stdin
         p.standardOutput = stdout
         p.standardError = FileHandle.nullDevice
+        // Zapis do potoku pomocnika, który się zakończył, ma dać błąd EPIPE, a nie zabić aplikację SIGPIPE.
+        _ = fcntl(stdin.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         try p.run()
         let helper = MTPHelper(process: p, input: stdin.fileHandleForWriting, output: stdout.fileHandleForReading.fileDescriptor)
         let hello = try helper.readReply(timeout: 60)
@@ -441,7 +479,9 @@ public enum DeviceDetector {
             guard let index = (d["index"] as? NSNumber)?.intValue else { return nil }
             let vendor = d["vendor"] as? String ?? "", product = (d["product"] as? String ?? "").replacingOccurrences(of: " (MTP)", with: "")
             let name = [vendor, product].filter { !$0.isEmpty }.joined(separator: " ")
-            return DeviceInfo(id: String(index), kind: .android, name: name.isEmpty ? "Android" : name)
+            let usb = ["vid", "pid", "bus", "dev"].map { (d[$0] as? NSNumber)?.uint32Value }
+            return DeviceInfo(id: String(index), kind: .android, name: name.isEmpty ? "Android" : name,
+                              usb: usb.allSatisfy { $0 != nil } ? usb.map { String($0!) }.joined(separator: " ") : nil)
         }
     }
 
