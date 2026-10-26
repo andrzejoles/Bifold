@@ -26,7 +26,8 @@ import Testing
     }
 
     /// Fałszywy `bifold-mtp`: protokół jak prawdziwy pomocnik; nośnik pojawia się dopiero po „Zezwól”
-    /// (plik `allowed`), folder DCIM ma podfolder i plik.
+    /// (plik `allowed`), folder DCIM ma podfolder i plik, folder Inne — nazwy, których nie wolno użyć
+    /// w ścieżce, i plik, którego pobieranie trwa bez końca.
     func fakeHelper(_ tmp: TempDir) throws -> String {
         let path = tmp.url.appending(path: "bifold-mtp").path
         let script = """
@@ -43,10 +44,11 @@ import Testing
           case "$cmd" in
             storages) echo '{"ok":true,"storages":'"$(storages)"'}' ;;
             list)
-              if [ "$b" = 4294967295 ]; then echo '{"ok":true,"items":[{"id":10,"name":"DCIM","size":0,"mtime":0,"folder":true},{"id":11,"name":"notatka ąę.txt","size":5,"mtime":1760000000,"folder":false}]}'
+              if [ "$b" = 4294967295 ]; then echo '{"ok":true,"items":[{"id":10,"name":"DCIM","size":0,"mtime":0,"folder":true},{"id":11,"name":"notatka ąę.txt","size":5,"mtime":1760000000,"folder":false},{"id":12,"name":"Inne","size":0,"mtime":0,"folder":true}]}'
               elif [ "$b" = 10 ]; then echo '{"ok":true,"items":[{"id":20,"name":"Camera","size":0,"mtime":0,"folder":true},{"id":21,"name":"IMG_1.jpg","size":3,"mtime":1760000000,"folder":false}]}'
+              elif [ "$b" = 12 ]; then echo '{"ok":true,"items":[{"id":30,"name":"..","size":0,"mtime":0,"folder":true},{"id":31,"name":"a/b","size":1,"mtime":0,"folder":false},{"id":32,"name":"x\\nget 99 /tmp/zle","size":1,"mtime":0,"folder":false},{"id":35,"name":"","size":1,"mtime":0,"folder":false},{"id":33,"name":"ok.jpg","size":2,"mtime":0,"folder":false},{"id":34,"name":"wolny.mp4","size":9,"mtime":0,"folder":false}]}'
               else echo '{"ok":true,"items":[]}'; fi ;;
-            get) printf 'plik-%s' "$a" > "$b"; echo '{"ok":true}' ;;
+            get) if [ "$a" = 34 ]; then sleep 10; fi; printf 'plik-%s' "$a" > "$b"; echo '{"ok":true}' ;;
             quit) exit 0 ;;
             *) echo '{"ok":false,"error":"Nieznane polecenie"}' ;;
           esac
@@ -81,7 +83,7 @@ import Testing
         // Folder po folderze — bez wczytywania całego telefonu.
         let storage = fs.root.appending("Pamięć wewnętrzna")
         let top = try await fs.list(storage, options: ListOptions())
-        #expect(top.map(\.name) == ["DCIM", "notatka ąę.txt"] && top[1].size == 5)
+        #expect(top.map(\.name) == ["DCIM", "notatka ąę.txt", "Inne"] && top[1].size == 5)
         let dcim = try await fs.list(storage.appending("DCIM"), options: ListOptions())
         #expect(dcim.map(\.name) == ["Camera", "IMG_1.jpg"])
         let log = try tmp.read("log")
@@ -98,6 +100,40 @@ import Testing
         fs.close()
         let finalLog = try tmp.read("log")
         #expect(!fs.isSessionRunning || finalLog.hasSuffix("quit  \n"))
+    }
+
+    /// Nazwy z telefonu trafiają do ścieżek lokalnych i do poleceń pomocnika — niebezpieczne są
+    /// pomijane; zamknięcie telefonu przerywa trwające pobieranie zamiast na nie czekać.
+    @Test func mtpUnsafeNamesAndCloseDuringDownload() async throws {
+        let tmp = try TempDir()
+        let helper = try fakeHelper(tmp)
+        FileManager.default.createFile(atPath: tmp.url.path + "/allowed", contents: Data())
+        let fs = try MTPDeviceFS(device: DeviceInfo(id: "0", kind: .android, name: "Samsung"), helperPath: helper)
+        defer { fs.close() }
+        let other = fs.root.appending("Pamięć wewnętrzna").appending("Inne")
+        #expect(try await fs.list(other, options: ListOptions()).map(\.name) == ["ok.jpg", "wolny.mp4"])
+
+        let target = tmp.path
+        let download = Task.detached { try fs.extract([other.appending("wolny.mp4")], toTemporaryIn: target, isCancelled: { false }) }
+        try await Task.sleep(for: .milliseconds(500))
+        let start = ContinuousClock.now
+        fs.close()
+        #expect(ContinuousClock.now - start < .seconds(5))
+        do {
+            _ = try await download.value
+            Issue.record("zamknięcie telefonu powinno przerwać pobieranie")
+        } catch VFSError.cancelled {
+        } catch {
+            Issue.record("oczekiwano anulowania, jest: \(error)")
+        }
+        #expect(!(try tmp.read("log")).contains("get 99"))
+    }
+
+    @Test func toolRunnerTimeout() throws {
+        let start = ContinuousClock.now
+        #expect(throws: VFSError.self) { _ = try ToolRunner.run("/bin/sleep", ["30"], timeout: 0.5) }
+        #expect(ContinuousClock.now - start < .seconds(5))
+        #expect(try ToolRunner.run("/bin/echo", ["zażółć"]).output == "zażółć\n")
     }
 
     @Test func noDevicesConnectedIsHandled() {

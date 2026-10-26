@@ -9,7 +9,8 @@ import Observation
 public final class RemoteManager {
     public private(set) var connections: [RemoteConnection] = []
     public private(set) var connected: Set<String> = []
-    @ObservationIgnored let workspace: Workspace
+    /// Bez silnej referencji: `Workspace` trzyma menedżera (`remotes`) i żyje dłużej od niego.
+    @ObservationIgnored unowned let workspace: Workspace
     @ObservationIgnored public let keychain: KeychainStore
     @ObservationIgnored private var rclone: Rclone?
     @ObservationIgnored private var editSessions: [String: RemoteEditSession] = [:]

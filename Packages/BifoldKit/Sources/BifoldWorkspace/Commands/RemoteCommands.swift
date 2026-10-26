@@ -8,10 +8,12 @@ extension VFSPath {
         return path
     }
 
+    /// Ścieżka na telefonie (dostawcy `device:…`).
+    public var isDevice: Bool { provider.rawValue.hasPrefix("device:") }
+
     /// „Maszyna” ścieżki: dysk lokalny (także archiwa i wyniki wyszukiwania), serwer albo telefon.
     public var machine: String {
-        let raw = provider.rawValue
-        return raw.hasPrefix("remote:") || raw.hasPrefix("device:") ? raw : "local"
+        provider.rawValue.hasPrefix("remote:") || isDevice ? provider.rawValue : "local"
     }
 }
 
@@ -133,14 +135,16 @@ var remoteCommands: [Command] { [
         summary: L10n.tr("Otwiera w drugim panelu terminal zalogowany na serwer SFTP/SCP (przez to samo połączenie, bez ponownego hasła), w katalogu z aktywnego panelu."))
     ) { ctx in
         let ssh = ctx.workspace.remotes.connections.filter(\.kind.usesSSH).map(\.alias)
-        var alias = ctx.arguments.string("alias") ?? RemoteFS.alias(of: ctx.tab.path)
-        if alias == nil || !ssh.contains(alias!) {
-            alias = try await ctx.text("alias", title: L10n.tr("Terminal SSH"), message: ssh.joined(separator: ", "), default: ssh.first ?? "")
+        let current = ctx.arguments.string("alias") ?? RemoteFS.alias(of: ctx.tab.path)
+        let alias = if let current, ssh.contains(current) {
+            current
+        } else {
+            try await ctx.text("alias", title: L10n.tr("Terminal SSH"), message: ssh.joined(separator: ", "), default: ssh.first ?? "")
         }
-        guard let alias, ssh.contains(alias) else { throw CommandError.notAvailable(L10n.tr("Terminal SSH działa dla połączeń SFTP i SCP")) }
+        guard ssh.contains(alias) else { throw CommandError.notAvailable(L10n.tr("Terminal SSH działa dla połączeń SFTP i SCP")) }
         let directory = RemoteFS.alias(of: ctx.tab.path) == alias ? await ctx.remoteDirectory(ctx.tab.path) : nil
-        let panel = ctx.arguments.string("side").map { $0 == "left" ? ctx.workspace.left : ctx.workspace.right }
-            ?? (ctx.workspace.activeSide == .left ? ctx.workspace.right : ctx.workspace.left)
+        // Domyślnie drugi panel; `side` sprawdzany jak w innych komendach (left | right).
+        let panel = ctx.arguments.string("side") != nil ? try ctx.panel(forSide: "side") : ctx.workspace.otherPanel
         try await ctx.openTerminal(alias, directory: directory, in: panel)
         return CommandResult(message: L10n.tr("Terminal SSH: \(alias)"))
     },
@@ -152,7 +156,7 @@ var remoteCommands: [Command] { [
         summary: L10n.tr("Zamyka połączenie z serwerem albo telefon z aktywnego panelu wraz z jego kartami (ostatnia karta panelu wraca do katalogu domowego)."))
     ) { ctx in
         // Telefon w aktywnym panelu: zamknięcie urządzenia (sesja MTP, karty).
-        if ctx.arguments.string("alias") == nil, ctx.tab.path.provider.rawValue.hasPrefix("device:") {
+        if ctx.arguments.string("alias") == nil, ctx.tab.path.isDevice {
             let provider = ctx.tab.path.provider
             await ctx.workspace.closeDevice(provider)
             return CommandResult(message: L10n.tr("Zamknięto telefon"))

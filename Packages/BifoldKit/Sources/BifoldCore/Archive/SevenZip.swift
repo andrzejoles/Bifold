@@ -71,10 +71,12 @@ public struct SevenZip: Sendable {
         try? input.fileHandleForWriting.close()
         let outBox = DataBox(), errBox = DataBox()
         let group = DispatchGroup()
+        // Własne wątki zamiast puli GCD: wywołanie bywa synchroniczne z puli Swift Concurrency, a gdy
+        // wszystkie jej wątki czekają, GCD nie dokłada wątków dla domyślnego QoS — zakleszczenie.
         group.enter()
-        DispatchQueue.global().async { outBox.data = out.fileHandleForReading.readDataToEndOfFile(); group.leave() }
+        Thread.detachNewThread { outBox.data = out.fileHandleForReading.readDataToEndOfFile(); group.leave() }
         group.enter()
-        DispatchQueue.global().async { errBox.data = err.fileHandleForReading.readDataToEndOfFile(); group.leave() }
+        Thread.detachNewThread { errBox.data = err.fileHandleForReading.readDataToEndOfFile(); group.leave() }
         while p.isRunning {
             if isCancelled() { p.terminate() }
             _ = group.wait(timeout: .now() + 0.1)
@@ -186,7 +188,8 @@ public struct SevenZip: Sendable {
         let list = try Self.listFile(names)
         defer { try? FileManager.default.removeItem(at: list) }
         var args = ["a", "-t" + format.sevenZipType, "-mx=\(level)", archive.path, "@" + list.path]
-        if let password, format.supportsPassword {
+        // Samo `-p`: hasło 7zz czyta ze standardowego wejścia (nie trafia do argumentów procesu).
+        if password != nil, format.supportsPassword {
             args.append("-p")
             if format == .sevenZ { args.append("-mhe=on") }
         }

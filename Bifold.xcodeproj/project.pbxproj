@@ -555,18 +555,20 @@
 /* Begin PBXShellScriptBuildPhase section */
 		16664DB03ED60BF7A084F1A4 /* Wbuduj bifold-mtp */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Tools/bifold-mtp/bifold-mtp.c",
+				"$(SRCROOT)/scripts/embed-mtp-helper.sh",
 			);
 			name = "Wbuduj bifold-mtp";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/bifold-mtp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -574,13 +576,13 @@
 		};
 		28D0485FD396F32D3DFDD1B3 /* HexFiend.framework */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/scripts/build-hexfiend.sh",
 			);
 			name = HexFiend.framework;
 			outputFileListPaths = (
@@ -594,18 +596,20 @@
 		};
 		7B2B77491366E988C9DDE511 /* bifold-mtp */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Tools/bifold-mtp/bifold-mtp.c",
+				"$(SRCROOT)/scripts/build-mtp-helper.sh",
 			);
 			name = "bifold-mtp";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(SRCROOT)/ThirdParty/build/bifold-mtp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -701,6 +705,7 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xcc -Wno-implicit-const-int-float-conversion";
 				SDKROOT = macosx;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
@@ -716,7 +721,6 @@
 				);
 				PRODUCT_NAME = "bifold-mcp";
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = complete;
 			};
 			name = Debug;
 		};
@@ -787,7 +791,6 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
 				SWIFT_VERSION = 6.0;
 			};
@@ -803,7 +806,6 @@
 				);
 				PRODUCT_NAME = "bifold-mcp";
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = complete;
 			};
 			name = Release;
 		};
@@ -821,6 +823,7 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xcc -Wno-implicit-const-int-float-conversion";
 				SDKROOT = macosx;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
@@ -887,7 +890,6 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
 				SWIFT_VERSION = 6.0;
 			};
@@ -903,9 +905,9 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BIFOLD_BUNDLE_ID).helper";
 				PRODUCT_NAME = "bifold-helper";
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = complete;
 			};
 			name = Release;
 		};
@@ -919,9 +921,9 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BIFOLD_BUNDLE_ID).helper";
 				PRODUCT_NAME = "bifold-helper";
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = complete;
 			};
 			name = Debug;
 		};
@@ -979,7 +981,7 @@
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
 			requirement = {
 				kind = exactVersion;
-				version = 1.99.0;
+				version = 1.99.1;
 			};
 		};
 		991AE10819E749858FE911C8 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
@@ -987,7 +989,7 @@
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
 				kind = exactVersion;
-				version = 2.9.6;
+				version = 2.10.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

@@ -162,7 +162,7 @@ public enum HelperOperations {
     public static func verify(authorization data: Data, for operation: HelperOperation) -> Bool {
         guard data.count == MemoryLayout<AuthorizationExternalForm>.size else { return false }
         var ext = AuthorizationExternalForm()
-        withUnsafeMutableBytes(of: &ext) { data.copyBytes(to: $0) }
+        _ = withUnsafeMutableBytes(of: &ext) { data.copyBytes(to: $0) }
         var ref: AuthorizationRef?
         guard AuthorizationCreateFromExternalForm(&ext, &ref) == errAuthorizationSuccess, let ref else { return false }
         defer { AuthorizationFree(ref, []) }

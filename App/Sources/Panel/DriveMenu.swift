@@ -14,7 +14,7 @@ enum DriveMenu {
             let cloud = workspace.remotes.connection(alias)?.kind.usesOAuth ?? false
             return (alias, symbol(cloud ? "cloud" : "server.rack"))
         }
-        if tab.path.provider.rawValue.hasPrefix("device:") {
+        if tab.path.isDevice {
             let name = tab.customTitle.map { String($0.drop { !$0.isLetter && !$0.isNumber }) }
             return (name ?? L10n.tr("Telefon"), symbol("iphone"))
         }

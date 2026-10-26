@@ -102,6 +102,8 @@ public final class AgentController: AgentInvocationGate {
         server?.stop()
         server = nil
         for s in registry.all { closeSession(s.id) }
+        // Wpisy dziennika (np. session_end) na dysku przed zakończeniem aplikacji.
+        log.flush()
     }
 
     /// Tworzy sesję; token trafia wyłącznie do środowiska procesu CLI.

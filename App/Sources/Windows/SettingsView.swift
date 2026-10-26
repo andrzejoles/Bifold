@@ -238,6 +238,7 @@ private struct ToolSettings: View {
         ("rg", "ripgrep", L10n.tr("wyszukiwanie w treści")),
         ("7zz", "sevenzip", L10n.tr("archiwa")),
         ("rclone", "rclone", L10n.tr("serwery, chmury, synchronizacja")),
+        // Wskaźnik libmtp z Homebrew: wbudowany pomocnik bifold-mtp jest z nią linkowany dynamicznie.
         ("mtp-detect", "libmtp", L10n.tr("telefony z Androidem")),
         ("idevice_id", "libimobiledevice", L10n.tr("iPhone")),
     ]

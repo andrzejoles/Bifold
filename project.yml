@@ -19,7 +19,6 @@ settings:
     CODE_SIGN_STYLE: Manual
     DEVELOPMENT_TEAM: ""
     ENABLE_HARDENED_RUNTIME: NO
-    SWIFT_STRICT_CONCURRENCY: complete
     SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
     LOCALIZATION_PREFERS_STRING_CATALOGS: YES
     SWIFT_EMIT_LOC_STRINGS: YES
@@ -29,11 +28,11 @@ packages:
     path: Packages/BifoldKit
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm
-    exactVersion: 1.99.0
-  # Automatyczne aktualizacje (ta sama wersja co w CantatePresenter).
+    exactVersion: 1.99.1
+  # Automatyczne aktualizacje.
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    exactVersion: 2.9.6
+    exactVersion: 2.10.1
 targets:
   Bifold:
     type: application
@@ -52,6 +51,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Config/Bifold.entitlements
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/ThirdParty/build
+        # Ostrzeżenie z nagłówka HexFiend (HFFunctions.h, kod zewnętrzny) przy imporcie modułu.
+        OTHER_SWIFT_FLAGS: $(inherited) -Xcc -Wno-implicit-const-int-float-conversion
         LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
@@ -83,18 +84,30 @@ targets:
         embed: true
         codeSign: true
     preBuildScripts:
+      # Kroki ze zdefiniowanymi wejściami i wyjściami — Xcode uruchamia je tylko, gdy coś się zmieniło.
       - name: HexFiend.framework
         script: "\"$SRCROOT/scripts/build-hexfiend.sh\""
-        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/scripts/build-hexfiend.sh
         outputFiles:
           - $(SRCROOT)/ThirdParty/build/HexFiend.framework/HexFiend
       - name: bifold-mtp
         script: "\"$SRCROOT/scripts/build-mtp-helper.sh\""
-        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/Tools/bifold-mtp/bifold-mtp.c
+          - $(SRCROOT)/scripts/build-mtp-helper.sh
+        outputFiles:
+          - $(SRCROOT)/ThirdParty/build/bifold-mtp
     postBuildScripts:
+      # Wejściem jest źródło, nie zbudowany pomocnik — bez libmtp pomocnika nie ma, a brak pliku
+      # wejściowego byłby błędem budowania.
       - name: Wbuduj bifold-mtp
         script: "\"$SRCROOT/scripts/embed-mtp-helper.sh\""
-        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/Tools/bifold-mtp/bifold-mtp.c
+          - $(SRCROOT)/scripts/embed-mtp-helper.sh
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/bifold-mtp
   bifold-mcp:
     type: tool
     platform: macOS
@@ -103,7 +116,6 @@ targets:
     settings:
       base:
         PRODUCT_NAME: bifold-mcp
-        SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
       - package: BifoldKit
         product: BifoldBridgeKit
@@ -115,9 +127,9 @@ targets:
     settings:
       base:
         PRODUCT_NAME: bifold-helper
+        PRODUCT_BUNDLE_IDENTIFIER: $(BIFOLD_BUNDLE_ID).helper
         INFOPLIST_FILE: App/Helper/Helper-Info.plist
         CREATE_INFOPLIST_SECTION_IN_BINARY: YES
-        SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
       - package: BifoldKit
         product: BifoldHelperKit

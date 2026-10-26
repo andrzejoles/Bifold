@@ -212,7 +212,7 @@ final class PathBarView: NSView {
             remoteLabel.stringValue = path.displayPath
         }
         // Serwer albo telefon — oba da się zamknąć (⏏).
-        disconnectButton.isHidden = RemoteFS.alias(of: path) == nil && !path.provider.rawValue.hasPrefix("device:")
+        disconnectButton.isHidden = RemoteFS.alias(of: path) == nil && !path.isDevice
         if let error {
             spaceLabel.stringValue = "⚠︎ " + error
             spaceLabel.textColor = .systemRed

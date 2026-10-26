@@ -99,7 +99,10 @@ final class GridListView: NSView, FileListView {
     fileprivate func configure(_ cell: GridItem, _ item: FileItem) {
         let marked = tab?.selection.contains(item.path) ?? false
         let style = item.isParentLink ? nil : workspace.colorRules.style(for: item)
-        cell.label.attributedStringValue = NSAttributedString(string: item.name, attributes: Theme.attributes(size: CGFloat(workspace.settings.fontSize), style: style, marked: marked))
+        // Miniatury: dwie linie z wielokropkiem na końcu drugiej; skrócony: jedna z wielokropkiem w środku.
+        let lineBreak: NSLineBreakMode = cell.label.maximumNumberOfLines == 1 ? .byTruncatingMiddle : .byWordWrapping
+        cell.label.attributedStringValue = NSAttributedString(
+            string: item.name, attributes: Theme.attributes(size: CGFloat(workspace.settings.fontSize), style: style, marked: marked, lineBreak: lineBreak))
         cell.marked = marked
         let icon = IconCache.shared.icon(for: item)
         cell.icon.image = icon
@@ -149,6 +152,8 @@ final class GridItem: NSCollectionViewItem {
         icon.translatesAutoresizingMaskIntoConstraints = false
         label.translatesAutoresizingMaskIntoConstraints = false
         label.lineBreakMode = .byTruncatingMiddle
+        label.cell?.truncatesLastVisibleLine = true
+        label.allowsExpansionToolTips = true
         v.addSubview(icon)
         v.addSubview(label)
     }

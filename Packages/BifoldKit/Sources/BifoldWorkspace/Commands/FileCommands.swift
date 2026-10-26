@@ -73,7 +73,7 @@ private func transferCommand(_ kind: TransferKind) -> Command {
                     operations: items.map { PlannedOperation(kind: kind.rawValue, source: $0.path, destination: destArg.appending($0.name), isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },
                     fileCount: items.count, totalBytes: items.reduce(0) { $0 + max(0, $1.size) })
             }
-            if ctx.tab.isInArchive || ctx.tab.path.provider.rawValue.hasPrefix("device:") {
+            if ctx.tab.isInArchive || ctx.tab.path.isDevice {
                 let dest = ctx.arguments.path("destination", relativeTo: ctx.otherTab.path) ?? ctx.otherTab.path
                 return EffectPreview(summary: L10n.tr("Kopiowanie z archiwum \(Format.describe(items)) → \(dest.path)"),
                                      operations: items.map { PlannedOperation(kind: "extract", source: $0.path, destination: dest, isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },

@@ -90,14 +90,16 @@ public struct SessionSnapshot: Codable, Sendable, Equatable {
 }
 
 extension Panel {
-    var fileTabs: [Tab] {
+    /// Karty z plikami; same karty-terminale — jedna karta w katalogu `home` (ścieżka karty-terminala
+    /// wskazuje serwer, z którym po ponownym uruchomieniu nie ma połączenia).
+    func fileTabs(home: VFSPath) -> [Tab] {
         let files = tabs.filter { $0.terminal == nil }
-        return files.isEmpty ? [Tab(path: tabs[0].path, providers: providers)] : files
+        return files.isEmpty ? [Tab(path: home, providers: providers)] : files
     }
 
-    var snapshot: SessionSnapshot.PanelState {
+    func snapshot(home: VFSPath) -> SessionSnapshot.PanelState {
         // Karty-terminale nie wracają po ponownym uruchomieniu (sesja SSH się skończyła).
-        let files = fileTabs
+        let files = fileTabs(home: home)
         return SessionSnapshot.PanelState(
             tabs: files.map { SessionSnapshot.TabState(path: $0.path, viewMode: $0.viewMode, sort: $0.sort, cursorName: $0.cursorItem?.name) },
             activeTab: files.firstIndex { $0 === activeTab } ?? 0, showsTree: showsTree)

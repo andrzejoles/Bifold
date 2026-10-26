@@ -97,7 +97,85 @@ import Testing
     }
 }
 
+/// Dostawca z wolnym katalogiem `/wolny` (wyścig nawigacji: późny listing nie może nadpisać nowszego).
+private struct SlowFS: FileSystemProvider {
+    let id = ProviderID("test:slow")
+    let capabilities: ProviderCapabilities = [.read]
+    func list(_ directory: VFSPath, options: ListOptions) async throws -> [FileItem] {
+        if directory.path == "/wolny" { try await Task.sleep(for: .milliseconds(600)) }
+        return [FileItem(path: directory.appending("w-" + directory.name), kind: .file, size: 1)]
+    }
+    func item(at path: VFSPath) async throws -> FileItem { FileItem(path: path, kind: .directory) }
+    func readContents(_ path: VFSPath, range: Range<Int64>?) async throws -> Data { Data() }
+    func volumeInfo(for path: VFSPath) async throws -> VolumeInfo {
+        VolumeInfo(path: VFSPath(provider: id, path: "/"), name: "slow", totalCapacity: 0, availableCapacity: 0, fileSystem: "test", isRemovable: false, isInternal: false)
+    }
+}
+
+@MainActor @Suite struct NavigationRaceTests {
+    @Test func lateListingDoesNotOverwriteNewerNavigation() async throws {
+        let tmp = try TempDir()
+        let (ws, _) = try await makeWorkspace(tmp)
+        ws.providers.register(SlowFS())
+        let tab = ws.activeTab
+        let slow = VFSPath(provider: ProviderID("test:slow"), path: "/wolny")
+        let fast = VFSPath(provider: ProviderID("test:slow"), path: "/szybki")
+        let first = Task { try? await tab.navigate(to: slow) }
+        try await Task.sleep(for: .milliseconds(100))
+        try await tab.navigate(to: fast)
+        await first.value
+        #expect(tab.path == fast)
+        #expect(tab.items.map(\.name).contains("w-szybki") && !tab.items.map(\.name).contains("w-wolny"))
+        #expect(!tab.isLoading)
+    }
+
+    /// Odświeżenie (np. po zdarzeniu FSEvents) w trakcie jawnej nawigacji jej nie unieważnia.
+    @Test func reloadDuringNavigationDoesNotCancelIt() async throws {
+        let tmp = try TempDir()
+        let (ws, _) = try await makeWorkspace(tmp)
+        ws.providers.register(SlowFS())
+        let tab = ws.activeTab
+        let slow = VFSPath(provider: ProviderID("test:slow"), path: "/wolny")
+        let fast = VFSPath(provider: ProviderID("test:slow"), path: "/szybki")
+        try await tab.navigate(to: fast)
+        let navigation = Task { try await tab.navigate(to: slow) }
+        try await Task.sleep(for: .milliseconds(100))
+        await tab.reload()
+        try await navigation.value
+        #expect(tab.path == slow && tab.items.map(\.name) == ["w-wolny"])
+        #expect(!tab.isLoading)
+    }
+}
+
 @MainActor @Suite struct PanelAndSessionTests {
+    /// Workspace bez cyklu referencji: po teście znika razem z obserwowaniem katalogów i katalogiem
+    /// konfiguracji SSH (wcześniej karty porzuconych obiektów odświeżały w kółko $TMPDIR).
+    @Test func workspaceIsReleasedWithItsSSHDirectory() async throws {
+        let tmp = try TempDir()
+        weak var released: Workspace?
+        var sshDir = ""
+        do {
+            let (ws, _) = try await makeWorkspace(tmp)
+            released = ws
+            sshDir = try #require(ws.remotes.sshConfigFile.map { ($0 as NSString).deletingLastPathComponent })
+            #expect(FileManager.default.fileExists(atPath: sshDir))
+        }
+        for _ in 0..<40 where released != nil { try await Task.sleep(for: .milliseconds(50)) }
+        #expect(released == nil)
+        #expect(!FileManager.default.fileExists(atPath: sshDir))
+    }
+
+    /// Panel z samymi kartami-terminalami: w zapisie sesji katalog domowy, nie serwer z karty-terminala.
+    @Test func sessionWithOnlyTerminalTabsFallsBackToHome() async throws {
+        let tmp = try TempDir()
+        let (ws, _) = try await makeWorkspace(tmp)
+        let term = ws.right.newTab(at: VFSPath(provider: RemoteFS.providerID("aix"), path: "/"))
+        term.terminal = TerminalSpec(alias: "aix", executable: "/usr/bin/ssh", arguments: [])
+        #expect(ws.right.closeTab(at: 0) && ws.right.tabs.count == 1)
+        let state = ws.right.snapshot(home: ws.homePath)
+        #expect(state.tabs.map(\.path) == [ws.homePath] && state.activeTab == 0)
+    }
+
     @Test func tabsOpenCloseAndPersist() async throws {
         let tmp = try TempDir()
         try tmp.dir("a")

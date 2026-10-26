@@ -283,7 +283,9 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
     /// Połączenie SSH z Menedżera: pliki w aktywnym panelu, terminal w drugim (przez połączenie główne).
     @Test func sshTerminalInOtherPanel() async throws {
         let sshd = try TestSSHD()
-        let (_, ws, _) = try await setup(sshd)
+        let (tmp, ws, _) = try await setup(sshd)
+        // Katalog testu musi żyć do końca (porzucony od razu znikał, a zapis połączeń go odtwarzał).
+        defer { withExtendedLifetime(tmp) {} }
         defer { ws.remotes.stop() }
         try sshd.root.dir("logi dzienne")
         try ws.remotes.save(sshd.connection("aix"), secret: TestSSHD.passphrase)
@@ -305,8 +307,8 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         #expect(r.status == 0 && String(decoding: r.output, as: UTF8.self).hasSuffix("logi dzienne\n"), "\(r.errorText)")
 
         // Karta-terminal nie trafia do zapisu sesji; rozłączenie ją zamyka.
-        #expect(!ws.right.snapshot.tabs.contains { $0.path == term.path && ws.right.tabs.count == 1 })
-        #expect(ws.right.snapshot.tabs.count == ws.right.tabs.count - 1)
+        #expect(!ws.right.snapshot(home: ws.homePath).tabs.contains { $0.path == term.path && ws.right.tabs.count == 1 })
+        #expect(ws.right.snapshot(home: ws.homePath).tabs.count == ws.right.tabs.count - 1)
         try await ws.invoke("remote.disconnect", CommandArguments(["alias": "aix"]))
         #expect(!ws.right.tabs.contains { $0.terminal != nil })
 
@@ -355,7 +357,9 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
 
     @Test func modernClientWithoutLegacyModeFailsWithHint() async throws {
         let sshd = try TestSSHD()
-        let (_, ws, _) = try await setup(sshd)
+        let (tmp, ws, _) = try await setup(sshd)
+        // Katalog testu musi żyć do końca (porzucony od razu znikał, a zapis połączeń go odtwarzał).
+        defer { withExtendedLifetime(tmp) {} }
         defer { ws.remotes.stop() }
         try ws.remotes.save(sshd.connection("nowy", legacy: false), secret: TestSSHD.passphrase)
         defer { ws.remotes.keychain.delete("nowy") }
@@ -369,7 +373,9 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
 
     @Test func wrongPassphraseIsRejected() async throws {
         let sshd = try TestSSHD()
-        let (_, ws, _) = try await setup(sshd)
+        let (tmp, ws, _) = try await setup(sshd)
+        // Katalog testu musi żyć do końca (porzucony od razu znikał, a zapis połączeń go odtwarzał).
+        defer { withExtendedLifetime(tmp) {} }
         defer { ws.remotes.stop() }
         try ws.remotes.save(sshd.connection("zle"), secret: "złe hasło")
         defer { ws.remotes.keychain.delete("zle") }
@@ -380,7 +386,9 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
     @Test(.enabled(if: FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/rclone")))
     func sftpWithLegacyAlgorithmsThroughRclone() async throws {
         let sshd = try TestSSHD(sftp: true)
-        let (_, ws, _) = try await setup(sshd)
+        let (tmp, ws, _) = try await setup(sshd)
+        // Katalog testu musi żyć do końca (porzucony od razu znikał, a zapis połączeń go odtwarzał).
+        defer { withExtendedLifetime(tmp) {} }
         defer { ws.remotes.stop() }
         try sshd.root.file("dziennik.log", "sftp")
         try ws.remotes.save(sshd.connection("stary-sftp", kind: .sftp), secret: TestSSHD.passphrase)
@@ -400,7 +408,9 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
     @Test(.enabled(if: FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/rclone")))
     func sftpRejectsChangedHostKey() async throws {
         let sshd = try TestSSHD(sftp: true)
-        let (_, ws, _) = try await setup(sshd)
+        let (tmp, ws, _) = try await setup(sshd)
+        // Katalog testu musi żyć do końca (porzucony od razu znikał, a zapis połączeń go odtwarzał).
+        defer { withExtendedLifetime(tmp) {} }
         defer { ws.remotes.stop() }
         let other = try TempDir()
         let p = Process()

@@ -34,7 +34,7 @@ final class ListenerDelegate: NSObject, NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         // Weryfikacja podpisu klienta przez system (audit token połączenia).
         connection.setCodeSigningRequirement(requirement)
-        connection.exportedInterface = NSXPCInterface(with: BifoldHelperProtocol.self)
+        connection.exportedInterface = NSXPCInterface(with: (any BifoldHelperProtocol).self)
         connection.exportedObject = HelperService()
         connection.resume()
         return true

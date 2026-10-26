@@ -9,7 +9,7 @@
 | [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) | 15.2.0 (Homebrew) | MIT / Unlicense | proces, `--json` | 3 |
 | [7-Zip](https://www.7-zip.org) (`7zz`) | 26.04 (Homebrew `sevenzip`) | LGPL-2.1 + unRAR | proces | 4 |
 | [rclone](https://rclone.org) | 1.75.2 (Homebrew) | MIT | proces `rclone rcd` | 5–6 |
-| [libmtp](https://libmtp.sourceforge.net) | Homebrew | LGPL-2.1 | proces (`mtp-files`, `mtp-getfile`…) | 7 |
+| [libmtp](https://libmtp.sourceforge.net) | Homebrew | LGPL-2.1 | pomocnik `bifold-mtp` (proces, libmtp linkowana dynamicznie z Homebrew) | 7 |
 | [libimobiledevice](https://libimobiledevice.org) | Homebrew | LGPL-2.1 | proces (`afcclient`, `idevice_id`) | 7 |
 | OpenSSH (`ssh`, `scp`) | systemowy | BSD | proces — SCP i zapamiętywanie kluczy serwerów | 5 |
 | [XcodeGen](https://github.com/yonaskolb/XcodeGen) | 2.46.0 (Homebrew) | MIT | narzędzie deweloperskie (generuje projekt) | 1 |

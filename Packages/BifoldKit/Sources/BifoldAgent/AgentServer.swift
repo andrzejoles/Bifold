@@ -119,9 +119,10 @@ public final class AgentServer: @unchecked Sendable {
     }
 
     private func reject(_ fd: Int32, _ reason: String, pid: pid_t?) {
+        // Zdarzenie przed odpowiedzią: kto odczyta odmowę, widzi ją już w dzienniku połączeń.
+        onEvent(.rejected(reason: reason, pid: pid))
         if let data = try? JSONEncoder().encode(Wire.Reply.error(reason)) { try? Wire.writeFrame(data, to: fd) }
         close(fd)
-        onEvent(.rejected(reason: reason, pid: pid))
     }
 
     func handshake(_ fd: Int32) {
