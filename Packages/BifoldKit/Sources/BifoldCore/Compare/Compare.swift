@@ -259,9 +259,18 @@ public enum SyncPlanner {
                 }
             }
         }
+        // Ścieżki pochodzą z serwera (niezaufane): `..`, znaki sterujące itp. nie trafiają do planu —
+        // składane z korzeniem lokalnym wskazywałyby miejsce poza nim.
+        actions.removeAll { !isSafeRelativePath($0.path) }
         actions.sort { $0.path < $1.path }
         return SyncPlan(sourceFs: sourceFs, destinationFs: destinationFs, mode: mode, actions: actions, identical: identical,
                         localSource: localSource, localDestination: localDestination)
+    }
+
+    /// Ścieżka względna, której każdy składnik jest bezpieczną nazwą (bez `/` na początku, `..`, `.`,
+    /// pustych składników i znaków sterujących).
+    static func isSafeRelativePath(_ path: String) -> Bool {
+        !path.isEmpty && path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy { isSafeComponentName(String($0)) }
     }
 
     /// Wykonanie planu (blokujące, w zadaniu). Lokalne pliki nadpisywane lub usuwane trafiają
@@ -281,6 +290,7 @@ public enum SyncPlanner {
             let toDestination = action.kind != .copyToSource
             let targetLocal = toDestination ? plan.localDestination : plan.localSource
             do {
+                guard isSafeRelativePath(action.path) else { throw VFSError.invalidName(action.path) }
                 // Lokalny plik docelowy (nadpisywany lub usuwany) — najpierw do Kosza.
                 if let root = targetLocal {
                     let local = VFSPath.local(root.path + "/" + action.path)
