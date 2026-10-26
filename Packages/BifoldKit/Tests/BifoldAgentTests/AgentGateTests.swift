@@ -118,6 +118,8 @@ import Testing
         try await tab.navigate(to: env.tmp.path, focus: "a.txt")
         let (session, _) = env.session()
         // W trakcie otwartego okna zgody kursor przechodzi na b.txt.
+        // Domknięcie trzyma `env`, a `env.approver` domknięcie — bez zerwania cykl nie zwolni katalogu testu.
+        defer { env.approver.whileOpen = nil }
         env.approver.whileOpen = { _ in tab.cursor = env.tmp.path.appending("b.txt") }
         let (text, isError) = await call(env, session, "rename", ["newName": "renamed.txt"])
         #expect(!isError, "\(text)")
@@ -135,6 +137,8 @@ import Testing
         let (session, _) = env.session()
         var cursorMovedDuringApproval = false
         var concurrent: Task<(String, Bool), Never>?
+        // Domknięcie trzyma `env`, a `env.approver` domknięcie — bez zerwania cykl nie zwolni katalogu testu.
+        defer { env.approver.whileOpen = nil }
         env.approver.whileOpen = { _ in
             // Agent próbuje przestawić kursor, gdy okno jest otwarte.
             concurrent = Task { @MainActor in await call(env, session, "set_cursor", ["name": "b.txt"]) }
@@ -158,6 +162,8 @@ import Testing
         try await env.workspace.activeTab.navigate(to: env.tmp.path.appending("one"))
         let (session, _) = env.session()
         // mkdir zależy od bieżącego katalogu karty (lokalny czy serwer) — jego zmiana unieważnia zgodę.
+        // Domknięcie trzyma `env`, a `env.approver` domknięcie — bez zerwania cykl nie zwolni katalogu testu.
+        defer { env.approver.whileOpen = nil }
         env.approver.whileOpen = { _ in try? await env.workspace.activeTab.navigate(to: env.tmp.path.appending("two")) }
         let (text, isError) = await call(env, session, "mkdir", ["name": "nowy"])
         #expect(isError && text.contains("state_changed"), "\(text)")

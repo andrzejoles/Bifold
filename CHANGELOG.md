@@ -4,6 +4,73 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — przegląd kodu, część 3 (bezpieczeństwo agenta AI)
+- Agent nie zobaczy w wynikach wyszukiwania (nazwy, treść, duplikaty, zapisane wyszukiwania) plików
+  z zablokowanych katalogów (`~/.ssh`, klucze chmur, dane Bifolda) i nie dotrze do nich ścieżkami
+  względnymi liczonymi od drugiego panelu ani prefiksem `serwer:`.
+- Okno zatwierdzania pokazuje dokładnie to, co zostanie wykonane — zmiana kursora, zaznaczenia lub
+  panelu w trakcie nie zmienia celu; widać sesję i jej katalog, podejrzane znaki w nazwach jako kody.
+- Agent nie skopiuje, nie przeniesie, nie spakuje ani nie zsynchronizuje katalogu zawierającego
+  zablokowane ścieżki; synchronizacja na serwer tylko do odczytu jest blokowana także dla zapisanych zadań.
+- Błędne argumenty od agenta nie zamykają aplikacji; zbyt duża odpowiedź daje czytelny błąd; inny
+  program nie zamknie Bifolda przez gniazdo agenta; druga kopia Bifolda nie przejmuje połączeń agentów.
+- Dziennik agentów nie zapisuje treści czytanych plików i zapisuje każde wywołanie.
+- Agent nie zamknie karty z terminalem SSH ani nie rozłączy serwera z otwartym terminalem lub edycją.
+
+### Poprawione — operacje na plikach
+- Zmiana samej wielkości liter (F6 `Foo.txt` → `foo.txt` z „Nadpisz”) zmienia nazwę zamiast przenosić
+  plik do Kosza; F5 katalogu pod nazwą różniącą się wielkością liter nie kopiuje go w siebie.
+- Kopiowanie plików zablokowanych i o bardzo długich nazwach działa i nie zostawia plików tymczasowych;
+  „Nadpisz” nie usuwa trwale pliku z powodu przejściowego błędu Kosza.
+- Zmiana nazw wielu plików obsługuje łańcuchy (1→2, 2→3…); po błędzie nic nie zostaje pod ukrytą nazwą.
+- Cmd+Z nie cofa operacji, która jeszcze trwa; cofanie dużych operacji nie zamraża okna; częściowo
+  cofnięta operacja zostaje do dokończenia; dziennik nie rośnie bez końca i nie ginie po błędzie zapisu.
+- „Rozpakuj archiwa” z nadpisaniem przenosi zastępowane pliki do Kosza (cofalne); przerwane pakowanie
+  nie zostawia niekompletnego archiwum; podgląd pliku z archiwum nie wczytuje go całego do pamięci.
+- Dzielenie pliku nie nadpisuje istniejących części; duplikaty nie pokazują pliku jako własnego duplikatu;
+  anulowanie wyszukiwania w treści działa od razu, wyszukiwanie po masce jest szybsze.
+
+### Poprawione — serwery i telefony
+- Plik o spreparowanej nazwie na serwerze SCP nie zamyka już aplikacji.
+- „Nadpisz” przy wysyłaniu katalogu przez SCP scala katalogi (pliki, których nie wysyłasz, zostają);
+  przy istniejących plikach Bifold pyta jak przy kopiowaniu lokalnym.
+- SFTP/FTP/WebDAV: zmiana nazwy, nowy plik i nowy katalog nie nadpisują po cichu istniejących elementów.
+- Pobieranie katalogu z SCP nie wchodzi w dowiązania (`link -> ..`); „README” i „Readme” nie nadpisują się.
+- Pliki ze starszego macOS (polskie znaki w innej postaci Unicode) dają się otwierać, kopiować i usuwać.
+- Wstrzymanie jednego transferu rclone nie zatrzymuje pozostałych; pliki pobrane z serwerów i telefonów
+  mają oznaczenie „pobrane z internetu” (Gatekeeper).
+- Anulowanie kopiowania z iPhone’a działa od razu; dwa iPhone’y tego samego modelu się nie mylą; F3 na
+  pliku z telefonu nie zamyka aplikacji.
+- Terminal i pliki tego samego serwera korzystają z jednego połączenia; komunikaty `.bashrc` nie psują
+  ścieżek; edycja pliku na serwerze wysyła ostatni zapis; Bifold nie zostawia katalogów w `/tmp` ani
+  działającego rclone po awarii.
+- Pomocnik administratora odrzuca operacje na katalogach systemowych najwyższego poziomu i ich
+  przodkach; okno hasła pokazuje ścieżki.
+
+### Poprawione — interfejs
+- W widoku kolumn można pisać w oknach dialogowych, Ustawieniach, wyszukiwaniu i palecie komend; widok
+  kolumn nie zawiesza okna przy dużych katalogach, a poza dyskiem lokalnym pokazuje listę szczegółów.
+- Dolny terminal dostaje Ctrl+W, Ctrl+R, F3–F8 itd. (nie wykonują operacji na plikach); w terminalu SSH
+  w karcie Ctrl+Tab przenosi klawiaturę do drugiego panelu, a ⌘W zamyka kartę także w profilu TC.
+- W polach tekstowych ⌘Z cofa pisanie (nie operację na plikach), ⌘A zaznacza tekst; w podglądzie i
+  Ustawieniach ⌘W zamyka okno, ⌘F szuka; nowe pozycje menu Cofnij, Ponów, Znajdź…, Zamknij okno.
+- Tło reguł kolorów jest rysowane; ⌘+klik zaznacza także w miniaturach; zmiana czcionki dopasowuje
+  wysokość wierszy; kolory nadążają za zmianą motywu; tło oznaczonych wierszy odświeża się od razu.
+- Kolejka: błędy zadań nie znikają po 4 s, działające zadania są zawsze widoczne.
+- Drzewo katalogów pokazuje nowe katalogi, pliki ukryte i nowe woluminy bez zamrażania okna.
+- Tytuł karty nadąża za katalogiem; ⌃U zamienia całe karty; nieudana „Nowa karta” nie zostawia pustej
+  karty; F5/F6/⌥F9 przy drugim panelu w archiwum, wynikach lub na telefonie nie podsuwają fałszywego
+  katalogu lokalnego.
+- Skróty przechwytywane przez macOS zastąpione: Spotlight ⌃⌥F, duplikaty ⌃⌥D; sortowanie w profilu TC
+  także ⌃⌘1–5; skrót przy pozycji menu nie zmienia się między uruchomieniami.
+- Linia poleceń: `cd /tmp && make` wykonuje się w terminalu; po zmianie języka aplikacja nie uruchomi się
+  sama, jeśli zamknięcie anulowano; „O programie” pokazuje prawa autorskie z konfiguracji marki.
+
+### Zmienione — budowanie
+- Budowanie tylko dla Apple Silicon (bez ostrzeżenia o celu, Release szybszy); `gen-strings.py` nie
+  zmienia katalogu tłumaczeń bez potrzeby; `signing.sh` bez haseł w argumentach procesów; licencje tylko
+  dołączonych bibliotek; usunięty nieużywany `make perf-fixture`; test wydajności nie blokuje innych testów.
+
 ### Poprawione — miniatury
 - Pusty plik w widoku miniatur pokazywał puste miejsce (podgląd QuickLook to biała strona bez treści) —
   teraz ikona typu pliku; jednolity, pusty podgląd też zostaje zastąpiony ikoną.

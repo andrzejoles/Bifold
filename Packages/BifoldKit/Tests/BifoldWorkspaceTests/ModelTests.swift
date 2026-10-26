@@ -102,7 +102,8 @@ private struct SlowFS: FileSystemProvider {
     let id = ProviderID("test:slow")
     let capabilities: ProviderCapabilities = [.read]
     func list(_ directory: VFSPath, options: ListOptions) async throws -> [FileItem] {
-        if directory.path == "/wolny" { try await Task.sleep(for: .milliseconds(600)) }
+        if directory.path == "/wolny" || directory.path == "/dwa" { try await Task.sleep(for: .milliseconds(600)) }
+        if directory.path == "/dwa" { return ["a", "b"].map { FileItem(path: directory.appending($0), kind: .file, size: 1) } }
         return [FileItem(path: directory.appending("w-" + directory.name), kind: .file, size: 1)]
     }
     func item(at path: VFSPath) async throws -> FileItem { FileItem(path: path, kind: .directory) }
@@ -127,6 +128,23 @@ private struct SlowFS: FileSystemProvider {
         #expect(tab.path == fast)
         #expect(tab.items.map(\.name).contains("w-szybki") && !tab.items.map(\.name).contains("w-wolny"))
         #expect(!tab.isLoading)
+    }
+
+    /// Odświeżenie, które ruszyło w trakcie jawnej nawigacji w tym samym katalogu (np. F7 z kursorem
+    /// na nowym katalogu + zdarzenie FSEvents), nie przywraca po niej starego kursora.
+    @Test func reloadStartedDuringNavigationDoesNotRestoreOldCursor() async throws {
+        let tmp = try TempDir()
+        let (ws, _) = try await makeWorkspace(tmp)
+        ws.providers.register(SlowFS())
+        let tab = ws.activeTab
+        let dir = VFSPath(provider: ProviderID("test:slow"), path: "/dwa")
+        try await tab.navigate(to: dir)
+        #expect(tab.cursorItem?.name == "a")
+        let navigation = Task { try await tab.navigate(to: dir, focus: "b", recordHistory: false) }
+        try await Task.sleep(for: .milliseconds(100))
+        await tab.reload()
+        try await navigation.value
+        #expect(tab.cursorItem?.name == "b")
     }
 
     /// Odświeżenie (np. po zdarzeniu FSEvents) w trakcie jawnej nawigacji jej nie unieważnia.

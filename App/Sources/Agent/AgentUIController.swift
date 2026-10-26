@@ -196,12 +196,13 @@ final class AgentUIController: ApprovalPresenter {
     }
 
     func undoSession(_ id: String) {
-        let plan = workspace.fileOps.undoPlan(forAgentSession: id)
-        guard !plan.isEmpty else {
-            workspace.ui?.showMessage(L10n.tr("Sesja nie zmieniła żadnych plików"))
-            return
-        }
         Task {
+            // Plan liczony poza wątkiem głównym (sprawdzanie dysku dla każdego wpisu).
+            let plan = await workspace.fileOps.planUndo(forAgentSession: id)
+            guard !plan.isEmpty else {
+                workspace.ui?.showMessage(L10n.tr("Sesja nie zmieniła żadnych plików"))
+                return
+            }
             let alert = NSAlert()
             alert.messageText = L10n.tr("Cofnąć sesję agenta (\(plan.steps.count) kroków)?")
             let steps = plan.steps.prefix(60).map { step -> String in

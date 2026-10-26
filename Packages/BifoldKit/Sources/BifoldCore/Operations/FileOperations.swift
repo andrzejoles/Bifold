@@ -83,12 +83,6 @@ public struct FileOperations: Sendable {
         UndoPlanner.plan(for: journal.batches(forAgentSession: sessionID))
     }
 
-    /// Jak `undoPlanForLast`, ale sprawdzanie dysku (lstat każdego wpisu) poza wątkiem głównym.
-    public func planUndoLast(where predicate: (JournalBatch) -> Bool = { _ in true }) async -> UndoPlan? {
-        guard let batch = journal.lastUndoable(where: predicate) else { return nil }
-        return try? await runBlocking { UndoPlanner.plan(for: [batch]) }
-    }
-
     /// Jak `undoPlan(forAgentSession:)`, ale sprawdzanie dysku poza wątkiem głównym.
     public func planUndo(forAgentSession sessionID: String) async -> UndoPlan {
         let batches = journal.batches(forAgentSession: sessionID)

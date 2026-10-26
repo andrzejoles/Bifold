@@ -47,10 +47,10 @@ extension Workspace {
         let dir = FileManager.default.temporaryDirectory.appending(path: "bifold-view-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if let fs = provider as? ArchiveFS {
-            let data = try await fs.readContents(item.path, range: nil)
-            let url = dir.appending(path: item.name)
-            try data.write(to: url)
-            return try LocalFS().itemSync(at: .local(url))
+            // Rozpakowanie jednego wpisu wprost do pliku (bez wczytywania go całego do pamięci).
+            let path = item.path, target = VFSPath.local(dir.path)
+            let local = try await runBlocking(qos: .userInitiated) { try fs.extractFile(path, to: target) }
+            return try LocalFS().itemSync(at: local)
         }
         if let device = provider as? any ExtractingProvider {
             // Telefon (AFC/MTP): kopia przez katalog tymczasowy jak przy kopiowaniu F5.

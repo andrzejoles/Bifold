@@ -38,12 +38,12 @@ var editCommands: [Command] { [
             agent: .approval, effect: .modifiesFiles,
             summary: L10n.tr("Cofa ostatnią operację na plikach (przeniesienie, zmianę nazwy, Kosz, utworzenie, kopię, atrybuty, tagi). Agent cofa tylko własne operacje.")),
         preview: { @MainActor ctx in
-            guard let plan = undoPlan(ctx) else { return EffectPreview(summary: L10n.tr("Nie ma czego cofać")) }
+            guard let plan = await undoPlan(ctx) else { return EffectPreview(summary: L10n.tr("Nie ma czego cofać")) }
             return EffectPreview(summary: L10n.tr("Cofnięcie: \(undoTitle(ctx) ?? "")"), operations: plan.steps.map(\.preview),
                                  fileCount: plan.steps.count, conflicts: plan.conflicts.map(\.message))
         }
     ) { ctx in
-        guard let plan = undoPlan(ctx), !plan.isEmpty else { return CommandResult(message: L10n.tr("Nie ma czego cofać")) }
+        guard let plan = await undoPlan(ctx), !plan.isEmpty else { return CommandResult(message: L10n.tr("Nie ma czego cofać")) }
         var force = false
         if !ctx.isAgent, !plan.conflicts.isEmpty {
             let answer = try await ctx.requireUI().confirmUndo(plan, title: undoTitle(ctx) ?? "")
@@ -66,12 +66,12 @@ var editCommands: [Command] { [
     },
 ] }
 
+/// Plan cofnięcia (sprawdzanie dysku poza wątkiem głównym — duże operacje nie zamrażają okna).
 @MainActor
-private func undoPlan(_ ctx: CommandContext) -> UndoPlan? {
-    if let session = ctx.invoker.agentSessionID {
-        return ctx.workspace.fileOps.undoPlanForLast { $0.invoker.agentSessionID == session }
-    }
-    return ctx.workspace.fileOps.undoPlanForLast()
+private func undoPlan(_ ctx: CommandContext) async -> UndoPlan? {
+    let session = ctx.invoker.agentSessionID
+    guard let batch = ctx.workspace.journal.lastUndoable(where: { session == nil || $0.invoker.agentSessionID == session }) else { return nil }
+    return try? await runBlocking(qos: .userInitiated) { UndoPlanner.plan(for: [batch]) }
 }
 
 @MainActor

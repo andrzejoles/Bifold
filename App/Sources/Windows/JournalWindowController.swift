@@ -115,8 +115,10 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
     @objc private func undoSelected() {
         guard table.selectedRow >= 0 else { return }
         let batch = batches[table.selectedRow]
-        let plan = UndoPlanner.plan(for: [batch])
+        guard batch.isUndoable else { return }
         Task {
+            // Plan poza wątkiem głównym (duże operacje nie zamrażają okna).
+            guard let plan = try? await runBlocking(qos: .userInitiated, { UndoPlanner.plan(for: [batch]) }) else { return }
             var force = false
             if !plan.conflicts.isEmpty, let ui = workspace.ui {
                 let answer = await ui.confirmUndo(plan, title: batch.title)

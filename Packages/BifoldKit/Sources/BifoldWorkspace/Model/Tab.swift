@@ -41,6 +41,9 @@ public final class Tab: Identifiable {
     /// Rośnie przy każdej nawigacji — odświeżenie w tle nie nadpisze kursora ustawionego
     /// przez nowszą nawigację (np. fokus na właśnie utworzonym katalogu).
     @ObservationIgnored private var navigationGeneration = 0
+    /// Liczba zastosowanych wyników jawnych nawigacji — odświeżenie, w trakcie którego któraś się
+    /// zakończyła, jest nieaktualne (przywróciłoby kursor sprzed niej).
+    @ObservationIgnored private var appliedNavigations = 0
 
     public init(path: VFSPath, viewMode: ViewMode = .details, sort: SortSpec = SortSpec(), showHidden: Bool = false, providers: ProviderRegistry) {
         self.path = path
@@ -135,7 +138,10 @@ public final class Tab: Identifiable {
     /// - Returns: `false`, gdy wynik pominięto.
     @discardableResult
     private func load(_ target: VFSPath, focus: String?, recordHistory: Bool, historyIndex newIndex: Int? = nil, generation: Int, isReload: Bool) async throws -> Bool {
-        func isCurrent() -> Bool { navigationGeneration == generation && (!isReload || path == target) }
+        let appliedAtStart = appliedNavigations
+        func isCurrent() -> Bool {
+            navigationGeneration == generation && (!isReload || (path == target && appliedNavigations == appliedAtStart))
+        }
         let provider = try providers.provider(for: target)
         if !isReload { isLoading = true }
         defer { if !isReload, navigationGeneration == generation { isLoading = false } }
@@ -150,6 +156,7 @@ public final class Tab: Identifiable {
             throw error
         }
         guard isCurrent() else { return false }
+        if !isReload { appliedNavigations += 1 }
         let changedDirectory = target != path
         setPath(target)
         loadError = nil

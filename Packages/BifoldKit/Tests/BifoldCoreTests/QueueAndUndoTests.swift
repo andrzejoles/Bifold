@@ -288,7 +288,7 @@ final class BlockingDelegate: TransferDelegate, @unchecked Sendable {
         #expect(tmp.exists("b.txt"))
         // Partia nadal do cofnięcia, ale tylko z pozostałym krokiem.
         try FileManager.default.removeItem(at: tmp.url.appending(path: "a.txt"))
-        let second = try #require(await ops.planUndoLast())
+        let second = try #require(ops.undoPlanForLast())
         #expect(second.steps.map(\.action) == [.move(from: tmp.path.appending("a2.txt"), to: tmp.path.appending("a.txt"))])
         let result = await ops.execute(second)
         #expect(result.performed == 1 && result.skipped.isEmpty)
