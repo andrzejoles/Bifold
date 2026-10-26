@@ -173,6 +173,18 @@ public struct LocalFS: FileSystemProvider {
         }
     }
 
+    /// Błąd `trashSync` dla woluminu bez Kosza (tylko wtedy wolno zastąpić Kosz trwałym usunięciem).
+    public static let trashUnavailable = VFSError.unsupported("trash")
+
+    /// Wolumin nie obsługuje Kosza (`NSFeatureUnsupportedError` albo `ENOTSUP`).
+    static func isTrashUnavailable(_ error: any Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain && ns.code == NSFeatureUnsupportedError { return true }
+        if ns.domain == NSPOSIXErrorDomain && (ns.code == Int(ENOTSUP) || ns.code == Int(EOPNOTSUPP)) { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError { return isTrashUnavailable(underlying) }
+        return false
+    }
+
     public func trash(_ path: VFSPath) async throws -> VFSPath? {
         try trashSync(path)
     }
@@ -185,6 +197,7 @@ public struct LocalFS: FileSystemProvider {
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: &resulting)
         } catch {
+            if Self.isTrashUnavailable(error) { throw Self.trashUnavailable }
             throw VFSError.from(error, path: path)
         }
         return (resulting as URL?).map { VFSPath.local($0) }

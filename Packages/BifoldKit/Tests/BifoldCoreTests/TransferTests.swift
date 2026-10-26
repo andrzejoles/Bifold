@@ -190,6 +190,108 @@ final class Mutexed<T: Sendable>: @unchecked Sendable {
     func set(_ v: T) { lock.withLock { value = v } }
 }
 
+/// Nazwy różniące się wielkością liter, dowiązania do wnętrza źródła, pliki zablokowane, długie nazwy.
+@Suite struct TransferIdentityTests {
+    func run(_ request: TransferRequest, delegate: (any TransferDelegate)? = nil, journal: OperationJournal? = nil) throws -> TransferEngine {
+        let batch = journal?.beginBatch(title: "t", invoker: .user)
+        let engine = TransferEngine(request: request, delegate: delegate, journal: journal, batchID: batch)
+        try engine.run()
+        return engine
+    }
+
+    /// F6 `Foo.txt` → `foo.txt` z „Nadpisz”: na woluminie bez rozróżniania wielkości liter cel to ten sam
+    /// plik — zmiana nazwy, a nie przeniesienie źródła do Kosza.
+    @Test func moveCaseOnlyRenameWithOverwrite() throws {
+        let tmp = try TempDir()
+        guard tmp.isCaseInsensitive else { return }
+        try tmp.file("Foo.txt", "treść")
+        let journal = OperationJournal()
+        let delegate = RecordingDelegate(ConflictDecision(.overwrite, applyToAll: true))
+        let engine = try run(TransferRequest(kind: .move, sources: [tmp.path.appending("Foo.txt")], destinationDirectory: tmp.path, newName: "foo.txt"),
+                             delegate: delegate, journal: journal)
+        #expect(engine.errors.isEmpty)
+        #expect(delegate.conflicts.isEmpty)
+        #expect(try tmp.names() == ["foo.txt"])
+        #expect(try tmp.read("foo.txt") == "treść")
+        #expect(journal.batches[0].entries.map(\.action) == [.moved(from: tmp.path.appending("Foo.txt"), to: tmp.path.appending("foo.txt"))])
+    }
+
+    /// F5 katalogu `D` jako `d`: kopia obok pod nową nazwą, nie kopiowanie katalogu w siebie.
+    @Test func copyDirectoryCaseOnlyName() throws {
+        let tmp = try TempDir()
+        guard tmp.isCaseInsensitive else { return }
+        try tmp.file("D/a.txt", "A")
+        try tmp.file("D/sub/b.txt", "B")
+        let engine = try run(TransferRequest(kind: .copy, sources: [tmp.path.appending("D")], destinationDirectory: tmp.path, newName: "d"),
+                             delegate: RecordingDelegate(ConflictDecision(.overwrite, applyToAll: true)))
+        #expect(engine.errors.isEmpty)
+        #expect(try tmp.names() == ["D", "d (2)"])
+        #expect(try tmp.names("D") == ["a.txt", "sub"])
+        #expect(try tmp.read("d (2)/sub/b.txt") == "B")
+    }
+
+    /// Kopia pliku na nazwę różniącą się wielkością liter z „Nadpisz” nie zabiera źródła do Kosza.
+    @Test func copyFileCaseOnlyNameKeepsSource() throws {
+        let tmp = try TempDir()
+        guard tmp.isCaseInsensitive else { return }
+        try tmp.file("Foo.txt", "x")
+        _ = try run(TransferRequest(kind: .copy, sources: [tmp.path.appending("Foo.txt")], destinationDirectory: tmp.path, newName: "foo.txt"),
+                    delegate: RecordingDelegate(ConflictDecision(.overwrite, applyToAll: true)))
+        #expect(try tmp.names() == ["Foo.txt", "foo (2).txt"])
+    }
+
+    /// Katalog docelowy to dowiązanie wskazujące wnętrze źródła albo ta sama ścieżka inną wielkością liter.
+    @Test func refusesCopyIntoSymlinkOrCaseVariantInsideSource() throws {
+        let tmp = try TempDir()
+        try tmp.file("src/inner/a.txt", "A")
+        try FileManager.default.createSymbolicLink(atPath: tmp.url.appending(path: "link").path, withDestinationPath: "src/inner")
+        let source = tmp.path.appending("src")
+        #expect(throws: VFSError.destinationInsideSource(source)) {
+            try TransferEngine.plan(TransferRequest(kind: .copy, sources: [source], destinationDirectory: tmp.path.appending("link")))
+        }
+        if tmp.isCaseInsensitive {
+            #expect(throws: VFSError.destinationInsideSource(source)) {
+                try TransferEngine.plan(TransferRequest(kind: .copy, sources: [source], destinationDirectory: tmp.path.appending("SRC/inner")))
+            }
+        }
+        #expect(try tmp.names("src/inner") == ["a.txt"])
+    }
+
+    /// Kopia pliku z flagą `uchg`: bez nieusuwalnego pliku tymczasowego, kopia zachowuje blokadę.
+    @Test func copiesLockedFile() throws {
+        let tmp = try TempDir()
+        let src = try tmp.file("src/zablokowany.txt", "L")
+        #expect(chflags(src.path, UInt32(UF_IMMUTABLE)) == 0)
+        let dst = try tmp.dir("dst")
+        let engine = try run(TransferRequest(kind: .copy, sources: [src], destinationDirectory: dst))
+        #expect(engine.errors.isEmpty)
+        #expect(try tmp.names("dst") == ["zablokowany.txt"])
+        #expect(try tmp.read("dst/zablokowany.txt") == "L")
+        #expect(try LocalFS().itemSync(at: dst.appending("zablokowany.txt")).flags.contains(.locked))
+    }
+
+    /// Nazwa ok. 250 bajtów: plik tymczasowy nie może przekroczyć limitu 255 bajtów.
+    @Test func copiesFileWithLongName() throws {
+        let tmp = try TempDir()
+        let name = String(repeating: "ą", count: 124) + ".t"
+        #expect(name.utf8.count == 250)
+        let src = try tmp.file("src/" + name, "długa")
+        let dst = try tmp.dir("dst")
+        let engine = try run(TransferRequest(kind: .copy, sources: [src], destinationDirectory: dst))
+        #expect(engine.errors.isEmpty)
+        #expect(try tmp.read("dst/" + name) == "długa")
+    }
+
+    /// Zapasowe trwałe usunięcie tylko dla woluminu bez Kosza — inne błędy idą do delegata.
+    @Test func onlyMissingTrashAllowsPermanentDelete() {
+        #expect(LocalFS.isTrashUnavailable(NSError(domain: NSCocoaErrorDomain, code: NSFeatureUnsupportedError)))
+        #expect(LocalFS.isTrashUnavailable(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOTSUP))))
+        #expect(!LocalFS.isTrashUnavailable(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError)))
+        #expect(!LocalFS.isTrashUnavailable(NSError(domain: NSPOSIXErrorDomain, code: Int(EIO))))
+        #expect(!LocalFS.isTrashUnavailable(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)))
+    }
+}
+
 /// Duży plik na innym woluminie wymusza prawdziwe kopiowanie (bez klonowania APFS),
 /// więc działa callback postępu. Tu używamy obrazu RAM-dysku, jeśli się da; w przeciwnym razie
 /// testujemy JobControl bezpośrednio.
