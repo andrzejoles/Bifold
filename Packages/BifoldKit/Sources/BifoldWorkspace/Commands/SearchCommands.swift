@@ -73,7 +73,7 @@ extension CommandContext {
     /// Katalogi przeszukiwania: argument `paths` (jak przy elementach — `parsePath`, więc także
     /// ścieżki absolutne zamrożone przez bramkę agenta) albo bieżący katalog lokalny / domowy.
     func searchRoots() -> [VFSPath] {
-        let base = tab.path.isLocal ? tab.path : .local(NSHomeDirectory())
+        let base = tab.path.isLocal ? tab.path : workspace.homePath
         return arguments.strings("paths")?.map { workspace.parsePath($0, relativeTo: base) } ?? [base]
     }
 
@@ -179,7 +179,7 @@ var searchCommands: [Command] { [
     },
 
     Command(CommandDescriptor(
-        id: "search.spotlight", title: L10n.tr("Szukaj w Spotlight…"), category: .tools, tc: ["cmd+alt+space"],
+        id: "search.spotlight", title: L10n.tr("Szukaj w Spotlight…"), category: .tools, tc: ["ctrl+alt+f"],
         parameters: [CommandParameter("query", .string, required: true, L10n.tr("Szukany tekst (nazwa lub treść)")), pathsParam,
                      CommandParameter("toPanel", .boolean, L10n.tr("Pokaż wyniki w nowej karcie panelu"))],
         agent: .full, effect: .uiState, summary: L10n.tr("Wyszukiwanie przez indeks Spotlight w bieżącym katalogu."))
@@ -228,7 +228,7 @@ var searchCommands: [Command] { [
     },
 
     Command(CommandDescriptor(
-        id: "search.duplicates", title: L10n.tr("Szukaj duplikatów…"), category: .tools, tc: ["cmd+alt+d"],
+        id: "search.duplicates", title: L10n.tr("Szukaj duplikatów…"), category: .tools, tc: ["ctrl+alt+d"],
         parameters: [pathsParam,
                      CommandParameter("mode", .string, L10n.tr("content (treść), nameAndSize, name"), allowed: DuplicateFinder.Mode.allCases.map(\.rawValue)),
                      CommandParameter("minSize", .integer, L10n.tr("Pomijaj pliki mniejsze (bajty)")),

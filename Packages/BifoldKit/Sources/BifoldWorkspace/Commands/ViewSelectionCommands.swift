@@ -15,7 +15,9 @@ private func viewModeCommand(_ mode: ViewMode, _ n: Int) -> Command {
 @MainActor
 private func sortCommand(_ field: SortField, tc: String, cmd: String) -> Command {
     Command(CommandDescriptor(
-        id: CommandID(rawValue: "view.sortBy.\(field.rawValue)"), title: L10n.tr("Sortuj: \(field.displayName)"), category: .view, tc: [tc], cmd: [cmd],
+        // ⌃F3–⌃F7 jak w TC, ale macOS domyślnie przechwytuje część z nich (fokus na Dock, okno, pasek
+        // narzędzi) — w profilu TC działa też skrót z profilu Cmd.
+        id: CommandID(rawValue: "view.sortBy.\(field.rawValue)"), title: L10n.tr("Sortuj: \(field.displayName)"), category: .view, tc: [tc, cmd], cmd: [cmd],
         agent: .full, effect: .uiState, summary: L10n.tr("Sortuje według pola \(field.displayName); ponowne wywołanie odwraca kolejność.")
     )) { ctx in
         let tab = ctx.tab

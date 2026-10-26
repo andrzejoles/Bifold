@@ -229,7 +229,9 @@ var fileCommands: [Command] { [
             let newName = try await ctx.text("newName", title: L10n.tr("Zmień nazwę"), default: source.name)
             guard let parent = source.parent else { throw CommandError.invalidArgument("path", source.displayPath) }
             let target = parent.appending(newName)
-            let exists = target.isLocal ? (await LocalFS().exists(target) && target.path.lowercased() != source.path.lowercased()) : false
+            // Także na serwerze: inaczej okno zgody pokazywałoby „bez konfliktu” dla istniejącego celu.
+            let provider = try? ctx.workspace.providers.provider(for: target)
+            let exists = await (provider?.exists(target) ?? false) && target.path.lowercased() != source.path.lowercased()
             return EffectPreview(summary: "\(source.name) → \(newName)", operations: [PlannedOperation(kind: "rename", source: source, destination: target, conflict: exists)], fileCount: 1, conflicts: exists ? [target.path] : [])
         }
     ) { ctx in

@@ -11,8 +11,10 @@ extension CommandContext {
     ///   Domyślnie odrzucane — komendy zmieniające pliki działają tylko na plikach lokalnych.
     public func targets(allowEmpty: Bool = false, allowNonLocal: Bool = false) throws -> [FileItem] {
         let items = try rawTargets(allowEmpty: allowEmpty)
-        if !allowNonLocal, items.contains(where: { !$0.path.isLocal }) {
-            throw CommandError.notAvailable(L10n.tr("Archiwum jest tylko do odczytu — skopiuj elementy na dysk (F5)"))
+        if !allowNonLocal, let other = items.first(where: { !$0.path.isLocal }) {
+            throw CommandError.notAvailable(ArchiveFS.isArchivePath(other.path)
+                ? L10n.tr("Archiwum jest tylko do odczytu — skopiuj elementy na dysk (F5)")
+                : L10n.tr("Ta operacja działa tylko na plikach na dysku — skopiuj elementy na dysk (F5)"))
         }
         return items
     }

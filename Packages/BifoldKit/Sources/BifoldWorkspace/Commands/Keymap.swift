@@ -108,7 +108,8 @@ public struct Keymap: Sendable {
             chordsByCommand[id, default: []].append(chord)
         }
         for id in chordsByCommand.keys {
-            chordsByCommand[id]!.sort { $0.description.count < $1.description.count }
+            // Najkrótszy pierwszy (trafia do menu); przy równej długości stała kolejność — słownik jej nie daje.
+            chordsByCommand[id]!.sort { ($0.description.count, $0.description) < ($1.description.count, $1.description) }
         }
     }
 

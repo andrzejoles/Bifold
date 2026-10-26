@@ -231,10 +231,6 @@ final class AppUIServices: UIServices {
         quickLook.toggle(urls: items.compactMap(\.path.url))
     }
 
-    func togglePreviewPanel() {
-        workspace.quickViewActive.toggle()
-    }
-
     func runInTerminal(command: String?, directory: VFSPath) {
         mainWindow?.run(command: command, directory: directory)
     }

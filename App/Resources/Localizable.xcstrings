@@ -16879,6 +16879,35 @@
         }
       }
     },
+    "Ta operacja działa tylko na plikach na dysku — skopiuj elementy na dysk (F5)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This operation works only on files on disk — copy the items to disk (F5)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Vorgang funktioniert nur mit Dateien auf dem Datenträger — kopieren Sie die Objekte auf den Datenträger (F5)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta operación solo funciona con archivos en el disco: copie los elementos al disco (F5)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ця операція працює лише з файлами на диску — скопіюйте елементи на диск (F5)"
+          }
+        }
+      }
+    },
     "Ta operacja nie działa dla połączeń SCP — skopiuj pliki na dysk": {
       "extractionState": "manual",
       "localizations": {
