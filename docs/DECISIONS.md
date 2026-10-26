@@ -51,6 +51,8 @@ Brak oficjalnego API. Próba otwarcia do odczytu `~/Library/Application Support/
 Skróty TC (F-klawisze, Tab, Spacja, litery w szybkim wyszukiwaniu) nie mieszczą się w modelu
 `keyEquivalent`. `KeyRouter` dopasowuje `NSEvent` do `KeyChord` z aktywnego `Keymap` i wywołuje
 komendę z rejestru; menu pokazuje te same skróty (jeśli da się je wyrazić jako `keyEquivalent`).
+(Obecnie bez osobnej klasy `KeyRouter`: dopasowanie robi `PanelViewController.handleKey`, do którego
+widoki plików przekazują `keyDown`; skróty wyrażalne w menu działają jako `keyEquivalent`.)
 
 ### D11 · 2026-10-17 — Poziom „Odczyt” pozwala zmieniać stan interfejsu
 Macierz daje poziom „Odczyt” m.in. dla drzewa katalogów, podglądu, Quick Look i przełączania
@@ -238,7 +240,7 @@ Wersja z historii gita (`scripts/version.sh`, ta sama reguła co w CantatePresen
 liczba commitów; zmiany na `main` przez PR scalane zwykłym „Merge pull request”. Wersja trafia do
 budowania przez `build/Version.xcconfig` (akcja wstępna schematu) — modyfikacja Info.plist po
 przetworzeniu ścigała się z Xcode. Autor: „Andrzej Oleś w kooperacji z Claude AI” (Info.plist, okno
-„O programie”, LICENSE, README). Aktualizacje: Sparkle 2.9.6, kanał `releases/latest/download/appcast.xml`,
+„O programie”, LICENSE, README). Aktualizacje: Sparkle 2.9.6 (obecnie 2.10.1), kanał `releases/latest/download/appcast.xml`,
 klucz EdDSA w Pęku kluczy (konto `bifold`), automatyczne pobieranie i instalacja przy zamknięciu.
 Licencja MIT (wybór domyślny przy udostępnianiu; zmiana = podmiana pliku LICENSE).
 

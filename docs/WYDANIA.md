@@ -56,7 +56,7 @@ zamknięciu aplikacji (menu „Sprawdź uaktualnienia…” — od razu).
 
 ```sh
 make installer
-# „stara” kopia: ditto dist/Bifold-X.app /tmp/test/Bifold.app, w Info.plist niższe
+# „stara” kopia: ditto dist/staging.noindex/Bifold-X.app /tmp/test/Bifold.app, w Info.plist niższe
 # CFBundleVersion i CFBundleShortVersionString, scripts/signing.sh sign /tmp/test/Bifold.app
 # kanał: ZIP nowej wersji (ditto -c -k --keepParent) w katalogu kanal/ i
 scripts/sparkle-tools.sh generate_appcast --download-url-prefix http://127.0.0.1:8000/ kanal/

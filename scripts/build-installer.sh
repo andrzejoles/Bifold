@@ -16,8 +16,10 @@ echo "=== $APP_NAME $VERSION ($BUILD) ==="
 
 echo "[1/4] Budowanie (Release)…"
 scripts/set-version.sh
-xcodebuild -project Bifold.xcodeproj -scheme Bifold -configuration Release -derivedDataPath build/DerivedData.noindex \
-    -skipPackagePluginValidation -skipMacroValidation build -quiet
+# Jeden cel (bez ostrzeżenia o wielu pasujących) i tylko arm64 — ARCHS dotyczy też celów pakietów SPM.
+xcodebuild -project Bifold.xcodeproj -scheme Bifold -configuration Release -destination 'platform=macOS,arch=arm64' \
+    -derivedDataPath build/DerivedData.noindex -skipPackagePluginValidation -skipMacroValidation \
+    ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build -quiet
 SRC="build/DerivedData.noindex/Build/Products/Release/$APP_NAME.app"
 [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SRC/Contents/Info.plist")" = "$VERSION" ] \
     || { echo "BŁĄD: wersja w Info.plist nie zgadza się z $VERSION" >&2; exit 1; }

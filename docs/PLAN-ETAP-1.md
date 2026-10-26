@@ -96,13 +96,13 @@ działa płynnie. Operacje w tle da się anulować i cofnąć. Wszystkie czynno�
 | `tools.share`, `tools.openWith` | — | — | brak |
 | `tools.commandPalette` | Cmd+Shift+P | Cmd+Shift+P | brak |
 
-Dokładna, aktualna lista skrótów jest generowana z rejestru: `docs/SKROTY.md` (`make docs`).
+Dokładna, aktualna lista skrótów jest generowana z rejestru: `docs/SKROTY.md` (`BIFOLD_WRITE_DOCS=1 swift test --filter DocsGenerator` w `Packages/BifoldKit`).
 
 ## Kryteria odbioru Etapu 1
 
 1. Wszystkie czynności z tabeli są dostępne z klawiatury i z palety komend; menu jest budowane z rejestru.
-2. Katalog testowy ze 100 000 plików (`make perf-fixture`): pierwsze wyświetlenie < 1 s
-   (test wydajnościowy `LocalFSPerformanceTests` mierzy listowanie + sortowanie), przewijanie płynne.
+2. Katalog ze 100 000 plików: pierwsze wyświetlenie < 1 s (test wydajnościowy `PerformanceTests`
+   sam tworzy katalog i mierzy listowanie + sortowanie; `make test-release`), przewijanie płynne.
 3. Kopiowanie dużego pliku w tle można wstrzymać, wznowić, ograniczyć prędkość i anulować;
    po anulowaniu nie zostaje częściowy plik docelowy.
 4. Przeniesienie, zmiana nazwy i usunięcie do Kosza dają się cofnąć (Cmd+Z), z wykrywaniem konfliktów.
