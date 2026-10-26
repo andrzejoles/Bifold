@@ -141,7 +141,8 @@ public final class JobQueue {
     private func start(_ job: Job) {
         started.insert(job.id)
         job.state = job.control.isPaused ? .paused : .running
-        let batchID = journal.beginBatch(title: job.title, invoker: job.invoker)
+        // Partia trwającego zadania nie jest proponowana do cofnięcia, dopóki zadanie się nie skończy.
+        let batchID = journal.beginBatch(title: job.title, invoker: job.invoker, finished: false)
         job.batchID = batchID
         let spec = job.spec, control = job.control, delegate = job.delegate, journal = journal
         let progressSink = ProgressSink(job: job)
@@ -226,6 +227,7 @@ public final class JobQueue {
             } catch {
                 outcome = .failed(error.localizedDescription)
             }
+            journal.endBatch(batchID)
             let finalErrors = errors
             Task { @MainActor in
                 progressSink.flush()

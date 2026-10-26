@@ -43,15 +43,26 @@ import Testing
         let tmp = try TempDir()
         try tmp.file("a.txt", "a")
         let queue = JobQueue(journal: OperationJournal())
+        // Zadanie blokujące kolejkę (konflikt czeka na decyzję) — inaczej wątek roboczy mógłby
+        // wykonać Kosz, zanim test zdąży wstrzymać zadanie.
+        try tmp.file("src/b.txt", "b")
+        try tmp.file("dst/b.txt", "b")
+        let blocker = BlockingDelegate()
+        let first = queue.enqueue(.transfer(TransferRequest(kind: .copy, sources: [tmp.path.appending("src/b.txt")], destinationDirectory: tmp.path.appending("dst"))),
+                                  title: "blokada", delegate: blocker)
         let job = queue.enqueue(.trash([tmp.path.appending("a.txt")]), title: "Kosz")
         queue.pause(job)
+        for _ in 0..<200 where !blocker.isWaiting { try await Task.sleep(for: .milliseconds(10)) }
+        blocker.release(ConflictDecision(.skip))
+        _ = await queue.wait(for: first)
         try await Task.sleep(for: .milliseconds(200))
         #expect(job.state == .paused)
         #expect(tmp.exists("a.txt"))
         queue.resume(job)
         #expect(await queue.wait(for: job) == .completed)
         #expect(!tmp.exists("a.txt"))
-        if case let .trashed(_, trashPath) = queue.journal.batches[0].entries[0].action {
+        let batchID = try #require(job.batchID)
+        if case let .trashed(_, trashPath) = try #require(queue.journal.batch(batchID)).entries[0].action {
             try? FileManager.default.removeItem(atPath: trashPath.path)
         }
     }
@@ -181,5 +192,148 @@ import Testing
             out[rel] = isDir.boolValue ? "<dir>" : (try? String(contentsOf: full, encoding: .utf8)) ?? "?"
         }
         return out
+    }
+}
+
+/// Delegat, który wstrzymuje zadanie na pierwszym konflikcie, dopóki test go nie zwolni.
+final class BlockingDelegate: TransferDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<ConflictDecision, Never>?
+    private var waiting = false
+
+    var isWaiting: Bool { lock.withLock { waiting } }
+
+    func resolveConflict(_ conflict: FileConflict) async -> ConflictDecision {
+        await withCheckedContinuation { c in
+            lock.withLock {
+                continuation = c
+                waiting = true
+            }
+        }
+    }
+
+    func release(_ decision: ConflictDecision) {
+        let c = lock.withLock { () -> CheckedContinuation<ConflictDecision, Never>? in
+            defer { continuation = nil; waiting = false }
+            return continuation
+        }
+        c?.resume(returning: decision)
+    }
+
+    func resolveError(path: VFSPath, error: VFSError) async -> ErrorDecision { .skip }
+}
+
+@MainActor @Suite struct JournalFixesTests {
+    /// Cmd+Z w trakcie zadania nie może cofać jego partii (jest już w niej wpis o pierwszym pliku).
+    @Test func runningJobBatchIsNotUndoable() async throws {
+        let tmp = try TempDir()
+        try tmp.file("src/a.txt", "a")
+        try tmp.file("src/b.txt", "b")
+        try tmp.file("dst/b.txt", "stary")
+        let journal = OperationJournal()
+        let ops = FileOperations(journal: journal)
+        let queue = JobQueue(journal: journal)
+        try await ops.makeDirectory(tmp.path.appending("wczesniej"))
+        let delegate = BlockingDelegate()
+        let job = queue.enqueue(.transfer(TransferRequest(kind: .copy, sources: [tmp.path.appending("src/a.txt"), tmp.path.appending("src/b.txt")],
+                                                          destinationDirectory: tmp.path.appending("dst"))), title: "F5", delegate: delegate)
+        for _ in 0..<100 where !delegate.isWaiting { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(delegate.isWaiting)
+        let runningID = try #require(job.batchID)
+        let running = try #require(journal.batch(runningID))
+        #expect(running.entries.count == 1)
+        // Proponowana jest wcześniejsza, zakończona partia — nie trwające kopiowanie.
+        #expect(journal.lastUndoable()?.title != "F5")
+        #expect(ops.undoPlanForLast()?.batches != [running.id])
+        delegate.release(ConflictDecision(.skip))
+        #expect(await queue.wait(for: job) == .completed)
+        #expect(journal.lastUndoable()?.id == running.id)
+    }
+
+    /// Plan cofnięcia 20 000 wpisów: symulacja zajętości bez przeglądania całego zbioru dla każdej ścieżki.
+    @Test func undoPlanForLargeBatchIsFast() throws {
+        let tmp = try TempDir()
+        let dir = try tmp.dir("duzo")
+        let count = 20_000
+        for i in 0..<count {
+            let fd = open(dir.path + "/f\(i)", O_WRONLY | O_CREAT | O_EXCL, 0o644)
+            close(fd)
+        }
+        let journal = OperationJournal()
+        let batch = journal.beginBatch(title: "duża kopia", invoker: .user)
+        for i in 0..<count { journal.record(.copied(from: .local("/zrodlo/f\(i)"), to: dir.appending("f\(i)")), in: batch) }
+        let start = ContinuousClock.now
+        let plan = try #require(FileOperations(journal: journal).undoPlanForLast())
+        let elapsed = ContinuousClock.now - start
+        #expect(plan.steps.count == count && plan.conflicts.isEmpty)
+        #expect(elapsed < .seconds(1), "plan trwał \(elapsed)")
+    }
+
+    /// Częściowe cofnięcie: partia nie jest oznaczana jako cofnięta; wykonane wpisy tak, a reszta zostaje.
+    @Test func partialUndoMarksOnlyPerformedEntries() async throws {
+        let tmp = try TempDir()
+        try tmp.file("a.txt", "a")
+        try tmp.file("b.txt", "b")
+        let journal = OperationJournal()
+        let batch = journal.beginBatch(title: "zmiana nazw", invoker: .user)
+        try LocalFS().moveSync(tmp.path.appending("a.txt"), to: tmp.path.appending("a2.txt"))
+        journal.record(.moved(from: tmp.path.appending("a.txt"), to: tmp.path.appending("a2.txt")), in: batch)
+        try LocalFS().moveSync(tmp.path.appending("b.txt"), to: tmp.path.appending("b2.txt"))
+        journal.record(.moved(from: tmp.path.appending("b.txt"), to: tmp.path.appending("b2.txt")), in: batch)
+        try tmp.file("a.txt", "zajmuje")
+
+        let ops = FileOperations(journal: journal)
+        let first = await ops.execute(try #require(ops.undoPlanForLast()))
+        #expect(first.performed == 1 && first.skipped == [.occupied(tmp.path.appending("a.txt"))])
+        #expect(tmp.exists("b.txt"))
+        // Partia nadal do cofnięcia, ale tylko z pozostałym krokiem.
+        try FileManager.default.removeItem(at: tmp.url.appending(path: "a.txt"))
+        let second = try #require(await ops.planUndoLast())
+        #expect(second.steps.map(\.action) == [.move(from: tmp.path.appending("a2.txt"), to: tmp.path.appending("a.txt"))])
+        let result = await ops.execute(second)
+        #expect(result.performed == 1 && result.skipped.isEmpty)
+        #expect(try tmp.read("a.txt") == "a")
+        #expect(ops.undoPlanForLast() == nil)
+    }
+
+    /// Dziennik: przy starcie przycięty do ostatnich partii; częściowe cofnięcie przetrwa ponowne wczytanie.
+    @Test func journalIsCompactedOnLoad() async throws {
+        let tmp = try TempDir()
+        let file = tmp.url.appending(path: "journal/ops.jsonl")
+        let journal = OperationJournal(fileURL: file, maxBatchesInMemory: 3)
+        for i in 0..<5 {
+            let b = journal.beginBatch(title: "p\(i)", invoker: .user)
+            journal.record(.created(path: tmp.path.appending("x\(i)"), isDirectory: true), in: b)
+        }
+        let last = try #require(journal.batches.last)
+        journal.markUndone(entries: [last.entries[0].id], in: last.id)
+        journal.flush()
+        #expect(try String(contentsOf: file, encoding: .utf8).split(separator: "\n").count == 11)
+        let reloaded = OperationJournal(fileURL: file, maxBatchesInMemory: 3)
+        #expect(reloaded.batches.map(\.title) == ["p2", "p3", "p4"])
+        #expect(reloaded.batches[2].entries[0].undone)
+        let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
+        #expect(lines.count == 7)
+        #expect(try tmp.names("journal") == ["ops.jsonl"])
+        // Dopisywanie po przycięciu trafia do nowego pliku.
+        reloaded.beginBatch(title: "p5", invoker: .user)
+        reloaded.flush()
+        #expect(OperationJournal(fileURL: file, maxBatchesInMemory: 10).batches.map(\.title) == ["p2", "p3", "p4", "p5"])
+    }
+
+    /// Błąd zapisu nie może zastąpić całego dziennika jednym wierszem.
+    @Test func unwritableJournalIsNotReplaced() throws {
+        let tmp = try TempDir()
+        let file = tmp.url.appending(path: "ops.jsonl")
+        let journal = OperationJournal(fileURL: file)
+        journal.beginBatch(title: "pierwsza", invoker: .user)
+        journal.flush()
+        chmod(file.path, 0o400)
+        defer { chmod(file.path, 0o600) }
+        let readOnly = OperationJournal(fileURL: file)
+        readOnly.beginBatch(title: "druga", invoker: .user)
+        readOnly.flush()
+        chmod(file.path, 0o600)
+        #expect(OperationJournal(fileURL: file).batches.map(\.title) == ["pierwsza"])
     }
 }
