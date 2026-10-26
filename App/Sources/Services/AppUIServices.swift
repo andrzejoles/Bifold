@@ -85,7 +85,7 @@ final class AppUIServices: UIServices {
         conflict.addItems(withTitles: policies.map(\.0))
         let limit = NSPopUpButton()
         let limits: [Int64] = [0, 1, 5, 10, 25, 50, 100]
-        limit.addItems(withTitles: limits.map { $0 == 0 ? L10n.tr("Bez limitu") : "\($0) MB/s" })
+        limit.addItems(withTitles: limits.map { $0 == 0 ? L10n.tr("Bez limitu") : L10n.tr("\(Int($0)) MB/s") })
         let options = NSStackView(views: [NSTextField(labelWithString: L10n.tr("Gdy istnieje:")), conflict, NSTextField(labelWithString: L10n.tr("Prędkość:")), limit])
         options.spacing = 6
         let stack = NSStackView(views: [field, options])
@@ -109,6 +109,8 @@ final class AppUIServices: UIServices {
             var controller: NSWindowController?
             let view = AttributesEditor(items: items) { change in
                 if let sheet = controller?.window { window.endSheet(sheet) }
+                // Zerwanie cyklu: kontroler → okno → widok → to domknięcie → kontroler.
+                controller = nil
                 continuation.resume(returning: change)
             }
             let hosting = NSHostingController(rootView: view)

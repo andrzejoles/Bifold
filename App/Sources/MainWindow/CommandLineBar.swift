@@ -56,13 +56,29 @@ final class CommandLineBar: NSView, NSTextFieldDelegate {
         history.append(command)
         historyIndex = history.count
         field.stringValue = ""
-        // „cd katalog” zmienia katalog panelu zamiast terminala (jak w TC).
-        if command == "cd" || command.hasPrefix("cd ") {
-            let arg = command == "cd" ? "~" : String(command.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-            workspace.perform("panel.navigate", CommandArguments(["path": .string(arg)]))
+        // „cd katalog” zmienia katalog panelu zamiast terminala (jak w TC) — tylko samo `cd <ścieżka>`;
+        // z operatorami powłoki („cd /tmp && make”) całość idzie do terminala.
+        if let path = Self.plainCD(command) {
+            workspace.perform("panel.navigate", CommandArguments(["path": .string(path)]))
             return
         }
         workspace.perform("tools.runCommand", CommandArguments(["command": .string(command)]))
+    }
+
+    /// Ścieżka z polecenia `cd` bez operatorów i rozwinięć powłoki; `nil` dla innych poleceń.
+    /// Ścieżka w pojedynczym cudzysłowie może zawierać spacje.
+    static func plainCD(_ command: String) -> String? {
+        guard command == "cd" || command.hasPrefix("cd ") else { return nil }
+        var arg = command == "cd" ? "~" : String(command.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+        if arg.isEmpty { arg = "~" }
+        if arg.count >= 2, arg.first == "'", arg.last == "'" {
+            let inner = String(arg.dropFirst().dropLast())
+            return inner.contains("'") ? nil : inner
+        }
+        // Operatory, przekierowania, podstawienia, rozwinięcia i cudzysłowy — polecenie dla powłoki.
+        let shellCharacters = Set(";&|<>()$`\"'\\*?[]{}!#")
+        if arg == "-" || arg.contains(where: { shellCharacters.contains($0) || $0.isWhitespace }) { return nil }
+        return arg
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
@@ -76,8 +92,12 @@ final class CommandLineBar: NSView, NSTextFieldDelegate {
             historyIndex = min(history.count, historyIndex + 1)
             field.stringValue = historyIndex < history.count ? history[historyIndex] : ""
             return true
-        case #selector(NSResponder.cancelOperation(_:)), #selector(NSResponder.insertTab(_:)):
+        case #selector(NSResponder.cancelOperation(_:)):
             field.stringValue = ""
+            (window?.windowController as? MainWindowController)?.focusActivePanel()
+            return true
+        case #selector(NSResponder.insertTab(_:)):
+            // Tab wraca do panelu, ale nie kasuje wpisanego polecenia.
             (window?.windowController as? MainWindowController)?.focusActivePanel()
             return true
         default:
