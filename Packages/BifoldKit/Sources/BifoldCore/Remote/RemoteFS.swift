@@ -78,8 +78,20 @@ public final class RemoteFS: FileSystemProvider {
     public func download(_ path: VFSPath) async throws -> URL {
         let dir = FileManager.default.temporaryDirectory.appending(path: "bifold-remote-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        _ = try await rclone.call("operations/copyfile", ["srcFs": fs, "srcRemote": remotePath(path), "dstFs": dir.path, "dstRemote": path.name])
+        do {
+            _ = try await rclone.call("operations/copyfile", ["srcFs": fs, "srcRemote": remotePath(path), "dstFs": dir.path, "dstRemote": path.name])
+        } catch {
+            try? FileManager.default.removeItem(at: dir)
+            throw error
+        }
+        Quarantine.mark(dir.appending(path: path.name).path)
         return dir.appending(path: path.name)
+    }
+
+    /// rclone po cichu zastępuje istniejący cel (`copyfile`, `movefile`), scala katalogi (`sync/move`)
+    /// i zgłasza sukces `mkdir` dla istniejącego katalogu — dlatego cel sprawdzany wcześniej.
+    func requireAbsent(_ path: VFSPath) async throws {
+        if await exists(path) { throw VFSError.alreadyExists(path) }
     }
 
     public func upload(_ local: URL, to path: VFSPath) async throws {
@@ -101,11 +113,13 @@ public final class RemoteFS: FileSystemProvider {
 
     public func createDirectory(_ path: VFSPath) async throws {
         try validateFileName(path.name)
+        try await requireAbsent(path)
         _ = try await rclone.call("operations/mkdir", ["fs": fs, "remote": remotePath(path)])
     }
 
     public func createFile(_ path: VFSPath, contents: Data) async throws {
         try validateFileName(path.name)
+        try await requireAbsent(path)
         let dir = FileManager.default.temporaryDirectory.appending(path: "bifold-up-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -118,6 +132,8 @@ public final class RemoteFS: FileSystemProvider {
         try validateFileName(newName)
         guard let parent = path.parent else { throw VFSError.unsupported("rename /") }
         let target = parent.appending(newName)
+        // Zmiana samej wielkości liter (serwer bez jej rozróżniania widzi cel jako ten sam element).
+        if path.name.compare(newName, options: .caseInsensitive) != .orderedSame { try await requireAbsent(target) }
         let isDir = (try? await item(at: path))?.isDirectory ?? false
         if isDir {
             _ = try await rclone.call("sync/move", ["srcFs": fs + remotePath(path), "dstFs": fs + remotePath(target), "deleteEmptySrcDirs": true])
@@ -187,12 +203,17 @@ public struct RcloneTransfer: Sendable {
         p.bytesTotal = items.reduce(0) { $0 + max(0, $1.size) }
         var errors: [String] = []
         var doneBytes: Int64 = 0
+        // Limit prędkości rclone jest wspólny dla procesu — ustala go koordynator ze wszystkich zadań.
+        let token = UUID()
+        let started = Date().addingTimeInterval(-1)
+        var reported = (paused: control.isPaused, limit: control.speedLimit)
+        rclone.bandwidth.update(token, paused: reported.paused, limit: reported.limit)
+        defer { rclone.bandwidth.remove(token) }
         for item in items {
             guard control.checkpoint() else { throw VFSError.cancelled }
             p.currentItem = item.name
             progress(p)
             let group = "bifold-\(UUID().uuidString.prefix(8))"
-            _ = try? rclone.callSync("core/bwlimit", ["rate": control.speedLimit > 0 ? "\(control.speedLimit)" : "off"])
             var params: [String: Any] = ["_async": true, "_group": group]
             if skipExisting { params["_config"] = ["IgnoreExisting": true] }
             let method: String
@@ -209,14 +230,14 @@ public struct RcloneTransfer: Sendable {
                 params["dstRemote"] = join(dstRemote, item.name)
             }
             do {
-                let started = try rclone.callSync(method, params)
-                guard let jobid = started["jobid"] else { throw RemoteError.protocolError("jobid") }
-                var wasPaused = false
+                let job = try rclone.callSync(method, params)
+                guard let jobid = job["jobid"] else { throw RemoteError.protocolError("jobid") }
                 while true {
-                    // rclone nie ma pauzy zadania — wstrzymanie = limit 1 B/s, wznowienie = limit z zadania.
-                    if control.isPaused != wasPaused {
-                        wasPaused = control.isPaused
-                        _ = try? rclone.callSync("core/bwlimit", ["rate": wasPaused ? "1" : (control.speedLimit > 0 ? "\(control.speedLimit)" : "off")])
+                    // rclone nie ma pauzy zadania — wstrzymanie zgłaszane koordynatorowi limitu (RcloneBandwidth).
+                    let now = (paused: control.isPaused, limit: control.speedLimit)
+                    if now != reported {
+                        reported = now
+                        rclone.bandwidth.update(token, paused: now.paused, limit: now.limit)
                     }
                     if control.isPaused { usleep(200_000); if control.isCancelled { _ = try? rclone.callSync("job/stop", ["jobid": jobid]); throw VFSError.cancelled }; continue }
                     if !control.checkpoint() {
@@ -233,8 +254,12 @@ public struct RcloneTransfer: Sendable {
                     if status["finished"] as? Bool == true {
                         if status["success"] as? Bool != true {
                             errors.append("\(item.name): \(status["error"] as? String ?? "?")")
-                        } else if let local = localDestination, let journal, let batchID {
-                            journal.record(.copied(from: VFSPath(provider: ProviderID("rclone"), path: "/" + item.srcRemote), to: local.appending(item.name)), in: batchID)
+                        } else if let local = localDestination {
+                            // Tylko to, co zapisał rclone (scalany katalog może mieć pliki użytkownika).
+                            Quarantine.mark(local.appending(item.name).path, changedSince: started)
+                            if let journal, let batchID {
+                                journal.record(.copied(from: VFSPath(provider: ProviderID("rclone"), path: "/" + item.srcRemote), to: local.appending(item.name)), in: batchID)
+                            }
                         }
                         break
                     }

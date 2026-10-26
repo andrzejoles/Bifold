@@ -40,11 +40,6 @@ targets:
     sources:
       - path: App/Sources
       - path: App/Resources
-      - path: App/Helper/local.aoles.bifold.helper.plist
-        buildPhase:
-          copyFiles:
-            destination: wrapper
-            subpath: Contents/Library/LaunchDaemons
     settings:
       base:
         INFOPLIST_FILE: App/Info.plist
@@ -108,6 +103,27 @@ targets:
           - $(SRCROOT)/scripts/embed-mtp-helper.sh
         outputFiles:
           - $(TARGET_BUILD_DIR)/$(EXECUTABLE_FOLDER_PATH)/bifold-mtp
+      # Plik demona pomocnika (SMAppService) z identyfikatorów w Config/Brand.xcconfig — bundle id nie
+      # jest wpisany nigdzie indziej. Etykieta = usługa Mach = $(BIFOLD_BUNDLE_ID).helper.
+      - name: Plik demona pomocnika
+        script: |
+          set -euo pipefail
+          DIR="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LaunchDaemons"
+          LABEL="$BIFOLD_BUNDLE_ID.helper"
+          PLIST="$DIR/$LABEL.plist"
+          mkdir -p "$DIR"
+          rm -f "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :Label string $LABEL" \
+            -c "Add :BundleProgram string Contents/MacOS/bifold-helper" \
+            -c "Add :MachServices dict" -c "Add :MachServices:$LABEL bool true" \
+            -c "Add :AssociatedBundleIdentifiers array" -c "Add :AssociatedBundleIdentifiers:0 string $BIFOLD_BUNDLE_ID" \
+            "$PLIST" >/dev/null
+          plutil -convert xml1 "$PLIST"
+        inputFiles:
+          - $(SRCROOT)/Config/Brand.xcconfig
+          - $(SRCROOT)/project.yml
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/$(BIFOLD_BUNDLE_ID).helper.plist
   bifold-mcp:
     type: tool
     platform: macOS

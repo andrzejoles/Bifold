@@ -9,9 +9,13 @@ import Testing
         -rw-r--r--    1 mobile mobile    2345678 06 Mar 2026 08:00:01 IMG_0001.HEIC
         -rw-r--r--    1 mobile mobile         12 06 Mar 2026 08:00:01 Zdjęcie z wakacji.jpg
         lrwxrwxrwx    1 mobile mobile          4 01 Jan 2026 00:00:00 link
+        -rw-r--r--    1 mobile mobile          1 01 Jan 2026 00:00:00 a/b
+        -rw-r--r--    1 mobile mobile          1 01 Jan 2026 00:00:00 ..
+        -rw-r--r--    1 mobile mobile          1 01 Jan 2026 00:00:00 zły\u{1B}[2Jznak
         """
         let dir = VFSPath(provider: ProviderID("device:x"), path: "/DCIM")
         let items = AFCDeviceFS.parseLongListing(text, in: dir)
+        // Nazwy z `/`, `..` albo znakami sterującymi pomijane (D46) — trafiłyby do ścieżek lokalnych.
         #expect(items.map(\.name) == ["100APPLE", "IMG_0001.HEIC", "Zdjęcie z wakacji.jpg", "link"])
         #expect(items[0].isDirectory && items[1].size == 2_345_678 && items[3].kind == .symlink)
         #expect(items[1].path.path == "/DCIM/IMG_0001.HEIC")
@@ -19,10 +23,68 @@ import Testing
         #expect(cal.component(.month, from: items[1].modified!) == 3)
     }
 
+    /// Dwa iPhone’y z tym samym układem mają wspólny początek UDID — identyfikator dostawcy z pełnego UDID.
+    @Test func afcProviderIDUsesFullUDID() {
+        let a = AFCDeviceFS(device: DeviceInfo(id: "00008110-001A2B3C4D5E6F70", kind: .iPhone, name: "A"), afcclient: "/x")
+        let b = AFCDeviceFS(device: DeviceInfo(id: "00008110-001A2B3C4D5E6F71", kind: .iPhone, name: "B"), afcclient: "/x")
+        #expect(a.id != b.id)
+        #expect(a.id.rawValue == "device:00008110-001A2B3C4D5E6F70")
+    }
+
+    /// Anulowanie `afcclient get -rf` kończy narzędzie (wcześniej czekało do końca) i nie zostawia
+    /// katalogu tymczasowego; katalog tymczasowy jest prywatny (0700).
+    @Test func afcCancelStopsToolAndCleansUp() throws {
+        let tmp = try TempDir()
+        let tool = tmp.url.path + "/afcclient"
+        try Data("#!/bin/sh\nexec /bin/sleep 30\n".utf8).write(to: URL(filePath: tool))
+        chmod(tool, 0o755)
+        try tmp.dir("cel")
+        let fs = AFCDeviceFS(device: DeviceInfo(id: "U", kind: .iPhone, name: "i"), afcclient: tool)
+        let start = Date()
+        #expect(throws: VFSError.cancelled) {
+            _ = try fs.extract([fs.root.appending("DCIM")], toTemporaryIn: tmp.path.appending("cel"), isCancelled: { Date().timeIntervalSince(start) > 0.3 })
+        }
+        #expect(Date().timeIntervalSince(start) < 5)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: tmp.url.path + "/cel").isEmpty, "katalog tymczasowy usunięty")
+        let temp = try makeDeviceTemp(in: tmp.path)
+        #expect((try FileManager.default.attributesOfItem(atPath: temp.path)[.posixPermissions] as? Int) == 0o700)
+    }
+
     @Test func mtpDetectJSON() {
         let json = Data(#"[{"index":0,"vendor":"Samsung","product":"Galaxy models (MTP)","vid":1256,"pid":26720,"bus":2,"dev":5}]"#.utf8)
-        #expect(DeviceDetector.parseMTPDetect(json) == [DeviceInfo(id: "0", kind: .android, name: "Samsung Galaxy models")])
+        #expect(DeviceDetector.parseMTPDetect(json) == [DeviceInfo(id: "0", kind: .android, name: "Samsung Galaxy models", usb: "1256 26720 2 5")])
+        #expect(DeviceDetector.parseMTPDetect(Data(#"[{"index":1,"vendor":"X"}]"#.utf8)) == [DeviceInfo(id: "1", kind: .android, name: "X")])
         #expect(DeviceDetector.parseMTPDetect(Data("[]".utf8)).isEmpty)
+    }
+
+    /// Sesja (i każda ponowna sesja) otwierana po identyfikatorze USB — po odłączeniu jednego z dwóch
+    /// telefonów numer z listy wskazywałby inny telefon.
+    @Test func mtpSessionIdentifiedByUSB() throws {
+        let tmp = try TempDir()
+        let helper = try fakeHelper(tmp)
+        FileManager.default.createFile(atPath: tmp.url.path + "/allowed", contents: Data())
+        let fs = try MTPDeviceFS(device: DeviceInfo(id: "0", kind: .android, name: "S", usb: "1256 26720 2 5"), helperPath: helper)
+        try fs.reopen()
+        fs.close()
+        #expect(try tmp.read("args").split(separator: "\n") == ["serve 0 1256 26720 2 5", "serve 0 1256 26720 2 5"])
+        // Po zamknięciu: bez nowej sesji.
+        #expect(throws: VFSError.cancelled) { try fs.reopen() }
+        #expect(throws: VFSError.cancelled) { _ = try fs.storages() }
+    }
+
+    /// Pomocnik, który przestał czytać polecenia (zamknięty stdin): zapis daje błąd, a nie SIGPIPE,
+    /// który zabiłby aplikację.
+    @Test func mtpWriteToDeadPipeDoesNotKill() throws {
+        let tmp = try TempDir()
+        let helper = tmp.url.path + "/bifold-mtp"
+        try Data("#!/bin/bash\necho '{\"ok\":true,\"model\":\"M\",\"storages\":[]}'\nexec 0<&-\nexec /bin/sleep 5\n".utf8).write(to: URL(filePath: helper))
+        chmod(helper, 0o755)
+        let fs = try MTPDeviceFS(device: DeviceInfo(id: "0", kind: .android, name: "S"), helperPath: helper)
+        defer { fs.close() }
+        usleep(200_000)
+        let start = Date()
+        #expect(throws: (any Error).self) { _ = try fs.helper.request("storages", timeout: 3) }
+        #expect(Date().timeIntervalSince(start) < 2, "błąd zapisu (EPIPE), nie limit czasu")
     }
 
     /// Fałszywy `bifold-mtp`: protokół jak prawdziwy pomocnik; nośnik pojawia się dopiero po „Zezwól”
@@ -34,6 +96,7 @@ import Testing
         #!/bin/bash
         D="$(dirname "$0")"
         if [ "$1" = detect ]; then echo '[{"index":0,"vendor":"Samsung","product":"Galaxy models (MTP)"}]'; exit 0; fi
+        echo "$*" >> "$D/args"
         # Jak Samsung: nośniki widzi tylko sesja otwarta po „Zezwól” (telefon łączy się z USB od nowa).
         if [ -f "$D/allowed" ]; then ALLOWED=1; else ALLOWED=0; fi
         echo session >> "$D/sessions"
@@ -93,6 +156,7 @@ import Testing
         let (temp, items) = try fs.extract([storage.appending("DCIM")], toTemporaryIn: tmp.path, isCancelled: { false })
         #expect(try String(contentsOfFile: items[0].path + "/IMG_1.jpg", encoding: .utf8) == "plik-21")
         #expect(FileManager.default.fileExists(atPath: items[0].path + "/Camera"))
+        #expect(Quarantine.isMarked(items[0].path + "/IMG_1.jpg"), "plik z telefonu z atrybutem kwarantanny")
         try? FileManager.default.removeItem(atPath: temp.path)
         let v = try await fs.volumeInfo(for: storage)
         #expect(v.totalCapacity == 256_000_000_000 && v.availableCapacity == 100_000_000_000)

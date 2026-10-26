@@ -41,8 +41,10 @@ final class ListenerDelegate: NSObject, NSXPCListenerDelegate {
     }
 }
 
+// Bez klucza w Info.plist: aplikacja o identyfikatorze pomocnika bez końcówki „.helper”
+// (identyfikatory tylko w Config/Brand.xcconfig).
 let requirement = Bundle.main.object(forInfoDictionaryKey: "BifoldClientRequirement") as? String
-    ?? "identifier \"local.aoles.bifold\""
+    ?? "identifier \"\(HelperConstants.machService.replacingOccurrences(of: ".helper", with: "", options: [.anchored, .backwards]))\""
 let delegate = ListenerDelegate(requirement: requirement)
 let listener = NSXPCListener(machServiceName: HelperConstants.machService)
 listener.delegate = delegate

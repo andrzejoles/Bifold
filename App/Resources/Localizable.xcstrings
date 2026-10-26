@@ -270,6 +270,35 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "%@: dowiązanie symboliczne — pominięto": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: symbolic link — skipped"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: symbolischer Link — übersprungen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: enlace simbólico — omitido"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: символьне посилання — пропущено"
+          }
+        }
+      }
+    },
     "%@: istnieje na serwerze — pominięto": {
       "extractionState": "manual",
       "localizations": {
@@ -13133,6 +13162,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "З’єднання %@"
+          }
+        }
+      }
+    },
+    "Połączenie %@ ma otwarty terminal SSH albo edycję pliku — rozłączyć może tylko użytkownik": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection %@ has an open SSH terminal or file edit — only the user can disconnect it"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung %@ hat ein offenes SSH-Terminal oder eine Dateibearbeitung — nur der Benutzer kann sie trennen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La conexión %@ tiene un terminal SSH o una edición de archivo abiertos — solo el usuario puede desconectarla"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "З’єднання %@ має відкритий термінал SSH або редагування файлу — від’єднати його може лише користувач"
           }
         }
       }

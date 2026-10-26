@@ -42,26 +42,42 @@ final class AdminHelperClient {
     func uninstall() throws { try service.unregister() }
 
     /// Autoryzacja jednej operacji: prawo w bazie (tworzone przy pierwszym użyciu) i pytanie
-    /// o hasło administratora. Zwraca zewnętrzną formę dla demona.
-    func authorize(_ op: HelperOperation) throws -> Data {
-        var ref: AuthorizationRef?
-        guard AuthorizationCreate(nil, nil, [], &ref) == errAuthorizationSuccess, let ref else { throw HelperError.notAuthorized }
-        defer { AuthorizationFree(ref, []) }
-        if AuthorizationRightGet(op.right, nil) != errAuthorizationSuccess {
-            let status = AuthorizationRightSet(ref, op.right, HelperOperations.rightRule as CFDictionary, op.prompt as CFString, nil, nil)
-            guard status == errAuthorizationSuccess else { throw HelperError.failed("AuthorizationRightSet \(status)") }
-        }
-        let status: OSStatus = op.right.withCString { name in
-            var item = AuthorizationItem(name: name, valueLength: 0, value: nil, flags: 0)
-            return withUnsafeMutablePointer(to: &item) { p in
-                var rights = AuthorizationRights(count: 1, items: p)
-                return AuthorizationCopyRights(ref, &rights, nil, [.interactionAllowed, .extendRights, .preAuthorize], nil)
+    /// o hasło administratora (z dotkniętymi ścieżkami w treści pytania). Zwraca referencję i jej
+    /// zewnętrzną formę dla demona — referencja musi żyć, dopóki demon jej nie sprawdzi (po
+    /// `AuthorizationFree` demon nie odtworzy autoryzacji z formy zewnętrznej).
+    func authorize(_ op: HelperOperation, paths: [String]) throws -> (AuthorizationRef, Data) {
+        var created: AuthorizationRef?
+        guard AuthorizationCreate(nil, nil, [], &created) == errAuthorizationSuccess, let ref = created else { throw HelperError.notAuthorized }
+        do {
+            if AuthorizationRightGet(op.right, nil) != errAuthorizationSuccess {
+                let status = AuthorizationRightSet(ref, op.right, HelperOperations.rightRule as CFDictionary, op.prompt as CFString, nil, nil)
+                guard status == errAuthorizationSuccess else { throw HelperError.failed("AuthorizationRightSet \(status)") }
             }
+            let prompt = op.prompt + "\n\n" + paths.joined(separator: "\n")
+            let status: OSStatus = op.right.withCString { name in
+                kAuthorizationEnvironmentPrompt.withCString { promptKey in
+                    prompt.withCString { promptText in
+                        var item = AuthorizationItem(name: name, valueLength: 0, value: nil, flags: 0)
+                        var envItem = AuthorizationItem(name: promptKey, valueLength: strlen(promptText),
+                                                        value: UnsafeMutableRawPointer(mutating: promptText), flags: 0)
+                        return withUnsafeMutablePointer(to: &item) { p in
+                            withUnsafeMutablePointer(to: &envItem) { e in
+                                var rights = AuthorizationRights(count: 1, items: p)
+                                var environment = AuthorizationEnvironment(count: 1, items: e)
+                                return AuthorizationCopyRights(ref, &rights, &environment, [.interactionAllowed, .extendRights, .preAuthorize], nil)
+                            }
+                        }
+                    }
+                }
+            }
+            guard status == errAuthorizationSuccess else { throw status == errAuthorizationCanceled ? CommandError.cancelledByUser : HelperError.notAuthorized }
+            var ext = AuthorizationExternalForm()
+            guard AuthorizationMakeExternalForm(ref, &ext) == errAuthorizationSuccess else { throw HelperError.notAuthorized }
+            return (ref, withUnsafeBytes(of: &ext) { Data($0) })
+        } catch {
+            AuthorizationFree(ref, [.destroyRights])
+            throw error
         }
-        guard status == errAuthorizationSuccess else { throw status == errAuthorizationCanceled ? CommandError.cancelledByUser : HelperError.notAuthorized }
-        var ext = AuthorizationExternalForm()
-        guard AuthorizationMakeExternalForm(ref, &ext) == errAuthorizationSuccess else { throw HelperError.notAuthorized }
-        return withUnsafeBytes(of: &ext) { Data($0) }
     }
 
     func perform(_ request: HelperRequest) async throws -> String {
@@ -69,7 +85,9 @@ final class AdminHelperClient {
             throw CommandError.notAvailable(L10n.tr("Pomocnik administratora: \(statusText). Użyj „Zainstaluj pomocnika administratora”."))
         }
         _ = try HelperOperations.check(request)
-        let auth = try authorize(request.operation)
+        let (ref, auth) = try authorize(request.operation, paths: request.paths)
+        // Po odpowiedzi demona (albo błędzie) — prawa niszczone, żadna inna operacja z nich nie skorzysta.
+        defer { AuthorizationFree(ref, [.destroyRights]) }
         let data = try JSONEncoder().encode(request)
         let connection = NSXPCConnection(machServiceName: HelperConstants.machService, options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: (any BifoldHelperProtocol).self)

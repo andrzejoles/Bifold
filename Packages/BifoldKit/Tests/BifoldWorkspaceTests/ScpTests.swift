@@ -132,14 +132,41 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         #expect(items.map(\.name) == ["zwykły.txt"])
     }
 
+    /// Plik o nazwie „x\n-rw-r--r-- 1 a b 1 Jan 1 2020” daje wiersz kończący się na polu daty —
+    /// wcześniej `index(after:)` za końcem napisu zatrzymywał aplikację każdemu, kto otworzył katalog.
+    @Test func lineEndingAtDateFieldDoesNotCrash() {
+        let dir = VFSPath(provider: ProviderID("remote:x"), path: "/")
+        let text = "-rw-r--r--    1 u   g    5 Oct 17 09:15 x\n-rw-r--r-- 1 a b 1 Jan 1 2020\n-rw-r--r-- 1 a b 1 Jan 1 2020 \nlrwxrwxrwx 1 a b 1 Jan 1 2020 loop -> .\n"
+        let entries = ScpFS.parseEntries(text, in: dir)
+        #expect(entries.map(\.item.name) == ["x", "loop"])
+        #expect(entries[1].linkTarget == "." && entries[1].item.kind == .symlink)
+    }
+
+    /// `.bashrc`, który coś wypisuje, nie psuje wyniku `pwd` / `echo $SHELL`.
+    @Test func outputAfterMarker() {
+        let marker = SSHSession.outputMarker
+        #expect(SSHSession.textAfterMarker("Witaj na serwerze!\n\(marker)\n/home/u\n") == "/home/u\n")
+        #expect(SSHSession.textAfterMarker("/home/u\n") == "/home/u\n")
+        #expect(SSHSession.markedOutput("pwd") == "echo \(marker); pwd")
+    }
+
     @Test func escapingAndEncoding() throws {
         #expect(String(decoding: try SSHSession.scpEscape("/a b/(1)&'x'.txt", .utf8), as: UTF8.self) == "/a\\ b/\\(1\\)\\&\\'x\\'.txt")
         #expect(String(decoding: try SSHSession.scpEscape("/zażółć", .utf8), as: UTF8.self) == "/zażółć")
         #expect(throws: VFSError.self) { try SSHSession.scpEscape("/a\nb", .utf8) }
         #expect(SSHSession.shellQuote("it's") == "'it'\\''s'")
-        // ISO-8859-2: „ą” = 0xB1, „ś” = 0xB6; nazwy z NFD zamieniane na NFC.
+        // ISO-8859-2: „ą” = 0xB1, „ś” = 0xB6; nazwy z NFD zamieniane na NFC (Latin-2 zna tylko znaki złożone).
         #expect(try NameEncoding.latin2.encode("ąś") == [0xB1, 0xB6])
-        #expect(try NameEncoding.utf8.encode("a\u{0328}") == [0xC4, 0x85])
+        #expect(try NameEncoding.latin2.encode("a\u{0328}") == [0xB1])
+        // UTF-8: nazwa z listingu w NFD (plik wgrany ze starego macOS) zostaje bajt w bajt — po NFC
+        // serwer porównujący bajty odpowiadał „No such file”. Nowe nazwy normalizuje ScpFS.newName.
+        #expect(try NameEncoding.utf8.encode("a\u{0328}") == [0x61, 0xCC, 0xA8])
+        #expect(try NameEncoding.utf8.encode("ą") == [0xC4, 0x85])
+        #expect(Array(try SSHSession.scpEscape("/a\u{0328}", .utf8)) == [0x2F, 0x61, 0xCC, 0xA8])
+        let nfd = VFSPath(provider: ProviderID("remote:x"), path: "/kat/a\u{0328}")
+        #expect(Array(ScpFS.newName(nfd).name.utf8) == [0xC4, 0x85] && ScpFS.newName(nfd).parent?.path == "/kat")
+        let listed = ScpFS.parseListing("-rw-r--r--    1 u   g    5 Oct 17 09:15 a\u{0328}.txt\n", in: VFSPath(provider: ProviderID("remote:x"), path: "/"))
+        #expect(Array(listed[0].name.utf8) == [0x61, 0xCC, 0xA8, 0x2E, 0x74, 0x78, 0x74], "listing zachowuje NFD")
         #expect(NameEncoding.latin2.decode(Data([0xB1, 0xB6])) == "ąś")
         #expect(throws: VFSError.self) { try NameEncoding.latin2.encode("😀") }
     }
@@ -158,6 +185,21 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
             try Spawn.run("/bin/sleep", [Array("5".utf8)], environment: [:], isCancelled: { Date().timeIntervalSince(start) > 0.3 })
         }
         #expect(Date().timeIntervalSince(start) < 2)
+    }
+
+    /// Stały prywatny katalog gniazd w /tmp: ten sam dla tego samego klucza, a podrzucony (inne prawa)
+    /// nie jest używany. Wcześniej każdy Workspace tworzył nowy losowy katalog i nigdy go nie usuwał.
+    @MainActor @Test func privateSocketDirectoryInTmp() throws {
+        let key = "/test/\(UUID().uuidString)"
+        let a = try RemoteManager.privateTemporaryDirectory(for: key)
+        defer { try? FileManager.default.removeItem(at: a) }
+        #expect(a.path.hasPrefix("/tmp/bifold-\(getuid())-"))
+        #expect(try RemoteManager.privateTemporaryDirectory(for: key) == a)
+        #expect((try FileManager.default.attributesOfItem(atPath: a.path)[.posixPermissions] as? Int) == 0o700)
+        chmod(a.path, 0o755)
+        let b = try RemoteManager.privateTemporaryDirectory(for: key)
+        defer { try? FileManager.default.removeItem(at: b) }
+        #expect(b != a, "katalog o złych prawach nie jest używany")
     }
 
     @Test func hostAndUserCannotInjectOptions() throws {
@@ -246,6 +288,115 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         #expect(sshd.root.exists("po zmianie.txt"))
     }
 
+    /// „Nadpisz” przy wysyłaniu katalogu na istniejący katalog scala (wcześniej `rm -r -f` kasował na
+    /// serwerze wszystko spoza wysyłanego drzewa); bez polityki agent pomija z raportem; lokalne dowiązanie
+    /// zgłaszane. Pobieranie katalogu nie wchodzi w dowiązania (`loop -> .`), pliki dostają kwarantannę.
+    @Test func uploadMergesDirectoriesAndDownloadKeepsLinks() async throws {
+        let sshd = try TestSSHD()
+        let (tmp, ws, _) = try await setup(sshd)
+        defer { ws.remotes.stop() }
+        try sshd.root.file("kat/zostaje.txt", "serwer")
+        try sshd.root.file("kat/a.txt", "stary")
+        try tmp.file("L/kat/a.txt", "nowy")
+        try tmp.file("L/kat/sub/b.txt", "b")
+        try FileManager.default.createSymbolicLink(atPath: tmp.url.path + "/L/kat/link", withDestinationPath: "a.txt")
+        try ws.remotes.save(sshd.connection("aix"), secret: TestSSHD.passphrase)
+        defer { ws.remotes.keychain.delete("aix") }
+        let source: [JSONValue] = [.string(tmp.url.path + "/L/kat")]
+
+        // Agent bez polityki: konflikt pliku pominięty z raportem, katalog scalony.
+        let gate = AllowAllGate()
+        ws.agentGate = gate
+        defer { withExtendedLifetime(gate) {} }
+        let first = try await ws.invoke("file.copy", CommandArguments(["paths": .array(source), "destination": "aix:/", "wait": true]),
+                                        invoker: .agent(sessionID: "t", agentName: "t"))
+        #expect("\(first.value ?? .null)".contains("pominięto"))
+        #expect("\(first.value ?? .null)".contains("dowiązanie symboliczne"))
+        #expect(try sshd.root.read("kat/a.txt") == "stary" && sshd.root.exists("kat/sub/b.txt"))
+
+        // „Nadpisz”: plik nadpisany, plik spoza wysyłanego drzewa zostaje.
+        try await ws.invoke("file.copy", CommandArguments(["paths": .array(source), "destination": "aix:/", "wait": true, "conflict": "overwrite"]))
+        #expect(try sshd.root.read("kat/a.txt") == "nowy")
+        #expect(try sshd.root.read("kat/zostaje.txt") == "serwer", "scalanie zamiast usunięcia katalogu")
+        // „Zmień nazwę”: drugi plik obok.
+        try tmp.file("L/kat/a.txt", "trzeci")
+        try await ws.invoke("file.copy", CommandArguments(["paths": .array(source), "destination": "aix:/", "wait": true, "conflict": "rename"]))
+        #expect(try sshd.root.read("kat/a (2).txt") == "trzeci" && sshd.root.read("kat/a.txt") == "nowy")
+
+        // Pobieranie: dowiązanie `loop -> .` odtworzone jako dowiązanie (bez rekurencji), kwarantanna.
+        try sshd.root.file("pętla/f.txt", "f")
+        try FileManager.default.createSymbolicLink(atPath: sshd.root.url.path + "/pętla/loop", withDestinationPath: ".")
+        try FileManager.default.createSymbolicLink(atPath: sshd.root.url.path + "/pętla/root", withDestinationPath: "/")
+        try await ws.invoke("file.copy", CommandArguments(["paths": ["aix:/pętla"], "destination": .string(tmp.url.path + "/R"), "wait": true]))
+        #expect(try tmp.read("R/pętla/f.txt") == "f")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: tmp.url.path + "/R/pętla/loop") == ".")
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: tmp.url.path + "/R/pętla/root") == "/")
+        #expect(Quarantine.isMarked(tmp.url.path + "/R/pętla/f.txt"), "plik z serwera z atrybutem kwarantanny")
+
+        // Liczby od agenta: ujemny limit nie zatrzymuje aplikacji.
+        let listed = try await ws.invoke("remote.list", CommandArguments(["alias": "aix", "limit": -5]), invoker: .agent(sessionID: "t", agentName: "t"))
+        #expect("\(listed.value ?? .null)".contains("\"items\""))
+    }
+
+    /// Edycja pliku zdalnego: wysyłka po ostatnim z szybkich zapisów, ponowna edycja i rozłączenie
+    /// sprzątają lokalne kopie; agent nie przerwie edycji rozłączeniem.
+    @Test func remoteEditUploadsLastSaveAndCleansUp() async throws {
+        let sshd = try TestSSHD()
+        let (tmp, ws, _) = try await setup(sshd)
+        defer { withExtendedLifetime(tmp) {} }
+        defer { ws.remotes.stop() }
+        try sshd.root.file("notatka.txt", "0")
+        try ws.remotes.save(sshd.connection("aix"), secret: TestSSHD.passphrase)
+        defer { ws.remotes.keychain.delete("aix") }
+        let fs = try await ws.remotes.provider("aix")
+        let path = VFSPath(provider: fs.id, path: "/notatka.txt")
+
+        let first = try await ws.remotes.edit(path)
+        try Data("1".utf8).write(to: first, options: .atomic)  // jak edytory: zapis przez zamianę pliku
+        try await Task.sleep(for: .milliseconds(150))
+        try Data("2".utf8).write(to: first, options: .atomic)
+        try await Task.sleep(for: .seconds(2))
+        #expect(try sshd.root.read("notatka.txt") == "2", "wysłany ostatni zapis")
+
+        let editGate = AllowAllGate()
+        ws.agentGate = editGate
+        defer { withExtendedLifetime(editGate) {} }
+        // Agent nie zamyka połączenia z otwartą edycją.
+        await #expect(throws: (any Error).self) {
+            try await ws.invoke("remote.disconnect", CommandArguments(["alias": "aix"]), invoker: .agent(sessionID: "t", agentName: "t"))
+        }
+        #expect(ws.remotes.connected.contains("aix"))
+
+        let second = try await ws.remotes.edit(path)
+        #expect(!FileManager.default.fileExists(atPath: first.deletingLastPathComponent().path), "stara kopia usunięta")
+        await ws.remotes.disconnect("aix")
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!FileManager.default.fileExists(atPath: second.deletingLastPathComponent().path), "kopia usunięta po rozłączeniu")
+    }
+
+    /// Dwa równoczesne otwarcia jednego serwera dają to samo połączenie (wcześniej drugie rozłączało
+    /// pierwsze), terminal korzysta z tej samej sesji SSH; katalog gniazd w /tmp znika przy `stop()`.
+    @Test func oneSessionPerServerAndSocketDirectoryRemoved() async throws {
+        let sshd = try TestSSHD()
+        let (tmp, ws, _) = try await setup(sshd)
+        defer { withExtendedLifetime(tmp) {} }
+        let c = sshd.connection("aix")
+        try ws.remotes.save(c, secret: TestSSHD.passphrase)
+        defer { ws.remotes.keychain.delete("aix") }
+        async let a = ws.remotes.provider("aix")
+        async let b = ws.remotes.provider("aix")
+        let (p1, p2) = try await (a, b)
+        let scp = try #require(p1 as? ScpFS)
+        #expect(scp === (p2 as? ScpFS))
+        #expect(scp.session.isConnected)
+        _ = try await ws.remotes.terminalSpec("aix", directory: nil)
+        #expect(try ws.remotes.sshSession(c) === scp.session, "jedna sesja SSH na serwer")
+        let dir = try ws.remotes.socketDirectory()
+        ws.remotes.stop()
+        #expect(!scp.session.isConnected)
+        if dir.path.hasPrefix("/tmp/") { #expect(!FileManager.default.fileExists(atPath: dir.path), "katalog gniazd w /tmp usunięty") }
+    }
+
     /// Katalog danych aplikacji to „~/Library/Application Support/…” — ze spacją w ścieżce gniazda.
     @Test func runDirectoryWithSpaces() async throws {
         let sshd = try TestSSHD()
@@ -323,6 +474,14 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         // Karta-terminal nie trafia do zapisu sesji; rozłączenie ją zamyka.
         #expect(!ws.right.snapshot(home: ws.homePath).tabs.contains { $0.path == term.path && ws.right.tabs.count == 1 })
         #expect(ws.right.snapshot(home: ws.homePath).tabs.count == ws.right.tabs.count - 1)
+        let terminalGate = AllowAllGate()
+        ws.agentGate = terminalGate
+        defer { withExtendedLifetime(terminalGate) {} }
+        // Agent nie zamyka terminala przez rozłączenie (nie ma do niego dostępu — D44).
+        await #expect(throws: (any Error).self) {
+            try await ws.invoke("remote.disconnect", CommandArguments(["alias": "aix"]), invoker: .agent(sessionID: "test", agentName: "test"))
+        }
+        #expect(ws.right.tabs.contains { $0.terminal != nil })
         try await ws.invoke("remote.disconnect", CommandArguments(["alias": "aix"]))
         #expect(!ws.right.tabs.contains { $0.terminal != nil })
 
