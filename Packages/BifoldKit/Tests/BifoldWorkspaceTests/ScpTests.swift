@@ -118,6 +118,20 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         #expect(items[2].path.path == "/u01/trace (stare)")
     }
 
+    /// Wyjście `ls` jest niezaufane: nazwy z `/` (także `../…` w wierszu podrzuconym nową linią w nazwie)
+    /// trafiłyby do ścieżek lokalnych przy pobieraniu katalogu.
+    @Test func unsafeNamesAreSkipped() {
+        let text = """
+        -rw-r--r--    1 u   g    5 Oct 17 09:15 zwykły.txt
+        -rw-r--r--    1 u   g    5 Oct 17 09:15 ../../.zshrc
+        drwxr-xr-x    2 u   g   64 Oct 17 09:15 a/b
+        -rw-r--r--    1 u   g    5 Oct 17 09:15 ..
+        """
+        let now = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 10, day: 17, hour: 12))!
+        let items = ScpFS.parseListing(text, in: VFSPath(provider: ProviderID("remote:x"), path: "/"), now: now)
+        #expect(items.map(\.name) == ["zwykły.txt"])
+    }
+
     @Test func escapingAndEncoding() throws {
         #expect(String(decoding: try SSHSession.scpEscape("/a b/(1)&'x'.txt", .utf8), as: UTF8.self) == "/a\\ b/\\(1\\)\\&\\'x\\'.txt")
         #expect(String(decoding: try SSHSession.scpEscape("/zażółć", .utf8), as: UTF8.self) == "/zażółć")

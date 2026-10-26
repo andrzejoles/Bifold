@@ -55,7 +55,8 @@ public final class RemoteFS: FileSystemProvider {
 
     public func list(_ directory: VFSPath, options: ListOptions) async throws -> [FileItem] {
         let entries = try await rclone.list(fs: fs, remote: remotePath(directory))
-        let items = entries.map { item($0, in: directory) }
+        // Nazwy od serwera są niezaufane (`..` albo `/` wyprowadziłyby ścieżkę poza katalog).
+        let items = entries.filter { isSafeComponentName($0.name) }.map { item($0, in: directory) }
         return options.includeHidden ? items : items.filter { !$0.isHidden }
     }
 

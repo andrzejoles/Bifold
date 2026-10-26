@@ -31,6 +31,37 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
         #expect(try tmp.read("out/katalog/głęboko/c.txt") == "C")
     }
 
+    /// Archiwum z wpisami `./…` (tar z „.”) i spreparowanymi `../…`: `./kat` widać jako `kat`, korzeń „.”
+    /// nie jest folderem, a wpisy z `..` są pomijane — rozpakowany element liczony jako `temp/../x`
+    /// wskazywałby istniejący plik poza katalogiem tymczasowym.
+    @Test func dotAndTraversalEntries() async throws {
+        let tmp = try TempDir()
+        try tmp.file("src/kat/a.txt", "A")
+        try tmp.file("src/poza.txt", "P")
+        func tar(_ args: [String]) throws {
+            let p = Process()
+            p.executableURL = URL(filePath: "/usr/bin/tar")
+            p.currentDirectoryURL = tmp.url.appending(path: "src")
+            p.arguments = args
+            try p.run()
+            p.waitUntilExit()
+            #expect(p.terminationStatus == 0)
+        }
+        try tar(["-cf", "../kropka.tar", "."])
+        try tar(["-cf", "../zly.tar", "-s", ",^poza,../../poza,", "poza.txt", "kat"])
+
+        let dot = try ArchiveFS(archive: tmp.path.appending("kropka.tar"), tool: tool)
+        #expect(Set(try await dot.list(dot.root, options: ListOptions()).map(\.name)) == ["kat", "poza.txt"])
+        #expect(try await dot.list(dot.root.appending("kat"), options: ListOptions()).map(\.name) == ["a.txt"])
+        let (temp, items) = try dot.extract([dot.root.appending("kat").appending("a.txt")], toTemporaryIn: tmp.path, isCancelled: { false })
+        #expect(try String(contentsOfFile: items[0].path, encoding: .utf8) == "A")
+        try? FileManager.default.removeItem(atPath: temp.path)
+
+        let bad = try ArchiveFS(archive: tmp.path.appending("zly.tar"), tool: tool)
+        #expect(try await bad.list(bad.root, options: ListOptions()).map(\.name) == ["kat"])
+        #expect(!bad.descendants(of: bad.root).contains { $0.path.contains("..") })
+    }
+
     @Test func browseAsDirectoryAndRead() async throws {
         let tmp = try fixture()
         let archive = tmp.path.appending("a.zip")

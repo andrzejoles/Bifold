@@ -17,6 +17,10 @@ import Testing
         for bad in ["relative", "/System/Library/x", "/usr/bin/sudo", "/", t.path + "/../etc", "/etc/sudoers", "/private/etc/sudoers"] {
             #expect(throws: HelperError.self, "\(bad)") { try HelperOperations.validate(bad) }
         }
+        // Wielkość liter: APFS domyślnie jej nie rozróżnia, a realpath nie poprawia ostatniego składnika.
+        for bad in ["/private/etc/SUDOERS", "/private/var/ROOT", "/Library/KEYCHAINS", "/SYSTEM", "/usr/BIN/sudo", "/etc/Sudoers"] {
+            #expect(throws: HelperError.self, "\(bad)") { try HelperOperations.validate(bad) }
+        }
         // Dowiązanie do zabronionego katalogu — rozwiązywane przez realpath rodzica.
         try FileManager.default.createSymbolicLink(atPath: t.path + "/sys", withDestinationPath: "/System")
         #expect(throws: HelperError.self) { try HelperOperations.validate(t.path + "/sys/Library") }

@@ -159,6 +159,13 @@ public final class ProviderRegistry: Sendable {
     }
 }
 
+/// Nazwa z niezaufanego źródła (serwer, telefon, archiwum), której można użyć jako składnika ścieżki
+/// lokalnej: poprawna nazwa (bez `/`, `.`/`..`) i bez znaków sterujących (nowa linia rozdziela
+/// polecenia i wiersze listingów).
+public func isSafeComponentName(_ name: String) -> Bool {
+    (try? validateFileName(name)) != nil && !name.unicodeScalars.contains { $0.properties.generalCategory == .control }
+}
+
 /// Sprawdza poprawność nazwy pojedynczego elementu.
 public func validateFileName(_ name: String) throws {
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
