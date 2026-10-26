@@ -5,17 +5,22 @@ import Foundation
 public enum AgentDenial: Error, LocalizedError, Sendable, Equatable {
     case permissionDenied(String)
     case blockedPath(String)
+    /// Operacja rekurencyjna na katalogu, w którego poddrzewie leży zablokowana ścieżka.
+    case blockedSubtree(String)
     case rejectedByUser
     case rateLimited
     case sessionClosed
+    /// Stan paneli, z którego komenda czyta na żywo, zmienił się w trakcie zatwierdzania.
+    case stateChanged
 
     public var code: String {
         switch self {
         case .permissionDenied: "permission_denied"
-        case .blockedPath: "blocked_path"
+        case .blockedPath, .blockedSubtree: "blocked_path"
         case .rejectedByUser: "rejected_by_user"
         case .rateLimited: "rate_limited"
         case .sessionClosed: "session_closed"
+        case .stateChanged: "state_changed"
         }
     }
 
@@ -23,55 +28,12 @@ public enum AgentDenial: Error, LocalizedError, Sendable, Equatable {
         switch self {
         case .permissionDenied(let why): "permission_denied: \(why)"
         case .blockedPath: "blocked_path: ścieżka jest zablokowana dla agenta"
+        case .blockedSubtree: "blocked_path: katalog zawiera zablokowaną ścieżkę — operacja na całym jego poddrzewie jest niedostępna dla agenta (wskaż konkretne elementy)"
         case .rejectedByUser: "rejected_by_user: użytkownik odrzucił operację"
         case .rateLimited: "rate_limited: przekroczono limit wywołań na minutę"
         case .sessionClosed: "session_closed"
+        case .stateChanged: "state_changed: stan paneli zmienił się w trakcie zatwierdzania — ponów wywołanie z jawnymi ścieżkami"
         }
-    }
-}
-
-/// Zablokowane ścieżki i normalizacja ścieżek od agenta.
-public struct BlockedPaths: Sendable {
-    private let prefixes: [[String]]
-
-    public init(_ patterns: [String], home: String = NSHomeDirectory()) {
-        var all: [[String]] = []
-        for p in patterns {
-            let expanded = VFSPath.normalize(expandTilde(p, home: home))
-            all.append(Self.components(expanded))
-            // Także postać rzeczywista (dowiązania, /private/…).
-            if let real = realPath(expanded), real != expanded { all.append(Self.components(real)) }
-        }
-        prefixes = all
-    }
-
-    static func components(_ path: String) -> [String] {
-        path.split(separator: "/").map { $0.lowercased() }
-    }
-
-    /// Ścieżka rzeczywista: `~`, `.`, `..` i dowiązania symboliczne najdłuższego istniejącego
-    /// prefiksu rozwiązane — żeby „~/x/../.ssh” albo dowiązanie do ~/.ssh nie omijały blokady.
-    public static func canonical(_ path: String, home: String = NSHomeDirectory()) -> String {
-        let normalized = VFSPath.normalize(expandTilde(path, home: home))
-        var existing = normalized
-        var rest: [String] = []
-        while realPath(existing) == nil, existing != "/" {
-            rest.insert((existing as NSString).lastPathComponent, at: 0)
-            existing = (existing as NSString).deletingLastPathComponent
-        }
-        let base = realPath(existing) ?? existing
-        return VFSPath.normalize(([base] + rest).joined(separator: "/"))
-    }
-
-    public func isBlocked(_ path: String) -> Bool {
-        let candidates = Set([VFSPath.normalize(expandTilde(path)), Self.canonical(path)]).map(Self.components)
-        return candidates.contains { comps in
-            prefixes.contains { prefix in !prefix.isEmpty && comps.count >= prefix.count && Array(comps.prefix(prefix.count)) == prefix }
-        }
-    }
-
-    public func isBlocked(_ path: VFSPath) -> Bool {
-        path.isLocal && isBlocked(path.path)
     }
 }
 
@@ -104,9 +66,10 @@ public enum AgentPolicy {
         return level
     }
 
-    /// Poziom zasobu: lokalny = pełny, zablokowany = brak. (Serwery i archiwa — Etapy 4–5.)
-    public static func resourceAccess(_ path: VFSPath, blocked: BlockedPaths) -> AgentAccess {
-        blocked.isBlocked(path) ? .none : .full
+    /// Poziom zasobu: lokalny = pełny, zablokowany = brak; operacja na całym poddrzewie
+    /// (`subtree`) — brak, jeśli w poddrzewie leży zablokowana ścieżka. (Serwery: `Workspace.resourceAccess`.)
+    public static func resourceAccess(_ path: VFSPath, blocked: BlockedPaths, subtree: Bool = false) -> AgentAccess {
+        (subtree ? blocked.containsBlocked(path) : blocked.isBlocked(path)) ? .none : .full
     }
 
     /// Czy wywołanie o danym poziomie i skutkach może się odbyć bez zgody, wymaga zgody, czy jest zabronione.

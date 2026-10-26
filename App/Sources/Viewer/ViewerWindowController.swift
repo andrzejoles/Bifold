@@ -142,7 +142,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     private func makeHexView() -> NSView {
         let hex = HFTextView(frame: .zero)
-        if let reference = try? HFFileReference(path: item.path.path) {
+        // Tylko plik lokalny — ścieżka z serwera czy telefonu wskazałaby inny plik o tej samej ścieżce na dysku.
+        if item.path.isLocal, let reference = try? HFFileReference(path: item.path.path) {
             let array = HFBTreeByteArray()
             array.insertByteSlice(HFFileByteSlice(file: reference), in: HFRangeMake(0, 0))
             hex.controller.byteArray = array
@@ -154,9 +155,11 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func makeImageView() -> NSView {
+        // Podgląd czyta tylko pliki lokalne (z serwera, archiwum i telefonu komenda pobiera kopię).
+        guard let url = item.path.url else { return messageView(L10n.tr("Podgląd obrazu jest dostępny tylko dla plików na dysku.")) }
         let scroll = NSScrollView()
         let imageView = NSImageView()
-        imageView.image = NSImage(contentsOf: item.path.url!)
+        imageView.image = NSImage(contentsOf: url)
         imageView.imageScaling = .scaleProportionallyDown
         imageView.animates = true
         scroll.documentView = imageView
@@ -172,6 +175,21 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         return scroll
+    }
+
+    private func messageView(_ text: String) -> NSView {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.alignment = .center
+        label.textColor = .secondaryLabelColor
+        let container = NSView()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            label.widthAnchor.constraint(lessThanOrEqualTo: container.widthAnchor, constant: -40),
+        ])
+        return container
     }
 
     @objc private func modeChanged() {

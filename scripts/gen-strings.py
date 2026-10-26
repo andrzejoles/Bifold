@@ -32,8 +32,16 @@ for f in files:
         keys.add(entry["key"])
 
 catalog = {"sourceLanguage": "pl", "strings": {}, "version": "1.0"}
+# Format zapisu jak w istniejącym pliku (separator klucza i końcowy znak nowej linii), żeby uruchomienie
+# bez nowych kluczy nie zmieniało pliku. Nowy plik: jak zapisuje Xcode — wcięcie 2 spacje, `"klucz" : `,
+# bez końcowego znaku nowej linii. Kolejność kluczy w słownikach zostaje taka jak w pliku.
+key_separator, trailing_newline = " : ", False
 if os.path.exists(CATALOG):
-    catalog = json.load(open(CATALOG, encoding="utf-8"))
+    with open(CATALOG, encoding="utf-8") as fh:
+        raw = fh.read()
+    catalog = json.loads(raw)
+    key_separator = " : " if '" : ' in raw else ": "
+    trailing_newline = raw.endswith("\n")
 strings = catalog.setdefault("strings", {})
 added = 0
 for k in sorted(keys):
@@ -55,7 +63,9 @@ removed = [k for k in strings if k not in keys]
 for k in removed:
     del strings[k]
 catalog["strings"] = dict(sorted(strings.items()))
+text = json.dumps(catalog, ensure_ascii=False, indent=2, separators=(",", key_separator))
+if trailing_newline:
+    text += "\n"
 with open(CATALOG, "w", encoding="utf-8") as fh:
-    json.dump(catalog, fh, ensure_ascii=False, indent=2)
-    fh.write("\n")
+    fh.write(text)
 print(f"{len(keys)} kluczy, dodano {added}, usunięto {len(removed)} → {os.path.relpath(CATALOG, ROOT)}")

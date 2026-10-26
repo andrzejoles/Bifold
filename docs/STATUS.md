@@ -1,9 +1,10 @@
-# Stan realizacji (2026-10-17)
+# Stan realizacji (2026-10-26)
 
-Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **168** (wszystkie zielone) w
-pakiecie `BifoldKit` (`make test`) + test wydajności w Release (`make test-release`) + opcjonalny test
-E2E z prawdziwymi CLI agentów. Zgodnie z poleceniem „w pełni autonomicznie” punkty „pokaż i poczekaj
-na akceptację” zastąpiłem wpisami w [DECISIONS.md](DECISIONS.md).
+Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **256** w pakiecie
+`BifoldKit` (`make test`), w tym 2 pomijane warunkowo: `DocsGenerator.writeShortcuts` (generuje
+`docs/SKROTY.md`, `BIFOLD_WRITE_DOCS=1`) i `AgentE2ETests` (opcjonalny test E2E z prawdziwymi CLI
+agentów, `BIFOLD_E2E_AGENTS=1`) + test wydajności w Release (`make test-release`). Zgodnie z poleceniem
+„w pełni autonomicznie” punkty „pokaż i poczekaj na akceptację” zastąpiłem wpisami w [DECISIONS.md](DECISIONS.md).
 
 Legenda: ✅ zweryfikowane testem automatycznym · 👁 sprawdzone ręcznie w działającej aplikacji
 (zrzuty ekranu) · ⚠️ zaimplementowane, bez weryfikacji na żywo (powód w kolumnie).

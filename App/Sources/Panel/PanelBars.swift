@@ -60,13 +60,14 @@ private final class TabButton: NSView {
     var onClick: (() -> Void)?
     var onClose: (() -> Void)?
     private let active: Bool
+    private let title: String
 
     init(title: String, index: Int, active: Bool) {
         self.active = active
+        self.title = title
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 5
-        layer?.backgroundColor = active ? NSColor.controlAccentColor.withAlphaComponent(0.22).cgColor : NSColor.quaternaryLabelColor.withAlphaComponent(0.25).cgColor
         let label = NSTextField(labelWithString: title)
         label.font = .systemFont(ofSize: 11.5, weight: active ? .semibold : .regular)
         label.lineBreakMode = .byTruncatingMiddle
@@ -85,6 +86,23 @@ private final class TabButton: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    /// Kolor tła z bieżącym wyglądem (także po zmianie motywu).
+    override func updateLayer() {
+        layer?.backgroundColor = active ? NSColor.controlAccentColor.withAlphaComponent(0.22).cgColor : NSColor.quaternaryLabelColor.withAlphaComponent(0.25).cgColor
+    }
+
+    // Dostępność: karta jest przyciskiem (VoiceOver: „karta …, przycisk”; naciśnięcie wybiera kartę).
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .button }
+    override func accessibilityLabel() -> String? { title }
+    override func accessibilityValue() -> Any? { active ? L10n.tr("aktywna") : nil }
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
+    }
 
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2 { onClose?() } else { onClick?() }
@@ -227,6 +245,13 @@ final class PathBarView: NSView {
     }
 
     private func updateColors() {
+        needsDisplay = true
+    }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    /// Kolor tła z bieżącym wyglądem (także po zmianie motywu).
+    override func updateLayer() {
         layer?.backgroundColor = isActive ? NSColor.controlAccentColor.withAlphaComponent(0.16).cgColor : NSColor.clear.cgColor
     }
 

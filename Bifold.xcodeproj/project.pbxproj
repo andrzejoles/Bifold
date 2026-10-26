@@ -56,7 +56,6 @@
 		E5647A5E26AF166E666D0804 /* BifoldHelperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8A8A1A26DE2536189EF28137 /* BifoldHelperKit */; };
 		E74263AEF86B1F30B5C30BC5 /* ColumnListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ACFDBB9F909F9FECBAB84F4 /* ColumnListView.swift */; };
 		E7D80F286F2BCB8EAFA83C30 /* HexFiend.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2603FC086786D7D7FBE7ADE3 /* HexFiend.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		EE1D9556F11F2C284A0D4762 /* local.aoles.bifold.helper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = C000F247CD74576EA7F6814F /* local.aoles.bifold.helper.plist */; };
 		F57F3DB573560DE1641C152D /* AppUIServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020926F0EF46C78FC131B60C /* AppUIServices.swift */; };
 		F65FF48AF8F97E5D950F962B /* SearchWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA25122A33169D614B10B583 /* SearchWindow.swift */; };
 		FD838B4FFBD70ED4E5584384 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 606B26C74D764E268FD6D7D8 /* Assets.xcassets */; };
@@ -103,16 +102,6 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		60680F34B2EF99B1C26B2EEC /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = Contents/Library/LaunchDaemons;
-			dstSubfolderSpec = 1;
-			files = (
-				EE1D9556F11F2C284A0D4762 /* local.aoles.bifold.helper.plist in CopyFiles */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -149,7 +138,6 @@
 		B8666EA3361722B64A277E45 /* TerminalPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPane.swift; sourceTree = "<group>"; };
 		BA1ED275D245D8F3D7E0213E /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		BDD28F6FF60A637FECF21718 /* BifoldKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BifoldKit; path = Packages/BifoldKit; sourceTree = SOURCE_ROOT; };
-		C000F247CD74576EA7F6814F /* local.aoles.bifold.helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = local.aoles.bifold.helper.plist; sourceTree = "<group>"; };
 		C0D9F57CDB5D57A14204BEB1 /* PanelBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelBars.swift; sourceTree = "<group>"; };
 		CD02CC4ED89FD034F12C201B /* Observe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Observe.swift; sourceTree = "<group>"; };
 		CE72F960ECE1D54DB93340F5 /* Bifold.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bifold.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -346,19 +334,10 @@
 		A2454E6B14A2BC95A101760E /* App */ = {
 			isa = PBXGroup;
 			children = (
-				A2F4964D4481B7276D43D882 /* Helper */,
 				7C6C579D3125739FF7BA915D /* Resources */,
 				79046EFF5C8246F4D2C24EEB /* Sources */,
 			);
 			path = App;
-			sourceTree = "<group>";
-		};
-		A2F4964D4481B7276D43D882 /* Helper */ = {
-			isa = PBXGroup;
-			children = (
-				C000F247CD74576EA7F6814F /* local.aoles.bifold.helper.plist */,
-			);
-			path = Helper;
 			sourceTree = "<group>";
 		};
 		A4756BC45836CD25762CFA48 /* App */ = {
@@ -441,11 +420,11 @@
 				7B2B77491366E988C9DDE511 /* bifold-mtp */,
 				86FE6F1AFD80F9FD79711E18 /* Sources */,
 				E471D1D9C62E22A8663C78FD /* Resources */,
-				60680F34B2EF99B1C26B2EEC /* CopyFiles */,
 				240A0832D34AA705A8108A48 /* Frameworks */,
 				4864755688993698B1EFD1BF /* Embed Frameworks */,
 				1B791F5FCCF282D5FAA808C0 /* Embed Dependencies */,
 				16664DB03ED60BF7A084F1A4 /* Wbuduj bifold-mtp */,
+				05D75E92B89BF24A830C75C6 /* Plik demona pomocnika */,
 			);
 			buildRules = (
 			);
@@ -553,6 +532,27 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		05D75E92B89BF24A830C75C6 /* Plik demona pomocnika */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Config/Brand.xcconfig",
+				"$(SRCROOT)/project.yml",
+			);
+			name = "Plik demona pomocnika";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/$(BIFOLD_BUNDLE_ID).helper.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nDIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LaunchDaemons\"\nLABEL=\"$BIFOLD_BUNDLE_ID.helper\"\nPLIST=\"$DIR/$LABEL.plist\"\nmkdir -p \"$DIR\"\nrm -f \"$PLIST\"\n/usr/libexec/PlistBuddy -c \"Add :Label string $LABEL\" \\\n  -c \"Add :BundleProgram string Contents/MacOS/bifold-helper\" \\\n  -c \"Add :MachServices dict\" -c \"Add :MachServices:$LABEL bool true\" \\\n  -c \"Add :AssociatedBundleIdentifiers array\" -c \"Add :AssociatedBundleIdentifiers:0 string $BIFOLD_BUNDLE_ID\" \\\n  \"$PLIST\" >/dev/null\nplutil -convert xml1 \"$PLIST\"\n";
+		};
 		16664DB03ED60BF7A084F1A4 /* Wbuduj bifold-mtp */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;

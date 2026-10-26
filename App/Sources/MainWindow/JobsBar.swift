@@ -7,7 +7,12 @@ final class JobsBar: NSView {
     private let workspace: Workspace
     private let stack = NSStackView()
     private var rows: [UUID: JobRow] = [:]
+    /// Zakończone zadania ukryte z paska (po czasie albo ✕) — kolejka nie ma usuwania pojedynczego zadania.
+    private var dismissed: Set<UUID> = []
+    private var dismissScheduled: Set<UUID> = []
     private let observations = ObservationBag()
+    /// Najwięcej wierszy naraz: wszystkie aktywne mają pierwszeństwo przed zakończonymi.
+    private static let maxRows = 5
     private var heightConstraint: NSLayoutConstraint!
 
     init(workspace: Workspace) {
@@ -33,28 +38,51 @@ final class JobsBar: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     private func sync() {
-        let jobs = workspace.jobs.jobs.suffix(4)
+        let all = workspace.jobs.jobs.filter { !dismissed.contains($0.id) }
+        // Aktywne (najstarsze najpierw — to one właśnie działają), potem najnowsze zakończone.
+        let active = all.filter { !$0.state.isFinished }.prefix(Self.maxRows)
+        let finished = all.filter(\.state.isFinished).suffix(max(0, Self.maxRows - active.count))
+        let jobs = Array(active) + Array(finished)
         let ids = Set(jobs.map(\.id))
         for (id, row) in rows where !ids.contains(id) {
             row.removeFromSuperview()
             rows[id] = nil
         }
         for job in jobs where rows[job.id] == nil {
-            let row = JobRow(job: job, queue: workspace.jobs)
+            let row = JobRow(job: job, queue: workspace.jobs) { [weak self] id in self?.dismiss(id) }
             rows[job.id] = row
             stack.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16).isActive = true
         }
+        // Kolejność wierszy jak na liście (aktywne u góry).
+        for (index, job) in jobs.enumerated() {
+            if let row = rows[job.id], stack.arrangedSubviews.firstIndex(of: row) != index {
+                stack.removeArrangedSubview(row)
+                stack.insertArrangedSubview(row, at: index)
+            }
+        }
         let height = CGFloat(rows.count) * 26 + (rows.isEmpty ? 0 : 6)
         heightConstraint.constant = height
         isHidden = rows.isEmpty
-        // Zakończone bez błędów znikają po chwili.
-        for job in jobs where job.state == .completed {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-                guard let self, job.state == .completed else { return }
-                self.workspace.jobs.removeFinished()
-            }
+        // Zakończone bez błędów znikają po chwili; nieudane i anulowane zostają (z komunikatem) do ✕.
+        for job in all where job.state == .completed && job.errors.isEmpty && !dismissScheduled.contains(job.id) {
+            dismissScheduled.insert(job.id)
+            let id = job.id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.dismiss(id) }
         }
+    }
+
+    /// Ukrywa zakończone zadanie; gdy wszystkie zakończone są ukryte, zwalnia je z kolejki.
+    private func dismiss(_ id: UUID) {
+        guard let job = workspace.jobs.job(id), job.state.isFinished else { return }
+        dismissed.insert(id)
+        let finished = workspace.jobs.jobs.filter(\.state.isFinished)
+        if finished.allSatisfy({ dismissed.contains($0.id) }) {
+            workspace.jobs.removeFinished()
+            dismissed.subtract(finished.map(\.id))
+            dismissScheduled.subtract(finished.map(\.id))
+        }
+        sync()
     }
 }
 
@@ -68,10 +96,12 @@ private final class JobRow: NSView {
     private let limitButton = NSButton()
     private let cancelButton = NSButton()
     private let observations = ObservationBag()
+    private let onDismiss: (UUID) -> Void
 
-    init(job: Job, queue: JobQueue) {
+    init(job: Job, queue: JobQueue, onDismiss: @escaping (UUID) -> Void) {
         self.job = job
         self.queue = queue
+        self.onDismiss = onDismiss
         super.init(frame: .zero)
         title.font = .systemFont(ofSize: 11, weight: .medium)
         title.lineBreakMode = .byTruncatingMiddle
@@ -122,10 +152,10 @@ private final class JobRow: NSView {
         if p.bytesTotal > 0 { parts.append("\(Format.bytes(p.bytesDone)) / \(Format.bytes(p.bytesTotal))") }
         if p.filesTotal > 0 { parts.append("\(p.filesDone)/\(p.filesTotal)") }
         if p.bytesPerSecond > 0, job.state == .running {
-            parts.append("\(Format.bytes(Int64(p.bytesPerSecond)))/s")
+            parts.append(L10n.tr("\(Format.bytes(Int64(p.bytesPerSecond)))/s"))
             if p.bytesTotal > p.bytesDone {
                 let eta = Double(p.bytesTotal - p.bytesDone) / p.bytesPerSecond
-                parts.append("ETA \(Duration.seconds(eta).formatted(.time(pattern: .minuteSecond)))")
+                parts.append(L10n.tr("pozostało \(Duration.seconds(eta).formatted(.time(pattern: .minuteSecond)))"))
             }
         }
         if job.speedLimit > 0 { parts.append(L10n.tr("limit \(Format.bytes(job.speedLimit))/s")) }
@@ -139,11 +169,14 @@ private final class JobRow: NSView {
         }
         if !job.errors.isEmpty { detail.toolTip = job.errors.joined(separator: "\n") }
         detail.stringValue = parts.joined(separator: "  ·  ")
-        pauseButton.image = NSImage(systemSymbolName: job.state == .paused ? "play.fill" : "pause.fill", accessibilityDescription: nil)
+        let paused = job.state == .paused
+        pauseButton.image = NSImage(systemSymbolName: paused ? "play.fill" : "pause.fill", accessibilityDescription: paused ? L10n.tr("Wznów") : L10n.tr("Wstrzymaj"))
         let finished = job.state.isFinished
         pauseButton.isHidden = finished
         limitButton.isHidden = finished
-        cancelButton.image = NSImage(systemSymbolName: finished ? "xmark" : "xmark.circle.fill", accessibilityDescription: nil)
+        let cancelTitle = finished ? L10n.tr("Usuń z listy") : L10n.tr("Anuluj")
+        cancelButton.image = NSImage(systemSymbolName: finished ? "xmark" : "xmark.circle.fill", accessibilityDescription: cancelTitle)
+        cancelButton.toolTip = cancelTitle
     }
 
     @objc private func togglePause() {
@@ -151,13 +184,14 @@ private final class JobRow: NSView {
     }
 
     @objc private func cancel() {
-        if job.state.isFinished { queue.removeFinished() } else { queue.cancel(job) }
+        // ✕ zakończonego zadania usuwa tylko ten wiersz.
+        if job.state.isFinished { onDismiss(job.id) } else { queue.cancel(job) }
     }
 
     @objc private func setLimit() {
         let menu = NSMenu()
         for mb in [0, 1, 5, 10, 25, 50, 100] {
-            let item = NSMenuItem(title: mb == 0 ? L10n.tr("Bez limitu") : "\(mb) MB/s", action: #selector(chooseLimit(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: mb == 0 ? L10n.tr("Bez limitu") : L10n.tr("\(mb) MB/s"), action: #selector(chooseLimit(_:)), keyEquivalent: "")
             item.tag = mb
             item.target = self
             item.state = Int64(mb) * 1024 * 1024 == job.speedLimit ? .on : .off

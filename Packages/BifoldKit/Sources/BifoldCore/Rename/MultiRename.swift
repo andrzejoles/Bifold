@@ -1,4 +1,4 @@
-import AVFoundation
+import AudioToolbox
 import Foundation
 import ImageIO
 
@@ -100,46 +100,51 @@ public enum FileMetadata {
         return f.date(from: s)
     }
 
+    /// Tagi multimediów (`title`, `artist`, `album`, `year`, `genre`) synchronicznie przez AudioToolbox
+    /// (MP3/ID3, AAC/M4A, MP4 ze ścieżką dźwiękową, AIFF…) — bez czekania na zadanie w puli wątków.
+    /// `nil`, jeśli pliku nie da się odczytać jako multimediów; pusty tekst, jeśli plik nie ma takiego tagu.
     public static func media(_ key: String, of path: VFSPath) -> String? {
         guard let url = path.url else { return nil }
-        let asset = AVURLAsset(url: url)
-        let box = MetadataBox()
-        let semaphore = DispatchSemaphore(value: 0)
-        Task.detached {
-            defer { semaphore.signal() }
-            guard let items = try? await asset.load(.commonMetadata) else { return }
-            let wanted: AVMetadataKey? = switch key.lowercased() {
-            case "title": .commonKeyTitle
-            case "artist": .commonKeyArtist
-            case "album": .commonKeyAlbumName
-            case "year", "date": .commonKeyCreationDate
-            case "genre": .commonKeyType
-            default: nil
-            }
-            guard let wanted, let item = AVMetadataItem.metadataItems(from: items, withKey: wanted, keySpace: .common).first else { return }
-            box.value = try? await item.load(.stringValue)
+        let info: [String: Any]
+        var file: AudioFileID?
+        guard AudioFileOpenURL(url as CFURL, .readPermission, 0, &file) == noErr, let file else { return nil }
+        defer { AudioFileClose(file) }
+        var size = UInt32(MemoryLayout<Unmanaged<CFDictionary>?>.size)
+        var dict: Unmanaged<CFDictionary>?
+        guard AudioFileGetProperty(file, kAudioFilePropertyInfoDictionary, &size, &dict) == noErr,
+              let value = dict?.takeRetainedValue() as? [String: Any] else { return nil }
+        info = value
+        let wanted: String? = switch key.lowercased() {
+        case "title": kAFInfoDictionary_Title
+        case "artist": kAFInfoDictionary_Artist
+        case "album": kAFInfoDictionary_Album
+        case "year", "date": kAFInfoDictionary_Year
+        case "genre": kAFInfoDictionary_Genre
+        default: nil
         }
-        _ = semaphore.wait(timeout: .now() + 5)
-        guard var value = box.value else { return nil }
+        guard let wanted else { return nil }
+        guard var value = (info[wanted] as? String) ?? (info[wanted] as? NSNumber)?.stringValue else { return "" }
         if key.lowercased() == "year" { value = String(value.prefix(4)) }
         return value
-    }
-
-    private final class MetadataBox: @unchecked Sendable {
-        var value: String?
     }
 }
 
 public enum MultiRename {
     /// Nowa nazwa dla elementu (bez sprawdzania konfliktów).
     public static func newName(for item: FileItem, index: Int, rule: RenameRule) -> String {
+        var problem: String?
+        return newName(for: item, index: index, rule: rule, problem: &problem)
+    }
+
+    /// Nowa nazwa i problem z jej wyliczeniem (np. nieczytelne metadane multimediów).
+    static func newName(for item: FileItem, index: Int, rule: RenameRule, problem: inout String?) -> String {
         let isDir = item.isNavigable
         let stem = isDir ? item.name : item.name.fileStem
         let ext = isDir ? "" : item.name.fileExtension
         let counter = rule.counterStart + index * rule.counterStep
 
-        var name = expand(rule.nameMask, item: item, stem: stem, ext: ext, counter: counter, digits: rule.counterDigits)
-        var newExt = isDir ? "" : expand(rule.extensionMask, item: item, stem: stem, ext: ext, counter: counter, digits: rule.counterDigits)
+        var name = expand(rule.nameMask, item: item, stem: stem, ext: ext, counter: counter, digits: rule.counterDigits, problem: &problem)
+        var newExt = isDir ? "" : expand(rule.extensionMask, item: item, stem: stem, ext: ext, counter: counter, digits: rule.counterDigits, problem: &problem)
         name = rule.nameCase.apply(name)
         newExt = rule.extensionCase.apply(newExt)
         var full = newExt.isEmpty ? name : name + "." + newExt
@@ -156,6 +161,11 @@ public enum MultiRename {
     }
 
     static func expand(_ mask: String, item: FileItem, stem: String, ext: String, counter: Int, digits: Int) -> String {
+        var problem: String?
+        return expand(mask, item: item, stem: stem, ext: ext, counter: counter, digits: digits, problem: &problem)
+    }
+
+    static func expand(_ mask: String, item: FileItem, stem: String, ext: String, counter: Int, digits: Int, problem: inout String?) -> String {
         var out = ""
         var i = mask.startIndex
         while i < mask.endIndex {
@@ -166,13 +176,13 @@ public enum MultiRename {
                 continue
             }
             let token = String(mask[mask.index(after: i)..<close])
-            out += value(of: token, item: item, stem: stem, ext: ext, counter: counter, digits: digits) ?? "[\(token)]"
+            out += value(of: token, item: item, stem: stem, ext: ext, counter: counter, digits: digits, problem: &problem) ?? "[\(token)]"
             i = mask.index(after: close)
         }
         return out
     }
 
-    static func value(of token: String, item: FileItem, stem: String, ext: String, counter: Int, digits: Int) -> String? {
+    static func value(of token: String, item: FileItem, stem: String, ext: String, counter: Int, digits: Int, problem: inout String?) -> String? {
         let date = item.modified ?? Date()
         let cal = Calendar.current
         func two(_ n: Int) -> String { String(format: "%02d", n) }
@@ -204,7 +214,11 @@ public enum MultiRename {
             return raw.map { sanitize("\($0)") } ?? ""
         }
         if token.lowercased().hasPrefix("media:") {
-            return FileMetadata.media(String(token.dropFirst(6)), of: item.path).map(sanitize) ?? ""
+            guard let value = FileMetadata.media(String(token.dropFirst(6)), of: item.path) else {
+                problem = problem ?? L10n.tr("nie można odczytać metadanych multimediów")
+                return ""
+            }
+            return sanitize(value)
         }
         if token.hasPrefix("N") || token.hasPrefix("E") {
             let source = token.hasPrefix("N") ? stem : ext
@@ -255,11 +269,13 @@ public enum MultiRename {
     /// Podgląd: nowe nazwy i problemy (niepoprawna nazwa, powtórzona nowa nazwa, zajęte miejsce).
     public static func plan(_ items: [FileItem], rule: RenameRule) -> [RenamePlanEntry] {
         var entries = items.enumerated().map { i, item in
-            RenamePlanEntry(source: item.path, newName: newName(for: item, index: i, rule: rule))
+            var problem: String?
+            let name = newName(for: item, index: i, rule: rule, problem: &problem)
+            return RenamePlanEntry(source: item.path, newName: name, problem: problem)
         }
         let sources = Set(items.map { $0.path.path.lowercased() })
         var seen: [String: Int] = [:]
-        for i in entries.indices {
+        for i in entries.indices where entries[i].problem == nil {
             let e = entries[i]
             do { try validateFileName(e.newName) } catch {
                 entries[i].problem = L10n.tr("nieprawidłowa nazwa")
@@ -292,27 +308,45 @@ public enum MultiRename {
         func record(_ from: VFSPath, _ to: VFSPath) {
             if let journal, let batch { journal.record(.moved(from: from, to: to), fingerprint: try? fs.itemSync(at: to).fingerprint, in: batch) }
         }
+        // Element pod nazwą tymczasową (jeszcze bez nazwy docelowej).
         var current: [VFSPath: VFSPath] = [:]
-        let sourcesLower = Set(work.map { $0.source.path.lowercased() })
-        // Faza 1: elementy, których cel jest źródłem innego elementu, na nazwy tymczasowe.
-        for e in work {
-            let target = e.source.parent!.appending(e.newName)
-            if sourcesLower.contains(target.path.lowercased()), target.path.lowercased() != e.source.path.lowercased() {
+        func lowered(_ e: RenamePlanEntry) -> String { e.source.parent!.appending(e.newName).path.lowercased() }
+        let targetsLower = Set(work.map(lowered))
+        var done = 0
+        do {
+            // Faza 1: każdy element, którego obecne miejsce jest celem innego elementu (zamiana a↔b,
+            // łańcuch 1→2, 2→3…), na nazwę tymczasową — wtedy w fazie 2 każdy cel jest już wolny.
+            for e in work where targetsLower.contains(e.source.path.lowercased()) && lowered(e) != e.source.path.lowercased() {
                 let temp = e.source.parent!.appending(".bifold-rename-\(UUID().uuidString.prefix(8))")
                 try fs.moveSync(e.source, to: temp)
                 record(e.source, temp)
                 current[e.source] = temp
             }
+        } catch {
+            for (source, temp) in current where (try? fs.moveSync(temp, to: source)) != nil { record(temp, source) }
+            throw error
         }
-        // Faza 2: nazwy docelowe.
-        var done = 0
+        // Faza 2: nazwy docelowe. Błąd jednego elementu nie zatrzymuje pozostałych.
+        var firstError: (any Error)?
         for e in work {
             let from = current[e.source] ?? e.source
             let target = e.source.parent!.appending(e.newName)
-            try fs.moveSync(from, to: target)
-            record(from, target)
-            done += 1
+            do {
+                try fs.moveSync(from, to: target)
+                record(from, target)
+                current[e.source] = nil
+                done += 1
+            } catch {
+                firstError = firstError ?? error
+            }
         }
+        // Nieudane elementy nie mogą zostać pod ukrytą nazwą tymczasową: wracają na swoje miejsce
+        // albo (gdy zajęte) obok, jako „nazwa (2)”.
+        for (source, temp) in current {
+            let back = TransferEngine.uniqueOrSame(source)
+            if (try? fs.moveSync(temp, to: back)) != nil { record(temp, back) }
+        }
+        if let firstError { throw firstError }
         return done
     }
 }

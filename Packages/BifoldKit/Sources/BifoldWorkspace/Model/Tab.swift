@@ -34,11 +34,16 @@ public final class Tab: Identifiable {
     @ObservationIgnored private var watchTask: Task<Void, Never>?
     @ObservationIgnored private var processTask: Task<Void, Never>?
     @ObservationIgnored private var processGeneration = 0
-    @ObservationIgnored private var sizeTasks: [VFSPath: Task<Void, Never>] = [:]
+    /// Liczenie rozmiarów katalogów; `token` odróżnia zadanie od nowszego dla tej samej ścieżki
+    /// (anulowane zadanie nie usuwa wpisu zadania uruchomionego po powrocie do katalogu).
+    @ObservationIgnored private var sizeTasks: [VFSPath: (token: UUID, task: Task<Void, Never>)] = [:]
     @ObservationIgnored private var visibleIndex: [VFSPath: Int] = [:]
     /// Rośnie przy każdej nawigacji — odświeżenie w tle nie nadpisze kursora ustawionego
     /// przez nowszą nawigację (np. fokus na właśnie utworzonym katalogu).
     @ObservationIgnored private var navigationGeneration = 0
+    /// Liczba zastosowanych wyników jawnych nawigacji — odświeżenie, w trakcie którego któraś się
+    /// zakończyła, jest nieaktualne (przywróciłoby kursor sprzed niej).
+    @ObservationIgnored private var appliedNavigations = 0
 
     public init(path: VFSPath, viewMode: ViewMode = .details, sort: SortSpec = SortSpec(), showHidden: Bool = false, providers: ProviderRegistry) {
         self.path = path
@@ -46,16 +51,31 @@ public final class Tab: Identifiable {
         self.sort = sort
         self.showHidden = showHidden
         self.providers = providers
+        customTitle = Self.automaticTitle(for: path, provider: try? providers.provider(for: path))
     }
 
     deinit {
         MainActor.assumeIsolated {
             watchTask?.cancel()
             processTask?.cancel()
+            sizeTasks.values.forEach { $0.task.cancel() }
         }
     }
 
-    /// Tytuł karty wyników wyszukiwania.
+    /// Zamknięta karta: przerywa obserwowanie katalogu i liczenie rozmiarów.
+    func stopBackgroundWork() {
+        watchTask?.cancel()
+        watchTask = nil
+        cancelSizeTasks()
+    }
+
+    private func cancelSizeTasks() {
+        sizeTasks.values.forEach { $0.task.cancel() }
+        sizeTasks = [:]
+    }
+
+    /// Tytuł karty: wyniki wyszukiwania, archiwum, serwer, telefon, terminal. Przy przejściu do innego
+    /// dostawcy (np. z archiwum do katalogu domowego) wyliczany na nowo z dostawcy ścieżki.
     public var customTitle: String?
     /// Karta-terminal (SSH): zamiast listy plików panel pokazuje terminal z tym procesem.
     public var terminal: TerminalSpec?
@@ -71,7 +91,7 @@ public final class Tab: Identifiable {
     public func showUnavailable(_ target: VFSPath, error: String) async {
         navigationGeneration += 1
         isLoading = false
-        path = target
+        setPath(target)
         items = []
         selection = []
         loadError = error
@@ -79,12 +99,36 @@ public final class Tab: Identifiable {
         await processNow()
     }
 
-    /// Wczytuje katalog. Przy błędzie karta zostaje w poprzednim katalogu, a błąd jest rzucany.
+    /// Wczytuje katalog. Przy błędzie karta zostaje w poprzednim katalogu, a błąd jest rzucany
+    /// (bez `loadError` — karta nadal pokazuje poprawny, poprzedni katalog).
     public func navigate(to target: VFSPath, focus: String? = nil, recordHistory: Bool = true) async throws {
+        try await navigate(to: target, focus: focus, recordHistory: recordHistory, historyIndex: nil)
+    }
+
+    /// - Parameter newIndex: wstecz/dalej — indeks historii ustawiany razem ze zmianą katalogu (tylko
+    ///   przy udanym wczytaniu, które nie przegrało z nowszą nawigacją).
+    private func navigate(to target: VFSPath, focus: String?, recordHistory: Bool, historyIndex newIndex: Int?) async throws {
         // Karta-terminal zostaje terminalem — katalogi otwiera `Workspace.open` w nowej karcie.
         guard terminal == nil else { throw CommandError.notAvailable(L10n.tr("Karta z terminalem SSH nie pokazuje plików — otwórz je w nowej karcie")) }
         navigationGeneration += 1
-        try await load(target, focus: focus, recordHistory: recordHistory, generation: navigationGeneration, isReload: false)
+        try await load(target, focus: focus, recordHistory: recordHistory, historyIndex: newIndex, generation: navigationGeneration, isReload: false)
+    }
+
+    /// Zmiana katalogu karty. Przejście do innego dostawcy wylicza tytuł na nowo — inaczej karta
+    /// w katalogu domowym zostawała z tytułem „📦 x.zip” albo „🔍 …”.
+    private func setPath(_ target: VFSPath) {
+        let previous = path
+        path = target
+        guard target.provider != previous.provider, terminal == nil else { return }
+        customTitle = Self.automaticTitle(for: target, provider: try? providers.provider(for: target))
+    }
+
+    /// Tytuł wynikający z dostawcy ścieżki (telefony nadaje `device.open` — nazwa modelu z urządzenia).
+    static func automaticTitle(for path: VFSPath, provider: (any FileSystemProvider)?) -> String? {
+        if let alias = RemoteFS.alias(of: path) { return "🌐 " + alias }
+        if let results = provider as? SearchResultsFS { return "🔍 " + results.title }
+        if let archive = provider as? ArchiveFS { return "📦 " + archive.displayName }
+        return nil
     }
 
     /// Wczytanie katalogu przez nawigację albo odświeżenie. Wynik jest pomijany, gdy w trakcie zaczęła się
@@ -93,8 +137,11 @@ public final class Tab: Identifiable {
     /// a jego wynik obowiązuje tylko, jeśli karta jest nadal w tym samym katalogu.
     /// - Returns: `false`, gdy wynik pominięto.
     @discardableResult
-    private func load(_ target: VFSPath, focus: String?, recordHistory: Bool, generation: Int, isReload: Bool) async throws -> Bool {
-        func isCurrent() -> Bool { navigationGeneration == generation && (!isReload || path == target) }
+    private func load(_ target: VFSPath, focus: String?, recordHistory: Bool, historyIndex newIndex: Int? = nil, generation: Int, isReload: Bool) async throws -> Bool {
+        let appliedAtStart = appliedNavigations
+        func isCurrent() -> Bool {
+            navigationGeneration == generation && (!isReload || (path == target && appliedNavigations == appliedAtStart))
+        }
         let provider = try providers.provider(for: target)
         if !isReload { isLoading = true }
         defer { if !isReload, navigationGeneration == generation { isLoading = false } }
@@ -103,25 +150,28 @@ public final class Tab: Identifiable {
             listed = try await provider.list(target, options: ListOptions())
         } catch {
             guard isCurrent() else { return false }
-            loadError = error.localizedDescription
+            // Jawna nawigacja rzuca błąd, a karta zostaje w poprawnym katalogu; komunikat w pasku
+            // ścieżki tylko przy nieudanym odświeżeniu bieżącego katalogu.
+            if isReload { loadError = error.localizedDescription }
             throw error
         }
         guard isCurrent() else { return false }
+        if !isReload { appliedNavigations += 1 }
         let changedDirectory = target != path
-        path = target
+        setPath(target)
         loadError = nil
         items = listed
         if changedDirectory {
             selection = []
             directorySizes = [:]
             quickFilter = ""
-            sizeTasks.values.forEach { $0.cancel() }
-            sizeTasks = [:]
+            cancelSizeTasks()
         }
         if recordHistory && (historyIndex < 0 || history[historyIndex] != target) {
             history = Array(history.prefix(historyIndex + 1)) + [target]
             historyIndex = history.count - 1
         }
+        if let newIndex { historyIndex = newIndex }
         let focusPath = focus.map { target.appending($0) }
         await processNow()
         guard isCurrent() else { return false }
@@ -134,6 +184,9 @@ public final class Tab: Identifiable {
         guard isCurrent() else { return false }
         volume = info
         startWatching(provider)
+        // Także po ustawieniu kursora: odświeżenie rozpoczęte w trakcie tej nawigacji zapamiętało kursor
+        // sprzed niej i nie może go przywrócić.
+        if !isReload { appliedNavigations += 1 }
         return true
     }
 
@@ -179,18 +232,26 @@ public final class Tab: Identifiable {
     public var canGoBack: Bool { historyIndex > 0 }
     public var canGoForward: Bool { historyIndex >= 0 && historyIndex < history.count - 1 }
 
+    /// Wstecz/dalej: indeks historii zmienia się razem z katalogiem, dopiero po udanym wczytaniu — przy
+    /// błędzie albo wygranej nowszej nawigacji (D47) indeks zgadza się z katalogiem karty.
     public func goBack() async throws {
         guard canGoBack else { return }
         let from = path
-        historyIndex -= 1
-        try await navigate(to: history[historyIndex], focus: from.isDescendant(of: history[historyIndex]) ? from.components.dropFirst(history[historyIndex].components.count).first : nil, recordHistory: false)
+        let index = historyIndex - 1
+        let target = history[index]
+        let focus = from.isDescendant(of: target) ? from.components.dropFirst(target.components.count).first : nil
+        try await navigate(to: target, focus: focus, recordHistory: false, historyIndex: index)
     }
 
     public func goForward() async throws {
         guard canGoForward else { return }
-        historyIndex += 1
-        try await navigate(to: history[historyIndex], recordHistory: false)
+        let index = historyIndex + 1
+        try await navigate(to: history[index], focus: nil, recordHistory: false, historyIndex: index)
     }
+
+    /// Dostawcy używani przez kartę (bieżący katalog i historia) — `Workspace` wyrejestrowuje
+    /// nieużywane archiwa i wyniki wyszukiwania.
+    var usedProviders: Set<ProviderID> { Set([path.provider] + history.map(\.provider)) }
 
     private func startWatching(_ provider: any FileSystemProvider) {
         watchTask?.cancel()
@@ -232,10 +293,16 @@ public final class Tab: Identifiable {
         }
     }
 
-    /// Przelicza od razu i czeka na wynik (po wczytaniu katalogu, w testach).
+    /// Przelicza od razu i czeka na wynik (po wczytaniu katalogu, w testach). Gdy w trakcie ktoś inny
+    /// zlecił przeliczenie (np. odświeżenie z FSEvents), czeka na nowsze — inaczej wołający ustawiałby
+    /// kursor według nieaktualnej listy (np. na „..” w katalogu, który był pusty).
     public func processNow() async {
         reprocess()
-        await processTask?.value
+        while true {
+            let started = processGeneration
+            await processTask?.value
+            if started == processGeneration { break }
+        }
     }
 
     private func apply(_ result: [FileItem]) {
@@ -305,8 +372,8 @@ public final class Tab: Identifiable {
         selection = paths.intersection(valid)
     }
 
-    public func selectAll(filesOnly: Bool = false) {
-        selection = Set(visibleItems.filter { !$0.isParentLink && (!filesOnly || !$0.isNavigable) }.map(\.path))
+    public func selectAll() {
+        selection = Set(visibleItems.filter { !$0.isParentLink }.map(\.path))
     }
 
     public func clearSelection() { selection = [] }
@@ -339,18 +406,25 @@ public final class Tab: Identifiable {
         if sort.field == .size { reprocess() }
     }
 
+    /// Liczy rozmiar katalogu w tle (tylko dysk lokalny — `DirectorySizer` nie zna serwerów,
+    /// archiwów ani telefonów).
     public func calculateSize(of item: FileItem) {
-        guard item.isDirectory, sizeTasks[item.path] == nil, directorySizes[item.path] == nil else { return }
+        guard item.isDirectory, item.path.isLocal, sizeTasks[item.path] == nil, directorySizes[item.path] == nil else { return }
         let path = item.path
-        sizeTasks[path] = Task { [weak self] in
+        let token = UUID()
+        let task = Task { [weak self] in
             let size = try? await DirectorySizer.size(of: path)
             guard let self else { return }
+            // Anulowane zadanie (zmiana katalogu) nie usuwa wpisu nowszego zadania i nie zapisuje wyniku.
+            guard self.sizeTasks[path]?.token == token else { return }
             self.sizeTasks[path] = nil
-            if let size { self.setDirectorySize(size, for: path) }
+            if let size, !Task.isCancelled { self.setDirectorySize(size, for: path) }
         }
+        sizeTasks[path] = (token, task)
     }
 
-    public func isCalculatingSize(_ path: VFSPath) -> Bool { sizeTasks[path] != nil }
+    /// Liczba trwających obliczeń rozmiaru (testy).
+    var pendingSizeCount: Int { sizeTasks.count }
 
     /// Suma rozmiarów zaznaczenia (katalogi tylko, jeśli policzono).
     public var selectionSummary: (count: Int, bytes: Int64) {

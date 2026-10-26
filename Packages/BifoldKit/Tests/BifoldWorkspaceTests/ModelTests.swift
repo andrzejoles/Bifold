@@ -102,7 +102,8 @@ private struct SlowFS: FileSystemProvider {
     let id = ProviderID("test:slow")
     let capabilities: ProviderCapabilities = [.read]
     func list(_ directory: VFSPath, options: ListOptions) async throws -> [FileItem] {
-        if directory.path == "/wolny" { try await Task.sleep(for: .milliseconds(600)) }
+        if directory.path == "/wolny" || directory.path == "/dwa" { try await Task.sleep(for: .milliseconds(600)) }
+        if directory.path == "/dwa" { return ["a", "b"].map { FileItem(path: directory.appending($0), kind: .file, size: 1) } }
         return [FileItem(path: directory.appending("w-" + directory.name), kind: .file, size: 1)]
     }
     func item(at path: VFSPath) async throws -> FileItem { FileItem(path: path, kind: .directory) }
@@ -127,6 +128,23 @@ private struct SlowFS: FileSystemProvider {
         #expect(tab.path == fast)
         #expect(tab.items.map(\.name).contains("w-szybki") && !tab.items.map(\.name).contains("w-wolny"))
         #expect(!tab.isLoading)
+    }
+
+    /// Odświeżenie, które ruszyło w trakcie jawnej nawigacji w tym samym katalogu (np. F7 z kursorem
+    /// na nowym katalogu + zdarzenie FSEvents), nie przywraca po niej starego kursora.
+    @Test func reloadStartedDuringNavigationDoesNotRestoreOldCursor() async throws {
+        let tmp = try TempDir()
+        let (ws, _) = try await makeWorkspace(tmp)
+        ws.providers.register(SlowFS())
+        let tab = ws.activeTab
+        let dir = VFSPath(provider: ProviderID("test:slow"), path: "/dwa")
+        try await tab.navigate(to: dir)
+        #expect(tab.cursorItem?.name == "a")
+        let navigation = Task { try await tab.navigate(to: dir, focus: "b", recordHistory: false) }
+        try await Task.sleep(for: .milliseconds(100))
+        await tab.reload()
+        try await navigation.value
+        #expect(tab.cursorItem?.name == "b")
     }
 
     /// Odświeżenie (np. po zdarzeniu FSEvents) w trakcie jawnej nawigacji jej nie unieważnia.
@@ -245,13 +263,16 @@ private struct SlowFS: FileSystemProvider {
     }
 
     /// Prawdziwy katalog ze 100 000 plików: listowanie + sortowanie poniżej 1 s.
+    /// Tworzenie i usuwanie plików poza MainActor — inaczej przez ~minutę stały wszystkie testy MainActor.
     @MainActor @Test func listHundredThousandFiles() async throws {
         let tmp = try TempDir()
         let base = tmp.url.path
-        for i in 0..<100_000 {
-            let fd = open(base + "/plik-\(i).dat", O_CREAT | O_WRONLY, 0o644)
-            close(fd)
-        }
+        await Task.detached(priority: .userInitiated) {
+            for i in 0..<100_000 {
+                let fd = open(base + "/plik-\(i).dat", O_CREAT | O_WRONLY, 0o644)
+                close(fd)
+            }
+        }.value
         let (ws, _) = try await makeWorkspace(tmp)
         let tab = ws.activeTab
         let t0 = ContinuousClock.now
@@ -267,5 +288,8 @@ private struct SlowFS: FileSystemProvider {
         let strict = ProcessInfo.processInfo.environment["BIFOLD_PERF_STRICT"] == "1"
         #expect(elapsed < .seconds(strict ? 1 : 3), "pierwsze wyświetlenie: \(elapsed)")
         print("100k: listowanie \(t1 - t0), sortowanie \(t2 - t1), razem w karcie \(elapsed)")
+        // Sprzątanie też w tle (`TempDir.deinit` usuwałby 100 000 plików na MainActor).
+        let url = tmp.url
+        await Task.detached(priority: .userInitiated) { try? FileManager.default.removeItem(at: url) }.value
     }
 }

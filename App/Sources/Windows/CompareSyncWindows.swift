@@ -91,14 +91,26 @@ struct CompareView: View {
 @MainActor @Observable
 final class SyncModel {
     let workspace: Workspace
-    var source: String
-    var destination: String
-    var mode: SyncMode
+    // Zmiana źródła, celu, trybu albo sposobu porównania unieważnia plan — „Synchronizuj” wymaga
+    // ponownego porównania (inaczej wykonałby się plan policzony dla innych parametrów).
+    var source: String { didSet { if source != oldValue { invalidatePlan() } } }
+    var destination: String { didSet { if destination != oldValue { invalidatePlan() } } }
+    var mode: SyncMode { didSet { if mode != oldValue { invalidatePlan() } } }
     var plan: SyncPlan?
     var status = ""
     var busy = false
     var jobName = ""
-    var byContent = false
+    var byContent = false { didSet { if byContent != oldValue { invalidatePlan() } } }
+    /// Numer porównania — wynik starszego porównania (sprzed zmiany parametrów) jest pomijany.
+    private var comparison = 0
+
+    private func invalidatePlan() {
+        comparison += 1
+        if plan != nil {
+            plan = nil
+            status = L10n.tr("Parametry zmienione — porównaj ponownie")
+        }
+    }
 
     init(workspace: Workspace, source: VFSPath, destination: VFSPath, job: SyncJob?) {
         self.workspace = workspace
@@ -111,27 +123,35 @@ final class SyncModel {
     func compare() {
         busy = true
         status = L10n.tr("Porównywanie…")
+        comparison += 1
+        let current = comparison
         let s = workspace.parsePath(source, relativeTo: .root), d = workspace.parsePath(destination, relativeTo: .root)
         Task {
             defer { busy = false }
             do {
-                plan = try await workspace.syncPlan(source: s, destination: d, mode: mode, byContent: byContent)
-                status = plan.map { $0.preview.summary } ?? ""
+                let result = try await workspace.syncPlan(source: s, destination: d, mode: mode, byContent: byContent)
+                guard current == comparison else { return }
+                plan = result
+                status = result.preview.summary
             } catch {
+                guard current == comparison else { return }
                 status = "✕ " + error.localizedDescription
             }
         }
     }
 
+    /// Synchronizacja przez komendę `sync.run` (dziennik, odświeżenie paneli po zakończeniu) z tymi samymi
+    /// parametrami; operacje odznaczone w podglądzie są pomijane (`exclude`).
     func run(close: @escaping () -> Void) {
         guard let plan else { return }
-        do {
-            let rc = try workspace.remotes.runningRclone()
-            workspace.jobs.enqueue(.sync(plan, rc), title: L10n.tr("Synchronizacja (\(plan.actions.filter(\.enabled).count))"))
-            close()
-        } catch {
-            status = "✕ " + error.localizedDescription
-        }
+        let excluded = plan.actions.filter { !$0.enabled }.map { JSONValue.string($0.path) }
+        var args: [String: JSONValue] = [
+            "source": .string(source), "destination": .string(destination),
+            "mode": .string(mode.rawValue), "byContent": .bool(byContent),
+        ]
+        if !excluded.isEmpty { args["exclude"] = .array(excluded) }
+        workspace.perform("sync.run", CommandArguments(args))
+        close()
     }
 
     func save() {
@@ -193,7 +213,7 @@ struct SyncView: View {
             Text(model.status).font(.caption).foregroundStyle(.secondary)
             if let plan = Binding($model.plan) {
                 Table(plan.actions) {
-                    TableColumn("") { $a in Toggle("", isOn: $a.enabled).labelsHidden() }.width(24)
+                    TableColumn("") { $a in Toggle(L10n.tr("Wykonaj: \(a.path)"), isOn: $a.enabled).labelsHidden() }.width(24)
                     TableColumn(L10n.tr("Operacja")) { $a in
                         Text(Self.label(a.kind)).foregroundStyle(a.kind == .deleteFromDestination ? Color.red : .primary)
                     }

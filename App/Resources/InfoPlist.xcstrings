@@ -175,41 +175,6 @@
           }
         }
       }
-    },
-    "NSHumanReadableCopyright": {
-      "extractionState": "manual",
-      "localizations": {
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "© 2026 Andrzej Oleś w kooperacji z Claude AI"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "© 2026 Andrzej Oleś in cooperation with Claude AI"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "© 2026 Andrzej Oleś in Zusammenarbeit mit Claude AI"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "© 2026 Andrzej Oleś en colaboración con Claude AI"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "© 2026 Andrzej Oleś у співпраці з Claude AI"
-          }
-        }
-      }
     }
   },
   "version": "1.0"

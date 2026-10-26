@@ -43,4 +43,17 @@ final class TempDir {
     func exists(_ name: String) -> Bool {
         FileManager.default.fileExists(atPath: url.appending(path: name).path)
     }
+
+    /// Czy wolumin katalogu tymczasowego nie rozróżnia wielkości liter (domyślny APFS).
+    var isCaseInsensitive: Bool {
+        let probe = url.appending(path: "CaseProbe-\(UUID().uuidString)")
+        FileManager.default.createFile(atPath: probe.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: probe) }
+        return FileManager.default.fileExists(atPath: url.appending(path: probe.lastPathComponent.lowercased()).path)
+    }
+
+    /// Nazwy w katalogu (względem katalogu tymczasowego).
+    func names(_ dir: String = "") throws -> Set<String> {
+        Set(try FileManager.default.contentsOfDirectory(atPath: dir.isEmpty ? url.path : url.appending(path: dir).path))
+    }
 }

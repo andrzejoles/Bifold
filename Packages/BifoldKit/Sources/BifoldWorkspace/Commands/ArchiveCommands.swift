@@ -30,23 +30,39 @@ extension Workspace {
     /// Wejście do archiwum w karcie.
     public func enterArchive(_ archive: VFSPath, in tab: Tab, invoker: Invoker = .user) async throws {
         let fs = try await openArchive(archive, invoker: invoker)
-        providers.register(fs)
+        registerEphemeral(fs)
+        defer { unpinEphemeral(fs.id) }
         try await tab.navigate(to: fs.root)
         tab.customTitle = "📦 " + archive.name
     }
 
-    /// Plik z archiwum wypakowany do katalogu tymczasowego (podgląd, Quick Look, edytor).
+    /// Plik z archiwum, serwera albo telefonu skopiowany do katalogu tymczasowego (podgląd, Quick Look,
+    /// edytor) — wynik ma zawsze ścieżkę lokalną.
     public func materialize(_ item: FileItem) async throws -> FileItem {
-        if let remote = try? providers.provider(for: item.path) as? any RemoteFileProvider {
+        if item.path.isLocal { return item }
+        let provider = try providers.provider(for: item.path)
+        if let remote = provider as? any RemoteFileProvider {
             return try LocalFS().itemSync(at: .local(try await remote.download(item.path)))
         }
-        guard let fs = try providers.provider(for: item.path) as? ArchiveFS else { return item }
-        let data = try await fs.readContents(item.path, range: nil)
         let dir = FileManager.default.temporaryDirectory.appending(path: "bifold-view-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appending(path: item.name)
-        try data.write(to: url)
-        return try LocalFS().itemSync(at: .local(url))
+        if let fs = provider as? ArchiveFS {
+            // Rozpakowanie jednego wpisu wprost do pliku (bez wczytywania go całego do pamięci).
+            let path = item.path, target = VFSPath.local(dir.path)
+            let local = try await runBlocking(qos: .userInitiated) { try fs.extractFile(path, to: target) }
+            return try LocalFS().itemSync(at: local)
+        }
+        if let device = provider as? any ExtractingProvider {
+            // Telefon (AFC/MTP): kopia przez katalog tymczasowy jak przy kopiowaniu F5.
+            let path = item.path
+            let (_, extracted) = try await runBlocking(qos: .userInitiated) {
+                try device.extract([path], toTemporaryIn: .local(dir), isCancelled: { false })
+            }
+            guard let local = extracted.first, local.isLocal else { throw VFSError.notFound(item.path) }
+            return try LocalFS().itemSync(at: local)
+        }
+        try? FileManager.default.removeItem(at: dir)
+        throw VFSError.unsupported(item.path.description)
     }
 }
 
@@ -99,7 +115,7 @@ var archiveCommands: [Command] { [
             summary: L10n.tr("Rozpakowuje archiwa (ZIP, 7z, RAR, TAR, GZ, BZ2, XZ, wieloczęściowe). Archiwa z hasłem — tylko użytkownik.")),
         preview: { @MainActor ctx in
             let archives = try ctx.targets().filter { ArchiveFS.isArchive($0.name) }
-            let dest = ctx.arguments.path("destination", relativeTo: ctx.tab.path) ?? ctx.otherTab.path
+            let dest = try extractDestination(ctx, archives: archives)
             return EffectPreview(
                 summary: L10n.tr("Rozpakowanie \(archives.count) archiwów do \(dest.path)"),
                 operations: archives.map { PlannedOperation(kind: "extract", source: $0.path, destination: dest, bytes: $0.size) },
@@ -108,7 +124,7 @@ var archiveCommands: [Command] { [
     ) { ctx in
         let archives = try ctx.targets().filter { ArchiveFS.isArchive($0.name) }
         guard !archives.isEmpty else { throw CommandError.notAvailable(L10n.tr("Zaznacz archiwa")) }
-        var dest = ctx.arguments.path("destination", relativeTo: ctx.tab.path) ?? ctx.otherTab.path
+        var dest = try extractDestination(ctx, archives: archives)
         if !ctx.isAgent && ctx.arguments["destination"] == nil {
             let text = try await ctx.text("destination", title: L10n.tr("Rozpakuj \(Format.describe(archives)) do:"), default: dest.path + "/")
             dest = resolvePath(text, relativeTo: ctx.tab.path)
@@ -155,7 +171,7 @@ var archiveCommands: [Command] { [
         guard let path = ctx.arguments.path("path", relativeTo: ctx.tab.path) else { throw CommandError.missingArgument("path") }
         let tool = try ctx.workspace.sevenZip()
         let entries = try await runBlocking(qos: .userInitiated) { try tool.list(path, password: nil) }
-        let limit = Int(ctx.arguments.int("limit") ?? 2000)
+        let limit = Int(max(0, ctx.arguments.int("limit") ?? 2000))
         return CommandResult(value: [
             "archive": .string(path.path), "total": .int(Int64(entries.count)),
             "entries": .array(entries.prefix(limit).map { e in
@@ -164,6 +180,19 @@ var archiveCommands: [Command] { [
         ])
     },
 ] }
+
+/// Katalog docelowy rozpakowania: argument albo drugi panel, jeśli jest lokalny. Drugi panel w archiwum,
+/// na serwerze albo telefonie: agent dostaje błąd, użytkownik — katalog archiwum do poprawienia w oknie
+/// (wcześniej wewnętrzna ścieżka, np. `/tmp` z SFTP, trafiała na dysk lokalny).
+@MainActor
+private func extractDestination(_ ctx: CommandContext, archives: [FileItem]) throws -> VFSPath {
+    if let d = ctx.arguments.path("destination", relativeTo: ctx.tab.path) { return d }
+    if ctx.otherTab.path.isLocal { return ctx.otherTab.path }
+    guard !ctx.isAgent, let dir = archives.first?.path.parent, dir.isLocal else {
+        throw CommandError.notAvailable(L10n.tr("Katalog docelowy musi być lokalny"))
+    }
+    return dir
+}
 
 @MainActor
 private func archiveRequest(_ ctx: CommandContext, interactive: Bool) async throws -> (VFSPath, ArchiveFormat, VFSPath, [String], String?) {

@@ -33,8 +33,8 @@ var navigationCommands: [Command] { [
         parameters: [sideParam], agent: .read, effect: .uiState,
         summary: L10n.tr("Ustawia fokus na drugim (albo wskazanym) panelu."))
     ) { ctx in
-        if let raw = ctx.arguments.string("side"), let side = PanelSide(rawValue: raw) {
-            ctx.workspace.activeSide = side
+        if ctx.arguments["side"] != nil {
+            ctx.workspace.activeSide = try ctx.panel(forSide: "side").side
         } else {
             ctx.workspace.switchPanel()
         }
@@ -166,9 +166,9 @@ var navigationCommands: [Command] { [
     ) { ctx in
         let a = ctx.workspace.left.activeTab, b = ctx.workspace.right.activeTab
         guard a.terminal == nil, b.terminal == nil else { throw CommandError.notAvailable(L10n.tr("Karta z terminalem SSH nie pokazuje plików — otwórz je w nowej karcie")) }
-        let pa = a.path, pb = b.path
-        try await a.navigate(to: pb)
-        try await b.navigate(to: pa)
+        // Całe karty (z historią, tytułem i maszyną) — karta serwera zostaje kartą serwera, a lokalna
+        // lokalną (wcześniej lokalna lista dostawała tytuł „🌐 prod”).
+        ctx.workspace.left.swapActiveTabs(with: ctx.workspace.right)
         return .ok
     },
 
@@ -218,17 +218,23 @@ var tabCommands: [Command] { [
         parameters: [CommandParameter("path", .path, L10n.tr("Katalog nowej karty (domyślnie bieżący)")), sideParam],
         agent: .full, effect: .uiState, summary: L10n.tr("Otwiera nową kartę w panelu."))
     ) { ctx in
-        let panel = ctx.arguments.string("side").flatMap(PanelSide.init(rawValue:)).map(ctx.workspace.panel) ?? ctx.workspace.activePanel
+        let panel = try ctx.panel(forSide: "side")
+        let current = panel.activeTab
         // Z karty-terminala nowa karta z plikami lokalnymi (katalog domowy).
-        let path = ctx.arguments.path("path", relativeTo: ctx.tab.path) ?? (panel.activeTab.terminal != nil ? ctx.workspace.homePath : nil)
-        let tab: Tab
-        if let cursor = ctx.tab.cursorItem, path == nil, cursor.isNavigable, !cursor.isParentLink, !ctx.isAgent {
+        let path = ctx.arguments.path("path", relativeTo: current.path) ?? (current.terminal != nil ? ctx.workspace.homePath : nil)
+        var target = path
+        if let cursor = current.cursorItem, path == nil, cursor.isNavigable, !cursor.isParentLink, !ctx.isAgent {
             // Jak w TC: Ctrl+T na katalogu otwiera ten katalog w nowej karcie.
-            tab = panel.newTab(at: cursor.path)
-            try await tab.navigate(to: cursor.path)
-        } else {
-            tab = panel.newTab(at: path)
-            try await tab.navigate(to: path ?? tab.path)
+            target = cursor.path
+        }
+        let tab = panel.newTab(at: target)
+        do {
+            try await tab.navigate(to: target ?? tab.path)
+        } catch {
+            // Jak `Workspace.open`: pusta karta nie zostaje (ani w sesji).
+            if let i = panel.tabs.firstIndex(where: { $0 === tab }) { panel.closeTab(at: i) }
+            panel.selectTab(id: current.id)
+            throw error
         }
         if let alias = RemoteFS.alias(of: tab.path) { tab.customTitle = "🌐 " + alias }
         return CommandResult(value: .int(Int64(panel.activeTabIndex)))
@@ -239,8 +245,15 @@ var tabCommands: [Command] { [
         parameters: [CommandParameter("index", .integer, L10n.tr("Numer karty (od 0); domyślnie aktywna")), sideParam],
         agent: .full, effect: .uiState, summary: L10n.tr("Zamyka kartę (ostatnia karta panelu zostaje)."))
     ) { ctx in
-        let panel = ctx.arguments.string("side").flatMap(PanelSide.init(rawValue:)).map(ctx.workspace.panel) ?? ctx.workspace.activePanel
-        panel.closeTab(at: ctx.arguments.int("index").map(Int.init))
+        let panel = try ctx.panel(forSide: "side")
+        var index = panel.activeTabIndex
+        if let raw = ctx.arguments.int("index") {
+            guard let i = Int(exactly: raw), panel.tabs.indices.contains(i) else { throw CommandError.invalidArgument("index", L10n.tr("brak karty")) }
+            index = i
+        }
+        // Agent nie ma dostępu do terminala (PROMPT 5.5, D44) — nie zamyka też sesji SSH w karcie.
+        if ctx.isAgent, panel.tabs[index].terminal != nil { throw CommandError.notAvailable(L10n.tr("Agent nie ma dostępu do terminala")) }
+        panel.closeTab(at: index)
         return .ok
     },
 
@@ -265,9 +278,9 @@ var tabCommands: [Command] { [
         parameters: [CommandParameter("index", .integer, required: true, L10n.tr("Numer karty (od 0)")), sideParam],
         agent: .full, effect: .uiState, summary: L10n.tr("Przełącza na kartę o podanym numerze."), inMenu: false)
     ) { ctx in
-        let panel = ctx.arguments.string("side").flatMap(PanelSide.init(rawValue:)).map(ctx.workspace.panel) ?? ctx.workspace.activePanel
-        guard let i = ctx.arguments.int("index"), panel.tabs.indices.contains(Int(i)) else { throw CommandError.invalidArgument("index", L10n.tr("brak karty")) }
-        panel.selectTab(Int(i))
+        let panel = try ctx.panel(forSide: "side")
+        guard let i = ctx.arguments.int("index").flatMap({ Int(exactly: $0) }), panel.tabs.indices.contains(i) else { throw CommandError.invalidArgument("index", L10n.tr("brak karty")) }
+        panel.selectTab(i)
         return .ok
     },
 ] }

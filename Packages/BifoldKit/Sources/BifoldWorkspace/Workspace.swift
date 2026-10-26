@@ -7,6 +7,17 @@ import Observation
 @MainActor
 public protocol AgentInvocationGate: AnyObject {
     func authorize(_ command: Command, context: CommandContext) async throws
+    /// Jak `authorize`, ale zwraca argumenty „zamrożone” przez bramkę (ścieżki absolutne, cele
+    /// domyślne rozwinięte) — komenda wykonuje się dokładnie z nimi, a nie ze stanem paneli
+    /// z chwili po zatwierdzeniu.
+    func authorizeFrozen(_ command: Command, context: CommandContext) async throws -> CommandArguments
+}
+
+extension AgentInvocationGate {
+    public func authorizeFrozen(_ command: Command, context: CommandContext) async throws -> CommandArguments {
+        try await authorize(command, context: context)
+        return context.arguments
+    }
 }
 
 /// Cały stan aplikacji: dwa panele z kartami, ustawienia, kolejka i dziennik operacji,
@@ -109,7 +120,7 @@ public final class Workspace {
 
         registry = CommandRegistry.standard()
         rebuildKeymap()
-        remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "local.aoles.bifold") + (persists ? ".remote" : ".tests"))
+        remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "bifold") + (persists ? ".remote" : ".tests"))
         // Próby na żywo (zwykle razem z BIFOLD_DATA_DIR): własna konfiguracja SSH i known_hosts zamiast ~/.ssh.
         let env = ProcessInfo.processInfo.environment
         if let config = env["BIFOLD_SSH_CONFIG"] { remotes.sshConfigFile = config }
@@ -121,6 +132,7 @@ public final class Workspace {
             remotes.sshKnownHostsFile = sshDir.appending(path: "known_hosts").path
             remotes.sshConfigFile = sshDir.appending(path: "ssh_config").path
         }
+        for panel in [left, right] { panel.onTabClosed = { [weak self] in self?.pruneProviders() } }
     }
 
     deinit {
@@ -160,10 +172,10 @@ public final class Workspace {
     public func start() async {
         for tab in left.tabs + right.tabs {
             // Karty wyników wyszukiwania nie przetrwają restartu — wracają do katalogu domowego.
-            var target: VFSPath? = (try? providers.provider(for: tab.path)) == nil && RemoteFS.alias(of: tab.path) == nil ? .local(NSHomeDirectory()) : tab.path
+            var target: VFSPath? = (try? providers.provider(for: tab.path)) == nil && RemoteFS.alias(of: tab.path) == nil ? homePath : tab.path
             if let alias = RemoteFS.alias(of: tab.path) {
                 // Karty zdalne łączą się ponownie; bez połączenia — katalog domowy.
-                if (try? await remotes.provider(alias)) == nil { target = .local(NSHomeDirectory()) }
+                if (try? await remotes.provider(alias)) == nil { target = homePath }
             }
             var focus = restoredCursors[tab.id]
             while let t = target {
@@ -179,12 +191,44 @@ public final class Workspace {
     @discardableResult
     public func showResults(title: String, items: [FileItem], side: PanelSide? = nil) async throws -> Tab {
         let provider = SearchResultsFS(title: title, items: items)
-        providers.register(provider)
+        registerEphemeral(provider)
+        defer { unpinEphemeral(provider.id) }
         let panel = self.panel(side ?? activeSide)
         let tab = panel.newTab(at: provider.root)
         tab.customTitle = "🔍 " + title
-        try await tab.navigate(to: provider.root)
+        do {
+            try await tab.navigate(to: provider.root)
+        } catch {
+            if let i = panel.tabs.firstIndex(where: { $0 === tab }) { panel.closeTab(at: i) }
+            throw error
+        }
         return tab
+    }
+
+    // MARK: Dostawcy tymczasowi (archiwa, wyniki wyszukiwania)
+
+    /// Zarejestrowani dostawcy archiwów i wyników z licznikiem trwających otwarć (w trakcie wejścia
+    /// do archiwum karta jeszcze go nie używa, a nie wolno go wtedy wyrejestrować).
+    @ObservationIgnored private var ephemeralProviders: [ProviderID: Int] = [:]
+
+    /// Rejestruje dostawcę archiwum lub wyników; po otwarciu trzeba wywołać `unpinEphemeral`.
+    func registerEphemeral(_ provider: any FileSystemProvider) {
+        providers.register(provider)
+        ephemeralProviders[provider.id, default: 0] += 1
+    }
+
+    func unpinEphemeral(_ id: ProviderID) {
+        if let n = ephemeralProviders[id] { ephemeralProviders[id] = max(0, n - 1) }
+        pruneProviders()
+    }
+
+    /// Wyrejestrowuje archiwa i wyniki wyszukiwania, których nie używa żadna karta (katalog ani historia).
+    func pruneProviders() {
+        let used = (left.tabs + right.tabs).reduce(into: Set<ProviderID>()) { $0.formUnion($1.usedProviders) }
+        for (id, pins) in ephemeralProviders where pins == 0 && !used.contains(id) {
+            providers.unregister(id)
+            ephemeralProviders[id] = nil
+        }
     }
 
     /// Otwiera katalog w panelu. Karta jest związana ze swoją maszyną (dysk lokalny, serwer, telefon):
@@ -264,17 +308,20 @@ public final class Workspace {
     @discardableResult
     public func invoke(_ id: CommandID, _ arguments: CommandArguments = .empty, invoker: Invoker = .user) async throws -> CommandResult {
         guard let command = registry.command(id) else { throw CommandError.unknownCommand(id) }
-        let context = CommandContext(workspace: self, invoker: invoker, arguments: arguments)
+        var context = CommandContext(workspace: self, invoker: invoker, arguments: arguments)
         let started = Date()
         do {
             if invoker.isAgent {
                 guard let agentGate else { throw CommandError.notAvailable(L10n.tr("API agenta jest wyłączone")) }
-                try await agentGate.authorize(command, context: context)
+                let frozen = try await agentGate.authorizeFrozen(command, context: context)
+                context = CommandContext(workspace: self, invoker: invoker, arguments: frozen)
             }
             let result = try await command.run(context)
+            pruneProviders()
             notify(CommandInvocationRecord(command: id, arguments: arguments, invoker: invoker, started: started, outcome: .success(result.message)))
             return result
         } catch {
+            pruneProviders()
             notify(CommandInvocationRecord(command: id, arguments: arguments, invoker: invoker, started: started, outcome: .failure(error.localizedDescription)))
             throw error
         }

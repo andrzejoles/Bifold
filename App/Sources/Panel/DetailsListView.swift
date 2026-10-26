@@ -10,6 +10,8 @@ final class DetailsListView: NSView, FileListView {
     private let scroll = NSScrollView()
     let table = FileTableView()
     private var items: [FileItem] = []
+    /// Numer wiersza według ścieżki (odświeżanie wiersza po wczytaniu tagów bez szukania liniowego).
+    private var rowByPath: [VFSPath: Int] = [:]
     private var tab: Tab?
     private var updatingSelection = false
     private var tagCache: [VFSPath: [String]] = [:]
@@ -98,18 +100,23 @@ final class DetailsListView: NSView, FileListView {
     }
 
     var fontSize: CGFloat { CGFloat(workspace.settings.fontSize) }
+    private var rowHeightForFont: CGFloat { max(18, fontSize + 7) }
 
     func reload(_ tab: Tab) {
         self.tab = tab
         items = tab.visibleItems
+        rowByPath = Dictionary(items.enumerated().map { ($1.path, $0) }, uniquingKeysWith: { a, _ in a })
         tagCache = [:]
-        table.rowHeight = max(18, fontSize + 7)
+        table.rowHeight = rowHeightForFont
         let field = tab.sort.field
+        updatingSelection = true
         if let col = Column.allCases.first(where: { $0.sortField == field }) {
-            updatingSelection = true
             table.sortDescriptors = [NSSortDescriptor(key: col.sortField!.rawValue, ascending: tab.sort.ascending)]
-            updatingSelection = false
+        } else {
+            // Sortowanie bez kolumny (data utworzenia) — bez strzałki przy poprzedniej kolumnie.
+            table.sortDescriptors = []
         }
+        updatingSelection = false
         table.reloadData()
     }
 
@@ -124,13 +131,26 @@ final class DetailsListView: NSView, FileListView {
     }
 
     func refreshMarks(_ tab: Tab) {
+        // Zmiana rozmiaru czcionki — nowa wysokość wierszy.
+        if table.rowHeight != rowHeightForFont {
+            table.rowHeight = rowHeightForFont
+            table.reloadData()
+            return
+        }
         let visible = table.rows(in: table.visibleRect)
         guard visible.length > 0 else { return }
         table.reloadData(forRowIndexes: IndexSet(integersIn: visible.location..<(visible.location + visible.length)),
                          columnIndexes: IndexSet(integersIn: 0..<table.numberOfColumns))
-        for row in visible.location..<(visible.location + visible.length) {
-            table.rowView(atRow: row, makeIfNecessary: false)?.needsDisplay = true
+        for row in visible.location..<(visible.location + visible.length) where row < items.count {
+            guard let rowView = table.rowView(atRow: row, makeIfNecessary: false) as? MarkedRowView else { continue }
+            configure(rowView, items[row])
         }
+    }
+
+    /// Tło wiersza: oznaczenie albo tło z reguły kolorów.
+    private func configure(_ rowView: MarkedRowView, _ item: FileItem) {
+        rowView.marked = isMarked(item)
+        rowView.ruleBackground = item.isParentLink ? nil : workspace.colorRules.style(for: item)?.backgroundColor.map(Theme.color)
     }
 
     func focus() { window?.makeFirstResponder(table) }
@@ -153,7 +173,7 @@ final class DetailsListView: NSView, FileListView {
         TagLoader.shared.load(path) { [weak self] tags in
             guard let self, !tags.isEmpty else { return }
             self.tagCache[path] = tags
-            if let row = self.items.firstIndex(where: { $0.path == path }), let col = self.table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "tags" }) {
+            if let row = self.rowByPath[path], row < self.items.count, let col = self.table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "tags" }) {
                 self.table.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: col))
             }
         }
@@ -239,7 +259,7 @@ extension DetailsListView: NSTableViewDataSource, NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         let view = (tableView.makeView(withIdentifier: MarkedRowView.id, owner: nil) as? MarkedRowView) ?? MarkedRowView()
         view.identifier = MarkedRowView.id
-        view.marked = row < items.count && isMarked(items[row])
+        if row < items.count { configure(view, items[row]) } else { view.marked = false; view.ruleBackground = nil }
         return view
     }
 
@@ -256,15 +276,19 @@ extension DetailsListView: NSTableViewDataSource, NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, typeSelectStringFor tableColumn: NSTableColumn?, row: Int) -> String? { nil }
 }
 
-/// Tło wiersza z oznaczonym plikiem.
+/// Tło wiersza z oznaczonym plikiem albo z tłem reguły kolorów (`backgroundColor`).
 final class MarkedRowView: NSTableRowView {
     static let id = NSUserInterfaceItemIdentifier("marked-row")
     var marked = false { didSet { if marked != oldValue { needsDisplay = true } } }
+    var ruleBackground: NSColor? { didSet { if ruleBackground != oldValue { needsDisplay = true } } }
 
     override func drawBackground(in dirtyRect: NSRect) {
         super.drawBackground(in: dirtyRect)
         if marked {
             Theme.markedBackground.setFill()
+            bounds.fill()
+        } else if let ruleBackground {
+            ruleBackground.setFill()
             bounds.fill()
         }
     }

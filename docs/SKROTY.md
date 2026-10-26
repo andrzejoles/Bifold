@@ -43,11 +43,11 @@ Poziom agenta: Brak — narzędzie niewidoczne; Odczyt; Za zgodą — okno zatwi
 | Miniatury | `view.thumbnails` | ⌃3 | ⌃3 | Pełny |
 | Kolumny | `view.columns` | ⌃4 | ⌃4 | Pełny |
 | Ustaw widok | `view.setMode` |  |  | Pełny |
-| Sortuj: Nazwa | `view.sortBy.name` | ⌃F3 | ⌃F3 ⌃⌘1 | Pełny |
-| Sortuj: Rozszerzenie | `view.sortBy.ext` | ⌃F4 | ⌃F4 ⌃⌘2 | Pełny |
-| Sortuj: Data modyfikacji | `view.sortBy.modified` | ⌃F5 | ⌃F5 ⌃⌘3 | Pełny |
-| Sortuj: Rozmiar | `view.sortBy.size` | ⌃F6 | ⌃F6 ⌃⌘4 | Pełny |
-| Sortuj: Data utworzenia | `view.sortBy.created` | ⌃F7 | ⌃F7 ⌃⌘5 | Pełny |
+| Sortuj: Nazwa | `view.sortBy.name` | ⌃F3 ⌃⌘1 | ⌃F3 ⌃⌘1 | Pełny |
+| Sortuj: Rozszerzenie | `view.sortBy.ext` | ⌃F4 ⌃⌘2 | ⌃F4 ⌃⌘2 | Pełny |
+| Sortuj: Data modyfikacji | `view.sortBy.modified` | ⌃F5 ⌃⌘3 | ⌃F5 ⌃⌘3 | Pełny |
+| Sortuj: Rozmiar | `view.sortBy.size` | ⌃F6 ⌃⌘4 | ⌃F6 ⌃⌘4 | Pełny |
+| Sortuj: Data utworzenia | `view.sortBy.created` | ⌃F7 ⌃⌘5 | ⌃F7 ⌃⌘5 | Pełny |
 | Sortuj | `view.sortBy` |  |  | Pełny |
 | Drzewo katalogów | `view.toggleTree` | ⌃⇧T | ⌥⌘T ⌃⇧T | Odczyt |
 | Panel podglądu | `view.previewPanel` | ⌃Q | ⌃Q ⌥⌘P | Odczyt |
@@ -82,7 +82,7 @@ Poziom agenta: Brak — narzędzie niewidoczne; Odczyt; Za zgodą — okno zatwi
 | Komenda | Id | Profil TC | Profil Cmd | Agent |
 |---|---|---|---|---|
 | Podgląd | `file.view` | F3 | F3 ⌘3 ⌥Spacja | Odczyt |
-| Edytuj | `file.edit` | F4 | F4 ⌘E ⌘4 | Brak |
+| Edytuj | `file.edit` | F4 | F4 ⌘4 ⌘E | Brak |
 | Nowy plik… | `file.newFile` | ⇧F4 | ⇧F4 ⌥⌘N | Za zgodą |
 | Kopiuj… | `file.copy` | F5 | F5 ⌘5 | Za zgodą |
 | Przenieś… | `file.move` | F6 | F6 ⌘6 | Za zgodą |
@@ -134,11 +134,11 @@ Poziom agenta: Brak — narzędzie niewidoczne; Odczyt; Za zgodą — okno zatwi
 | Komenda | Id | Profil TC | Profil Cmd | Agent |
 |---|---|---|---|---|
 | Szukaj plików… | `search.find` | ⌥F7 | ⌥F7 ⌥⌘F | Pełny |
-| Szukaj w Spotlight… | `search.spotlight` | ⌥⌘Spacja | ⌥⌘Spacja | Pełny |
+| Szukaj w Spotlight… | `search.spotlight` | ⌃⌥F | ⌃⌥F | Pełny |
 | Zapisz wyszukiwanie | `search.save` |  |  | Pełny |
 | Uruchom zapisane wyszukiwanie… | `search.runSaved` |  |  | Pełny |
 | Zapisane wyszukiwania | `search.listSaved` |  |  | Odczyt |
-| Szukaj duplikatów… | `search.duplicates` | ⌥⌘D | ⌥⌘D | Odczyt |
+| Szukaj duplikatów… | `search.duplicates` | ⌃⌥D | ⌃⌥D | Odczyt |
 | Podgląd synchronizacji | `sync.preview` |  |  | Odczyt |
 | Synchronizuj katalogi… | `sync.run` | ⌃⌥S | ⌃⌥S ⌥⇧⌘Y | Za zgodą |
 | Zapisz zadanie synchronizacji | `sync.save` |  |  | Za zgodą |

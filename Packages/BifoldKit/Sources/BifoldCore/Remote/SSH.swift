@@ -145,9 +145,12 @@ public enum NameEncoding: String, Codable, Sendable, CaseIterable {
 
     var encoding: String.Encoding { self == .utf8 ? .utf8 : .isoLatin2 }
 
+    /// UTF-8: dokładnie te znaki (nazwy z listingu serwera mogą być w NFD — np. wgrane ze starego macOS
+    /// — i normalizacja zrobiłaby z nich inne bajty, czyli „No such file”; nowe nazwy normalizuje
+    /// `ScpFS.newName`). Latin-2 zna tylko znaki złożone, więc tam NFC.
     public func encode(_ s: String) throws -> [UInt8] {
-        let normalized = s.precomposedStringWithCanonicalMapping
-        guard let data = normalized.data(using: encoding) else { throw VFSError.invalidName(s) }
+        let text = self == .utf8 ? s : s.precomposedStringWithCanonicalMapping
+        guard let data = text.data(using: encoding) else { throw VFSError.invalidName(s) }
         return Array(data)
     }
 
@@ -190,7 +193,17 @@ public final class SSHSession: Sendable {
     let controlPath: String
     let secret: @Sendable () -> String?
     static let ssh = "/usr/bin/ssh", scp = "/usr/bin/scp"
-    private let startLock = Mutex(())
+    /// Blokada uruchamiania połączenia głównego wspólna dla wszystkich sesji z tym samym gniazdem
+    /// (osobne obiekty dla jednego serwera nie mogą nawzajem usuwać sobie gniazda).
+    private static let startLocks = Mutex<[String: NSLock]>([:])
+    private var startLock: NSLock {
+        Self.startLocks.withLock { locks in
+            if let lock = locks[controlPath] { return lock }
+            let lock = NSLock()
+            locks[controlPath] = lock
+            return lock
+        }
+    }
 
     public init(config: Config, runDirectory: URL, secret: @escaping @Sendable () -> String?) throws {
         // Bez znaków, które `ssh` mógłby wziąć za opcję albo rozdzielić (wstrzyknięcie opcji).
@@ -269,10 +282,17 @@ public final class SSHSession: Sendable {
 
     /// Nawiązuje połączenie główne (pierwsze logowanie, także po wygaśnięciu ControlPersist).
     public func connect() throws {
-        try startLock.withLock { _ in
+        try startLock.withLock {
             if isConnected { return }
             try startMaster()
         }
+    }
+
+    /// Połączenie główne bez sprawdzania (`ssh -O check` kosztuje proces na każde polecenie): gniazdo
+    /// znika, gdy połączenie główne się kończy (ControlPersist), więc wystarczy sprawdzić plik.
+    /// Martwe gniazdo po awarii wykrywa błąd 255 polecenia.
+    func ensureConnected() throws {
+        if !FileManager.default.fileExists(atPath: controlPath) { try connect() }
     }
 
     private func startMaster() throws {
@@ -297,6 +317,8 @@ public final class SSHSession: Sendable {
                     let fd = open(fifo, O_WRONLY | O_NONBLOCK)
                     if fd >= 0 {
                         _ = fcntl(fd, F_SETFL, 0)
+                        // `ssh`, który zamknął kolejkę, nie może zabić aplikacji sygnałem SIGPIPE.
+                        _ = fcntl(fd, F_SETNOSIGPIPE, 1)
                         bytes.withUnsafeBytes { _ = write(fd, $0.baseAddress, $0.count) }
                         close(fd)
                         unlink(fifo)
@@ -395,38 +417,58 @@ public final class SSHSession: Sendable {
         _ = try? Spawn.run(Self.ssh, args, environment: environment, timeout: 10)
     }
 
-    /// Polecenie powłoki na serwerze (tekst w kodowaniu serwera). Ponawia raz po zerwaniu połączenia.
-    public func run(_ command: String, timeout: TimeInterval = 120) throws -> Spawn.Result {
-        try connect()
+    /// Polecenie powłoki na serwerze (tekst w kodowaniu serwera). Po zerwaniu połączenia ponawia raz
+    /// tylko polecenia idempotentne (`ls`, `rm -f`, `mkdir -p`); zmieniające (`mv`, `mkdir`) mogły już
+    /// się wykonać — ponowienie dałoby fałszywy błąd („No such file”, „File exists”). Dla nich
+    /// połączenie główne jest sprawdzane przed wykonaniem.
+    public func run(_ command: String, timeout: TimeInterval = 120, idempotent: Bool = true) throws -> Spawn.Result {
+        if idempotent { try ensureConnected() } else { try connect() }
         var args = commonOptions(master: false).map { Array($0.utf8) }
         if let port = config.port { args += [Array("-p".utf8), Array(String(port).utf8)] }
         args += [Array(destination.utf8), try config.encoding.encode(command)]
         let r = try Spawn.run(Self.ssh, args, environment: environment, timeout: timeout)
         if r.status == 255, !isConnected {
             try connect()
-            return try Spawn.run(Self.ssh, args, environment: environment, timeout: timeout)
+            if idempotent { return try Spawn.run(Self.ssh, args, environment: environment, timeout: timeout) }
         }
         return r
     }
 
+    /// Znacznik przed wynikiem polecenia: `.bashrc`, który coś wypisuje, nie może zepsuć wyniku
+    /// (`pwd`, `echo $SHELL`).
+    static let outputMarker = "BIFOLD-OUTPUT-3f9c1a"
+
+    public static func markedOutput(_ command: String) -> String { "echo \(outputMarker); \(command)" }
+
+    /// Tekst po wierszu ze znacznikiem (bez znacznika — całość).
+    public static func textAfterMarker(_ text: String) -> String {
+        guard let r = text.range(of: outputMarker + "\n", options: .backwards) else { return text }
+        return String(text[r.upperBound...])
+    }
+
     /// `scp -O` (klasyczny protokół SCP, bez SFTP). `remote` to ścieżka absolutna na serwerze.
     public func scp(download remote: String, to local: String, isCancelled: @escaping @Sendable () -> Bool, isPaused: @escaping @Sendable () -> Bool) throws {
-        try connect()
         let source = Array("\(destination):".utf8) + (try Self.scpEscape(remote, config.encoding))
         try runScp([source, Array(local.utf8)], isCancelled: isCancelled, isPaused: isPaused)
     }
 
     public func scp(upload local: String, to remote: String, isCancelled: @escaping @Sendable () -> Bool, isPaused: @escaping @Sendable () -> Bool) throws {
-        try connect()
         let target = Array("\(destination):".utf8) + (try Self.scpEscape(remote, config.encoding))
         try runScp([Array(local.utf8), target], isCancelled: isCancelled, isPaused: isPaused)
     }
 
+    /// Kopiowanie jednego pliku (pobranie albo nadpisanie tego samego celu) jest powtarzalne — po
+    /// zerwaniu połączenia głównego raz ponawiane.
     private func runScp(_ paths: [[UInt8]], isCancelled: @escaping @Sendable () -> Bool, isPaused: @escaping @Sendable () -> Bool) throws {
+        try ensureConnected()
         var args = (["-O", "-p", "-q"] + commonOptions(master: false)).map { Array($0.utf8) }
         if let port = config.port { args += [Array("-P".utf8), Array(String(port).utf8)] }
         args += paths
-        let r = try Spawn.run(Self.scp, args, environment: environment, timeout: 24 * 3600, isCancelled: isCancelled, isPaused: isPaused)
+        var r = try Spawn.run(Self.scp, args, environment: environment, timeout: 24 * 3600, isCancelled: isCancelled, isPaused: isPaused)
+        if r.status != 0, !isConnected {
+            try connect()
+            r = try Spawn.run(Self.scp, args, environment: environment, timeout: 24 * 3600, isCancelled: isCancelled, isPaused: isPaused)
+        }
         guard r.status == 0 else { throw RemoteError.ssh(Self.explain(r.errorText)) }
     }
 

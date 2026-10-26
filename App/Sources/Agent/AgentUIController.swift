@@ -91,17 +91,31 @@ final class AgentUIController: ApprovalPresenter {
             throw CommandError.notAvailable(L10n.tr("Nie znaleziono polecenia „\(kind.executable)” w PATH powłoki logowania."))
         }
         let settings = workspace.settings.agent
+        // Serwer gniazda mógł nie wystartować (np. działa inna kopia aplikacji) — ponowna próba albo czytelny błąd.
+        do {
+            try controller.start()
+        } catch {
+            throw CommandError.notAvailable(L10n.tr("Serwer API agentów nie działa: \(controller.serverError ?? String(describing: error))"))
+        }
         if kind == .antigravity { try await ensureAntigravityRegistration(executable: executable) }
 
         let (session, token) = controller.createSession(kind: kind, directory: directory)
         let sessionDir = workspace.paths.run.appending(path: "session-\(session.id)", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        let spec = AgentLauncher.spec(
-            kind: kind, bridge: bridgePath, socket: controller.socketURL.path, token: token, directory: directory.path,
-            strict: settings.strictMode, sessionDirectory: sessionDir.path, executable: executable)
-        for (path, contents) in spec.files {
-            try Data(contents.utf8).write(to: URL(filePath: path), options: .atomic)
-            chmod(path, 0o600)
+        let spec: AgentLaunchSpec
+        do {
+            try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            spec = AgentLauncher.spec(
+                kind: kind, bridge: bridgePath, socket: controller.socketURL.path, token: token, directory: directory.path,
+                strict: settings.strictMode, sessionDirectory: sessionDir.path, executable: executable)
+            for (path, contents) in spec.files {
+                try Data(contents.utf8).write(to: URL(filePath: path), options: .atomic)
+                chmod(path, 0o600)
+            }
+        } catch {
+            // Nieudane uruchomienie nie zostawia aktywnej sesji ani ważnego tokenu.
+            controller.closeSession(session.id)
+            try? FileManager.default.removeItem(at: sessionDir)
+            throw error
         }
 
         var env = ProcessInfo.processInfo.environment
@@ -182,12 +196,13 @@ final class AgentUIController: ApprovalPresenter {
     }
 
     func undoSession(_ id: String) {
-        let plan = workspace.fileOps.undoPlan(forAgentSession: id)
-        guard !plan.isEmpty else {
-            workspace.ui?.showMessage(L10n.tr("Sesja nie zmieniła żadnych plików"))
-            return
-        }
         Task {
+            // Plan liczony poza wątkiem głównym (sprawdzanie dysku dla każdego wpisu).
+            let plan = await workspace.fileOps.planUndo(forAgentSession: id)
+            guard !plan.isEmpty else {
+                workspace.ui?.showMessage(L10n.tr("Sesja nie zmieniła żadnych plików"))
+                return
+            }
             let alert = NSAlert()
             alert.messageText = L10n.tr("Cofnąć sesję agenta (\(plan.steps.count) kroków)?")
             let steps = plan.steps.prefix(60).map { step -> String in
@@ -221,6 +236,8 @@ final class AgentUIController: ApprovalPresenter {
         let previous = approvalChain
         let task = Task<Bool, Never> {
             await previous?.value
+            // Prośba z sesji zamkniętej w międzyczasie — bez okna.
+            guard controller.registry.session(request.sessionID) != nil else { return false }
             return await showApproval(request)
         }
         approvalChain = Task { _ = await task.value }
@@ -231,20 +248,23 @@ final class AgentUIController: ApprovalPresenter {
         showPane()
         NSApp.requestUserAttention(.criticalRequest)
         let p = r.preview
+        // Nazwy i ścieżki pochodzą od agenta i z plików: znaki sterujące i bidi (np. U+202E) jako \u{…}.
+        let safe = ApprovalText.sanitize
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = L10n.tr("\(r.agent.displayName) chce wykonać: \(r.title)")
-        var info = p.summary
+        var info = safe(p.summary)
         info += "\n" + L10n.tr("Elementy: \(p.fileCount), rozmiar: \(Format.bytes(p.totalBytes))")
         if !p.conflicts.isEmpty { info += "\n⚠︎ " + L10n.tr("Konflikty: \(p.conflicts.count)") }
+        info += "\n" + L10n.tr("Sesja: \(r.sessionID), katalog: \(safe(r.directory.displayPath))")
         alert.informativeText = info
         var lines = p.operations.prefix(200).map { op in
-            "\(op.conflict ? "⚠︎ " : "")\(op.kind)  \(op.source?.path ?? "")\(op.destination.map { "  →  " + $0.path } ?? "")\(op.bytes > 0 ? "  (\(Format.bytes(op.bytes)))" : "")"
+            "\(op.conflict ? "⚠︎ " : "")\(safe(op.kind))  \(safe(op.source?.path ?? ""))\(op.destination.map { "  →  " + safe($0.path) } ?? "")\(op.bytes > 0 ? "  (\(Format.bytes(op.bytes)))" : "")"
         }
         if p.operations.count > 200 { lines.append("…") }
-        if !p.conflicts.isEmpty { lines += ["", L10n.tr("Istniejące elementy docelowe:")] + p.conflicts.prefix(50).map { "  " + $0 } }
+        if !p.conflicts.isEmpty { lines += ["", L10n.tr("Istniejące elementy docelowe:")] + p.conflicts.prefix(50).map { "  " + safe($0) } }
         let args = r.arguments.values.filter { !$0.key.hasPrefix("__") }
-        lines += ["", L10n.tr("Argumenty: \(JSONValue.object(args).description)")]
+        lines += ["", L10n.tr("Argumenty: \(safe(JSONValue.object(args).description))")]
         alert.accessoryView = Self.textAccessory(lines.joined(separator: "\n"))
         // Zgoda wymaga świadomego kliknięcia: Enter nic nie zatwierdza (użytkownik mógł właśnie
         // pisać w terminalu agenta), Esc odrzuca, a „Zatwierdź” jest aktywny dopiero po chwili.

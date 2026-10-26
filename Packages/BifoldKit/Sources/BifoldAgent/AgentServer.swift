@@ -11,17 +11,26 @@ public enum ConnectionEvent: Sendable, Equatable {
 }
 
 /// Serwer gniazda Unix dla mostów `bifold-mcp`. Bez portów TCP. Każde połączenie przechodzi:
-/// UID rozmówcy → ramka `hello` z tokenem (≤ 5 s) → token w stałym czasie → PID mostu musi
-/// pochodzić od procesu CLI sesji. Dopiero potem połączenie trafia do `onAccept`.
+/// UID rozmówcy → ramka `hello` z tokenem (≤ 5 s łącznie, ≤ 4 KB) → token w stałym czasie → PID
+/// mostu musi pochodzić od procesu CLI sesji. Dopiero potem połączenie trafia do `onAccept`.
 public final class AgentServer: @unchecked Sendable {
     public let socketURL: URL
     let registry: SessionRegistry
     let onAccept: @Sendable (Int32, AgentSession) -> Void
     let onEvent: @Sendable (ConnectionEvent) -> Void
     private let state = Mutex<(fd: Int32, running: Bool)>((-1, false))
+    /// i-węzeł gniazda utworzonego przez ten serwer — `stop()` usuwa tylko własne gniazdo.
+    private let socketInode = Mutex<ino_t?>(nil)
+    /// Liczba trwających uzgodnień (przed uwierzytelnieniem).
+    private let handshakes = Mutex<Int>(0)
     /// Wyłącza sprawdzanie przodków (tylko testy jednostkowe uwierzytelniania).
     var verifyAncestry = true
+    /// Bezwzględny limit czasu na ramkę `hello` (od przyjęcia połączenia).
     public var helloTimeout: Double = 5
+    /// Limit równoległych, jeszcze nieuwierzytelnionych połączeń.
+    public var maxPendingHandshakes = 8
+    /// Limit ramki `hello` (sprawdzany na nagłówku, przed przydzieleniem pamięci).
+    static let maxHello = 4096
 
     public init(
         socketURL: URL, registry: SessionRegistry,
@@ -38,12 +47,23 @@ public final class AgentServer: @unchecked Sendable {
         case insecureDirectory(String)
         case socket(Int32)
         case pathTooLong
+        /// Na gnieździe nasłuchuje już inna kopia aplikacji.
+        case alreadyRunning
+    }
+
+    /// Czy ktoś nasłuchuje na gnieździe (próbne połączenie).
+    static func isListening(_ path: String) -> Bool {
+        guard let fd = try? Wire.connect(path: path) else { return false }
+        close(fd)
+        return true
     }
 
     public func start() throws {
         let dir = socketURL.deletingLastPathComponent().path(percentEncoded: false)
         try Self.prepareDirectory(dir)
         let path = socketURL.path(percentEncoded: false)
+        // Druga kopia aplikacji nie przejmuje gniazda pierwszej; martwe gniazdo (po awarii) usuwamy.
+        if Self.isListening(path) { throw StartError.alreadyRunning }
         unlink(path)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -67,7 +87,11 @@ public final class AgentServer: @unchecked Sendable {
             close(fd)
             throw StartError.socket(e)
         }
+        // Gniazdo powstaje w katalogu 0700 (prepareDirectory), więc nikt inny nie zdąży się połączyć
+        // przed chmod. umask procesu jest wspólny dla wątków — dlatego chmod, a nie umask(0177).
         chmod(path, 0o600)
+        var st = stat()
+        if lstat(path, &st) == 0 { socketInode.withLock { $0 = st.st_ino } }
         guard listen(fd, 16) == 0 else {
             let e = errno
             close(fd)
@@ -89,7 +113,11 @@ public final class AgentServer: @unchecked Sendable {
             shutdown(fd, SHUT_RDWR)
             close(fd)
         }
-        unlink(socketURL.path(percentEncoded: false))
+        // Tylko własne gniazdo (nie gniazdo innej kopii, która je potem utworzyła).
+        let path = socketURL.path(percentEncoded: false)
+        var st = stat()
+        if let ino = socketInode.withLock({ $0 }), lstat(path, &st) == 0, st.st_ino == ino { unlink(path) }
+        socketInode.withLock { $0 = nil }
     }
 
     /// Katalog gniazda: tworzony z 0700, musi należeć do bieżącego użytkownika i nie być dowiązaniem.
@@ -107,12 +135,33 @@ public final class AgentServer: @unchecked Sendable {
         while state.withLock({ $0.running }) {
             let client = accept(listenFD, nil, nil)
             if client < 0 {
-                if errno == EINTR { continue }
-                break
+                let e = errno
+                guard state.withLock({ $0.running }) else { break }
+                // Przejściowe błędy (ECONNABORTED, EMFILE, ENFILE, ENOBUFS…) nie kończą serwera;
+                // pętla kończy się tylko przez stop().
+                if e != EINTR { usleep(100_000) }
+                continue
             }
             var on: Int32 = 1
-            setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
-            let t = Thread { [self] in handshake(client) }
+            // Rozmówca, który rozłączył się przed accept, ma gniazdo, na którym setsockopt zawodzi —
+            // zapis odmowy bez SO_NOSIGPIPE zakończyłby aplikację sygnałem SIGPIPE.
+            guard setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size)) == 0 else {
+                close(client)
+                continue
+            }
+            let admitted = handshakes.withLock { n -> Bool in
+                guard n < maxPendingHandshakes else { return false }
+                n += 1
+                return true
+            }
+            guard admitted else {
+                reject(client, "busy", pid: nil)
+                continue
+            }
+            let t = Thread { [self] in
+                handshake(client)
+                handshakes.withLock { $0 -= 1 }
+            }
             t.name = "bifold.agent.handshake"
             t.start()
         }
@@ -135,9 +184,9 @@ public final class AgentServer: @unchecked Sendable {
             reject(fd, "peer_uid", pid: peer.pid)
             return
         }
-        // 2. Ramka hello z tokenem w ograniczonym czasie.
-        Wire.setReadTimeout(fd, seconds: helloTimeout)
-        guard let data = try? Wire.readFrame(from: fd), data.count < 4096,
+        // 2. Ramka hello z tokenem: bezwzględny termin dla całej ramki, limit długości przed alokacją.
+        let deadline = ContinuousClock.now + .milliseconds(Int(helloTimeout * 1000))
+        guard let data = try? Wire.readFrame(from: fd, maxLength: Self.maxHello, deadline: deadline),
               let hello = try? JSONDecoder().decode(Wire.Hello.self, from: data), hello.type == "hello"
         else {
             reject(fd, "no_hello", pid: peer.pid)
@@ -155,7 +204,6 @@ public final class AgentServer: @unchecked Sendable {
                 return
             }
         }
-        Wire.setReadTimeout(fd, seconds: 0)
         guard let welcome = try? JSONEncoder().encode(Wire.Reply.welcome), (try? Wire.writeFrame(welcome, to: fd)) != nil else {
             close(fd)
             return

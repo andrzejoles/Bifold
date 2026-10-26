@@ -3,7 +3,8 @@
 // narzędzia mtp-files / mtp-folders — na telefonie z tysiącami zdjęć to różnica minut.
 //
 //   bifold-mtp detect        lista telefonów (JSON) bez otwierania sesji MTP
-//   bifold-mtp serve N       sesja z telefonem N; polecenia na stdin, jedna odpowiedź JSON na wiersz:
+//   bifold-mtp serve N [VID PID BUS DEV]
+//                            sesja z telefonem N (albo o tym identyfikatorze USB); polecenia na stdin, jedna odpowiedź JSON na wiersz:
 //     storages               nośniki (ponownie — telefon udostępnia je dopiero po „Zezwól” na ekranie)
 //     list STORAGE PARENT    zawartość folderu (PARENT 4294967295 = korzeń nośnika)
 //     get ID ŚCIEŻKA         pobranie pliku do ścieżki lokalnej (reszta wiersza)
@@ -96,10 +97,28 @@ static void storages(LIBMTP_mtpdevice_t *dev) {
     fprintf(out, "]");
 }
 
-static int serve(int index) {
+// Wybór telefonu: z identyfikatorem USB (`match`) — ten sam vid:pid i bus:dev, a gdy po ponownym
+// podłączeniu bus:dev się zmienił — jedyny telefon z tym vid:pid. Inaczej numer z listy `detect`
+// (po odłączeniu jednego z dwóch telefonów numer wskazywałby już inny telefon).
+static int pick(LIBMTP_raw_device_t *raw, int count, int index, const unsigned *match) {
+    if (!match) return index >= 0 && index < count ? index : -1;
+    int found = -1, same_model = 0;
+    for (int i = 0; i < count; i++) {
+        if (raw[i].device_entry.vendor_id != match[0] || raw[i].device_entry.product_id != match[1]) continue;
+        if (raw[i].bus_location == match[2] && raw[i].devnum == match[3]) return i;
+        found = i;
+        same_model++;
+    }
+    return same_model == 1 ? found : -1;
+}
+
+static int serve(int requested, const unsigned *match) {
     LIBMTP_raw_device_t *raw = NULL;
     int count = 0;
-    if (LIBMTP_Detect_Raw_Devices(&raw, &count) != LIBMTP_ERROR_NONE || index < 0 || index >= count) {
+    int index = -1;
+    if (LIBMTP_Detect_Raw_Devices(&raw, &count) == LIBMTP_ERROR_NONE) index = pick(raw, count, requested, match);
+    if (index < 0) {
+        free(raw);
         error_reply(NULL, "Nie wykryto telefonu (podłącz go i wybierz tryb Przesyłanie plików)");
         return 1;
     }
@@ -178,7 +197,12 @@ int main(int argc, char **argv) {
     dup2(STDERR_FILENO, STDOUT_FILENO);
     LIBMTP_Init();
     if (argc >= 2 && strcmp(argv[1], "detect") == 0) return detect();
-    if (argc >= 3 && strcmp(argv[1], "serve") == 0) return serve(atoi(argv[2]));
-    fprintf(stderr, "użycie: bifold-mtp detect | serve N\n");
+    if (argc == 7 && strcmp(argv[1], "serve") == 0) {
+        unsigned match[4];
+        for (int i = 0; i < 4; i++) match[i] = (unsigned)strtoul(argv[3 + i], NULL, 10);
+        return serve(atoi(argv[2]), match);
+    }
+    if (argc >= 3 && strcmp(argv[1], "serve") == 0) return serve(atoi(argv[2]), NULL);
+    fprintf(stderr, "użycie: bifold-mtp detect | serve N [VID PID BUS DEV]\n");
     return 2;
 }

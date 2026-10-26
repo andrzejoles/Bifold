@@ -51,6 +51,8 @@ Brak oficjalnego API. Próba otwarcia do odczytu `~/Library/Application Support/
 Skróty TC (F-klawisze, Tab, Spacja, litery w szybkim wyszukiwaniu) nie mieszczą się w modelu
 `keyEquivalent`. `KeyRouter` dopasowuje `NSEvent` do `KeyChord` z aktywnego `Keymap` i wywołuje
 komendę z rejestru; menu pokazuje te same skróty (jeśli da się je wyrazić jako `keyEquivalent`).
+(Obecnie bez osobnej klasy `KeyRouter`: dopasowanie robi `PanelViewController.handleKey`, do którego
+widoki plików przekazują `keyDown`; skróty wyrażalne w menu działają jako `keyEquivalent`.)
 
 ### D11 · 2026-10-17 — Poziom „Odczyt” pozwala zmieniać stan interfejsu
 Macierz daje poziom „Odczyt” m.in. dla drzewa katalogów, podglądu, Quick Look i przełączania
@@ -238,7 +240,7 @@ Wersja z historii gita (`scripts/version.sh`, ta sama reguła co w CantatePresen
 liczba commitów; zmiany na `main` przez PR scalane zwykłym „Merge pull request”. Wersja trafia do
 budowania przez `build/Version.xcconfig` (akcja wstępna schematu) — modyfikacja Info.plist po
 przetworzeniu ścigała się z Xcode. Autor: „Andrzej Oleś w kooperacji z Claude AI” (Info.plist, okno
-„O programie”, LICENSE, README). Aktualizacje: Sparkle 2.9.6, kanał `releases/latest/download/appcast.xml`,
+„O programie”, LICENSE, README). Aktualizacje: Sparkle 2.9.6 (obecnie 2.10.1), kanał `releases/latest/download/appcast.xml`,
 klucz EdDSA w Pęku kluczy (konto `bifold`), automatyczne pobieranie i instalacja przy zamknięciu.
 Licencja MIT (wybór domyślny przy udostępnianiu; zmiana = podmiana pliku LICENSE).
 
@@ -304,3 +306,53 @@ nadpisywał kartę, nawet jeśli w międzyczasie przeszło się gdzie indziej. T
 tylko, gdy od jego początku nie było nowszej nawigacji. Odświeżenie nie podbija numeru nawigacji (nie może
 unieważnić jawnej nawigacji, np. wejścia do archiwum) i jego wynik obowiązuje tylko w tym samym katalogu.
 Testy `NavigationRaceTests` (dostawca z wolnym katalogiem) sprawdzają oba kierunki wyścigu.
+Uzupełnienie (przegląd, część 3): odświeżenie jest pomijane także wtedy, gdy w jego trakcie jakakolwiek
+jawna nawigacja zastosowała wynik (inaczej przywracało kursor sprzed F7/„Nowy plik” w tym samym katalogu).
+
+### D48 · 2026-10-26 — Bramka agenta zamraża wywołanie
+Przegląd wykazał rozbieżności między bramką a komendą (inna baza ścieżek względnych, cele domyślne
+czytane na żywo, prefiks `alias:`), które pozwalały agentowi czytać zablokowane pliki, oraz okno między
+zgodą a wykonaniem. Zamiast kazać każdej komendzie deklarować zasoby, bramka (`ArgumentFreezer`) rozwija
+argumenty do ścieżek absolutnych tą samą funkcją co komenda i `Workspace.invoke` wykonuje komendę z tymi
+argumentami; gdy celu nie da się zapisać ścieżką — porównanie stanu paneli po zgodzie. Wywołania jednej
+sesji przechodzą przez bramkę po kolei. Operacje rekurencyjne na przodku zablokowanej ścieżki są
+odrzucane (prościej i pewniej niż wycinanie poddrzew). Dziennik nie zawiera treści plików.
+
+### D49 · 2026-10-26 — Tożsamość elementu zamiast tekstu ścieżki; Kosz i cofanie
+Silnik kopiowania rozpoznaje „ten sam element” po (dev, ino), a „cel wewnątrz źródła” po i-węzłach w górę
+ścieżki rzeczywistej (APFS bez rozróżniania wielkości liter, dowiązania, firmlinki). Trwałe usunięcie
+zamiast Kosza tylko dla jawnego „wolumin bez Kosza” (doprecyzowanie D14). Partia dziennika trwającego
+zadania nie jest cofalna; częściowe cofnięcie oznacza pojedyncze wpisy; dziennik ma stały uchwyt
+`O_APPEND` i jest przycinany przy starcie. „Rozpakuj archiwa” do istniejącego katalogu idzie przez
+katalog tymczasowy i TransferEngine (Kosz, dziennik); archiwa powstają pod nazwą tymczasową.
+
+### D50 · 2026-10-26 — Serwery: SCP jak kopiowanie lokalne, jedna sesja SSH na serwer
+Wysyłanie katalogu na istniejący katalog scala (bez `rm`), konflikty plików przez delegata lub politykę,
+pominięte w raporcie; pobieranie odtwarza dowiązania (rekurencja tylko w prawdziwe katalogi), kolizje
+wielkości liter dostają „nazwa (2)”. Nazwy z listingu UTF-8 bez normalizacji (NFC tylko dla nowych nazw
+i Latin-2). Jedna `SSHSession` na alias, blokada startu połączenia głównego na ControlPath, ponawianie
+tylko poleceń idempotentnych. SFTP/FTP/WebDAV: rename/nowy plik/katalog odmawiają, gdy cel istnieje.
+Limit prędkości rclone wspólny dla procesu: minimum z niewstrzymanych zadań, 1 B/s gdy wstrzymane wszystkie.
+
+### D51 · 2026-10-26 — Identyfikatory pomocnika z Brand.xcconfig; telefony po USB
+Plik demona generowany przy budowaniu z `BIFOLD_BUNDLE_ID`, nazwa usługi Mach z Info.plist (albo bundle
+id + `.helper`) — zmienia uwagę w D36. Android identyfikowany po vid:pid (+bus:dev), żeby ponowne
+otwarcie po odłączeniu jednego z dwóch telefonów nie trafiło w drugi (rozszerza D45); iPhone po pełnym UDID.
+
+### D52 · 2026-10-26 — Karta zachowuje maszynę także przy zamianie paneli
+⌃U zamienia całe karty (z historią i tytułem), nie tylko katalogi (rozszerza D44/D47). Tytuł karty wynika
+z dostawcy ścieżki. Domyślny cel kopiowania i rozpakowania to tylko lokalny katalog drugiego panelu.
+Dostawcy archiwów i wyników są wyrejestrowywani, gdy nie używa ich żadna karta ani wpis historii.
+
+### D53 · 2026-10-26 — Klawisze w polach tekstowych, oknach pomocniczych i terminalach
+Komendy panelu działają z menu tylko, gdy kluczowe jest okno główne (lub Quick Look); w polu tekstowym
+skróty edycji (⌘Z/⇧⌘Z/⌘X/⌘C/⌘V/⌘A, w innych oknach ⌘W/⌘F) należą do AppKitu. Dolny terminal przejmuje
+klawisze bez Cmd jak karta-terminal (D44), oprócz skrótu terminala. W karcie-terminalu Ctrl+Tab przełącza
+panel (Tab musi trafiać do serwera), ⌘W zamyka kartę, gdy profil nie ma „Zamknij kartę” z Cmd. Widok
+kolumn tylko dla dysku lokalnego, poziomy wczytywane w tle. Skróty przechwytywane przez macOS: Spotlight
+⌃⌥F, duplikaty ⌃⌥D, sortowanie w profilu TC także ⌃⌘1–5; kolejność skrótów komendy jest stała.
+
+### D54 · 2026-10-26 — Przegląd przez subagentów
+Trzecia runda przeglądu: sześciu recenzentów (Core, serwery/urządzenia/pomocnik, Workspace, agent, UI,
+stos/build) tylko do odczytu, potem sześciu wykonawców w osobnych worktree z rozłącznymi plikami;
+każde ustalenie weryfikowane testem przed poprawką. Dokumentację uzupełnia koordynator po scaleniu.

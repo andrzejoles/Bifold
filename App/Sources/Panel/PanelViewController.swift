@@ -37,6 +37,7 @@ final class PanelViewController: NSViewController {
     private let observations = ObservationBag()
     private var lastGeneration = -1
     private var lastTabID: UUID?
+    private var lastFontSize: Double?
     private(set) var isActive = false
 
     init(workspace: Workspace, side: PanelSide) {
@@ -57,8 +58,16 @@ final class PanelViewController: NSViewController {
         root.onMouseDown = { [weak self] in self?.activate() }
         view = root
 
-        tabBar.onSelect = { [weak self] i in self?.activate(); self?.panel.selectTab(i) }
-        tabBar.onClose = { [weak self] i in self?.panel.closeTab(at: i) }
+        // Czynności myszką przez komendy z rejestru (jak klawiatura, menu i agent).
+        tabBar.onSelect = { [weak self] i in
+            guard let self else { return }
+            self.activate()
+            self.workspace.perform("tab.select", self.tabArguments(i))
+        }
+        tabBar.onClose = { [weak self] i in
+            guard let self else { return }
+            self.workspace.perform("tab.close", self.tabArguments(i))
+        }
         tabBar.onNew = { [weak self] in
             guard let self else { return }
             self.activate()
@@ -67,7 +76,7 @@ final class PanelViewController: NSViewController {
         pathBar.onNavigate = { [weak self] path in
             guard let self else { return }
             self.activate()
-            Task { try? await self.tab.navigate(to: path) }
+            self.workspace.perform("panel.navigate", self.navigateArguments(path))
         }
         pathBar.onDrives = { [weak self] in
             self?.activate()
@@ -106,7 +115,7 @@ final class PanelViewController: NSViewController {
         tree.onNavigate = { [weak self] path in
             guard let self else { return }
             self.activate()
-            Task { try? await self.workspace.open(path, in: self.panel) }
+            self.workspace.perform("panel.navigate", self.navigateArguments(path))
         }
 
         let statusRow = NSStackView(views: [statusBar])
@@ -180,8 +189,16 @@ final class PanelViewController: NSViewController {
             _ = tab.selection
             _ = tab.directorySizes
             _ = self.workspace.colorRules
-            _ = self.workspace.settings.fontSize
             self.currentView?.refreshMarks(tab)
+        }
+        // Rozmiar czcionki (wysokość wierszy, komórek) — tylko gdy się zmienił, nie przy każdej zmianie ustawień.
+        observations.add { [weak self] in
+            guard let self else { return }
+            let size = self.workspace.settings.fontSize
+            guard size != self.lastFontSize else { return }
+            let first = self.lastFontSize == nil
+            self.lastFontSize = size
+            if !first { self.currentView?.refreshMarks(self.tab) }
         }
         // Ścieżka, wolne miejsce, stan
         observations.add { [weak self] in
@@ -211,6 +228,15 @@ final class PanelViewController: NSViewController {
         }
     }
 
+    private func tabArguments(_ index: Int) -> CommandArguments {
+        CommandArguments(["index": .int(Int64(index)), "side": .string(side.rawValue)])
+    }
+
+    /// Ścieżka lokalna (pasek ścieżki, drzewo) dla `panel.navigate` w tym panelu.
+    private func navigateArguments(_ path: VFSPath) -> CommandArguments {
+        CommandArguments(["path": .string(path.path), "side": .string(side.rawValue)])
+    }
+
     private func updateContent(tab: Tab, mode: ViewMode, generation: Int, quickView: Bool) {
         if quickView {
             if previewView == nil {
@@ -226,6 +252,9 @@ final class PanelViewController: NSViewController {
             previewView?.removeFromSuperview()
             previewView = nil
         }
+        // Widok kolumn pokazuje drzewo dysku lokalnego — archiwum, serwer, telefon i wyniki wyszukiwania
+        // w tym trybie dostają widok szczegółów (zamiast lokalnego „/”).
+        let mode: ViewMode = mode == .columns && !tab.path.isLocal ? .details : mode
         if currentMode != mode || currentView == nil {
             let newView: any FileListView = switch mode {
             case .details: DetailsListView(workspace: workspace)
@@ -256,8 +285,13 @@ final class PanelViewController: NSViewController {
             view = existing
         } else {
             terminals[tab.id]?.stop()
-            view = PanelTerminalView(spec: spec)
+            view = PanelTerminalView(spec: spec, workspace: workspace)
             view.onSwitchPanel = { [weak self] in self?.workspace.perform("panel.switch") }
+            let id = tab.id
+            view.onCloseTab = { [weak self] in
+                guard let self, let index = self.panel.tabs.firstIndex(where: { $0.id == id }) else { return }
+                self.workspace.perform("tab.close", self.tabArguments(index))
+            }
             terminals[tab.id] = view
         }
         guard shownTerminal !== view else { return }
@@ -290,7 +324,11 @@ final class PanelViewController: NSViewController {
 
     private func updateStatus(_ tab: Tab) {
         if let spec = tab.terminal {
-            statusBar.stringValue = L10n.tr("Terminal SSH: \(spec.alias) — klawisze idą do serwera; Ctrl+Tab — drugi panel, ⌘W — zamknij kartę")
+            if let close = PanelTerminalView.closeChord(workspace.keymap) {
+                statusBar.stringValue = L10n.tr("Terminal SSH: \(spec.alias) — klawisze idą do serwera; Ctrl+Tab — drugi panel, \(close.displayString) — zamknij kartę")
+            } else {
+                statusBar.stringValue = L10n.tr("Terminal SSH: \(spec.alias) — klawisze idą do serwera; Ctrl+Tab — drugi panel")
+            }
             return
         }
         let sel = tab.selectionSummary
@@ -497,8 +535,6 @@ final class QuickSearchOverlay: NSView {
         super.init(frame: frame)
         wantsLayer = true
         layer?.cornerRadius = 6
-        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
-        layer?.borderColor = NSColor.controlAccentColor.cgColor
         layer?.borderWidth = 1
         label.font = .systemFont(ofSize: 13, weight: .medium)
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -513,6 +549,15 @@ final class QuickSearchOverlay: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    // Kolory warstwy w `updateLayer` — AppKit wywołuje ją z bieżącym wyglądem, także po zmianie motywu
+    // (CGColor ustawiony raz zostawał w kolorach poprzedniego motywu).
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
+        layer?.borderColor = NSColor.controlAccentColor.cgColor
+    }
 
     func restartTimer(_ expired: @escaping @MainActor () -> Void) {
         timer?.invalidate()

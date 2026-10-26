@@ -206,4 +206,146 @@ let rg: String? = ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"].first { FileMana
         let rule = RenameRule(nameMask: "[Exif:DateTimeOriginal:yyyy-MM-dd_HH-mm-ss] [Exif:Model]")
         #expect(MultiRename.newName(for: item, index: 0, rule: rule) == "2021-07-14_18-30-05 Aparat X.jpg")
     }
+
+    /// Łańcuch nazw 1→2, 2→3, …, 5→6 w kolejności rosnącej: element zajmujący cel też musi zejść
+    /// na nazwę tymczasową, inaczej „już istnieje” i plik zostaje pod ukrytą nazwą `.bifold-rename-…`.
+    @Test func renameChainAscending() throws {
+        let tmp = try TempDir()
+        for i in 1...5 { try tmp.file("\(i).txt", "plik \(i)") }
+        let plan = (1...5).map { RenamePlanEntry(source: tmp.path.appending("\($0).txt"), newName: "\($0 + 1).txt") }
+        let journal = OperationJournal()
+        #expect(try MultiRename.execute(plan, journal: journal, invoker: .user, title: "łańcuch") == 5)
+        #expect(try tmp.names() == Set((2...6).map { "\($0).txt" }))
+        for i in 1...5 { #expect(try tmp.read("\(i + 1).txt") == "plik \(i)") }
+        // Cofnięcie przywraca pierwotne nazwy.
+        let undo = UndoPlanner.plan(for: journal.batches)
+        #expect(undo.conflicts.isEmpty)
+        let result = UndoPlanner.execute(undo, journal: journal)
+        #expect(result.errors.isEmpty && result.skipped.isEmpty)
+        for i in 1...5 { #expect(try tmp.read("\(i).txt") == "plik \(i)") }
+    }
+
+    /// Błąd jednego elementu: pozostałe dostają nowe nazwy, nic nie zostaje pod nazwą tymczasową.
+    @Test func renameFailureRestoresTemporaryNames() throws {
+        let tmp = try TempDir()
+        try tmp.file("a.txt", "A")
+        try tmp.file("b.txt", "B")
+        try tmp.file("c.txt", "C")
+        // a↔b przez nazwy tymczasowe, potem c → zajęte „x.txt” (pojawiło się po podglądzie).
+        let plan = [
+            RenamePlanEntry(source: tmp.path.appending("a.txt"), newName: "b.txt"),
+            RenamePlanEntry(source: tmp.path.appending("c.txt"), newName: "x.txt"),
+            RenamePlanEntry(source: tmp.path.appending("b.txt"), newName: "a.txt"),
+        ]
+        try tmp.file("x.txt", "obcy")
+        #expect(throws: VFSError.alreadyExists(tmp.path.appending("x.txt"))) { try MultiRename.execute(plan, journal: nil, invoker: .user, title: "t") }
+        #expect(try tmp.names() == ["a.txt", "b.txt", "c.txt", "x.txt"])
+        #expect(try tmp.read("x.txt") == "obcy" && tmp.read("c.txt") == "C")
+        #expect(try tmp.read("a.txt") == "B" && tmp.read("b.txt") == "A")
+    }
+
+    /// `[Media:…]` czyta tagi synchronicznie (bez semafora); plik, którego nie da się odczytać, to problem
+    /// w podglądzie, a nie pusty fragment nazwy.
+    @Test func mediaTagsAndUnreadableMedia() throws {
+        let tmp = try TempDir()
+        func frame(_ id: String, _ text: String) -> [UInt8] {
+            let body = [UInt8(3)] + Array(text.utf8)
+            let n = body.count
+            return Array(id.utf8) + [UInt8(n >> 24), UInt8((n >> 16) & 0xff), UInt8((n >> 8) & 0xff), UInt8(n & 0xff), 0, 0] + body
+        }
+        let tag = frame("TIT2", "Tytuł/próbny") + frame("TPE1", "Wykonawca") + frame("TYER", "2019")
+        let n = tag.count
+        var mp3 = Array("ID3".utf8) + [4, 0, 0] + [UInt8((n >> 21) & 0x7f), UInt8((n >> 14) & 0x7f), UInt8((n >> 7) & 0x7f), UInt8(n & 0x7f)] + tag
+        for _ in 0..<20 { mp3 += [0xFF, 0xFB, 0x90, 0x64] + [UInt8](repeating: 0, count: 413) }
+        FileManager.default.createFile(atPath: tmp.url.appending(path: "utwor.mp3").path, contents: Data(mp3))
+        try tmp.file("tekst.txt", "to nie jest dźwięk")
+        let items = try LocalFS().listSync(tmp.path).sorted { $0.name > $1.name }
+        let plan = MultiRename.plan(items, rule: RenameRule(nameMask: "[Media:artist] - [Media:title] ([Media:year])"))
+        #expect(plan[0].source.name == "utwor.mp3")
+        #expect(plan[0].newName == "Wykonawca - Tytuł-próbny (2019).mp3")
+        #expect(plan[0].problem == nil)
+        #expect(plan[1].problem == L10n.tr("nie można odczytać metadanych multimediów"))
+    }
+}
+
+@Suite struct SearchAndChecksumFixesTests {
+    /// Istniejąca część `x.001` nie jest nadpisywana ani (po błędzie) usuwana.
+    @Test func splitKeepsExistingParts() throws {
+        let tmp = try TempDir()
+        FileManager.default.createFile(atPath: tmp.url.appending(path: "x").path, contents: Data(count: 250_000))
+        let out = try tmp.dir("out")
+        try tmp.file("out/x.002", "cudze")
+        #expect(throws: VFSError.alreadyExists(out.appending("x.002"))) {
+            try FileSplitter.split(tmp.path.appending("x"), partSize: 100_000, into: out)
+        }
+        #expect(try tmp.names("out") == ["x.002"])
+        #expect(try tmp.read("out/x.002") == "cudze")
+        // Istniejący plik sum: błąd przed utworzeniem czegokolwiek.
+        try FileManager.default.removeItem(at: tmp.url.appending(path: "out/x.002"))
+        try tmp.file("out/x.sha256", "stare sumy")
+        #expect(throws: VFSError.alreadyExists(out.appending("x.sha256"))) {
+            try FileSplitter.split(tmp.path.appending("x"), partSize: 100_000, into: out)
+        }
+        #expect(try tmp.names("out") == ["x.sha256"])
+        #expect(try tmp.read("out/x.sha256") == "stare sumy")
+    }
+
+    /// Plik sum nie może sprawdzać plików spoza swojego katalogu (`..`, ścieżki absolutne, dowiązania).
+    @Test func verifyRejectsPathsOutsideBase() throws {
+        let tmp = try TempDir()
+        let secret = try tmp.file("tajne.txt", "abc")
+        try tmp.file("sumy/w.txt", "abc")
+        try FileManager.default.createSymbolicLink(atPath: tmp.url.appending(path: "sumy/link.txt").path, withDestinationPath: secret.path)
+        let hash = try Checksums.hash(secret, algorithm: .sha256)
+        let text = Checksums.format([(hash, "w.txt"), (hash, "../tajne.txt"), (hash, secret.path), (hash, "link.txt"),
+                                     (hash, "pod/../w.txt"), (hash, "brak.txt"), (hash, "/etc/../" + secret.path)])
+        try Data(text.utf8).write(to: tmp.url.appending(path: "sumy/sumy.sha256"))
+        let results = try Checksums.verify(checksumFile: tmp.path.appending("sumy/sumy.sha256"))
+        #expect(results.map(\.status) == [.ok, .invalid, .invalid, .invalid, .ok, .missing, .invalid])
+    }
+
+    /// Nakładające się korzenie: plik nie jest duplikatem samego siebie.
+    @Test func duplicatesWithOverlappingRoots() throws {
+        let tmp = try TempDir()
+        try tmp.file("a/x.txt", "jedyny w swoim rodzaju")
+        try tmp.file("a/b/y.txt", "para")
+        try tmp.file("c/z.txt", "para")
+        let groups = try DuplicateFinder.find(in: [tmp.path, tmp.path.appending("a"), tmp.path.appending("a/b")], mode: .content)
+        #expect(groups.count == 1)
+        #expect(Set(groups[0].map(\.name)) == ["y.txt", "z.txt"])
+        #expect(try DuplicateFinder.find(in: [tmp.path, tmp.path.appending("a")], mode: .name).isEmpty)
+    }
+
+    /// Anulowanie wyszukiwania w treści kończy `rg`, nawet gdy ten nic nie wypisuje (czyta kolejkę FIFO).
+    @Test(.enabled(if: rg != nil)) func cancellingContentSearchStopsRipgrep() async throws {
+        let tmp = try TempDir()
+        let fifo = tmp.url.appending(path: "kolejka")
+        #expect(mkfifo(fifo.path, 0o600) == 0)
+        let (stream, continuation) = AsyncStream<SearchEvent>.makeStream()
+        let slot = ProcessSlot()
+        let finished = Mutexed(false)
+        Thread {
+            SearchEngine.runRipgrep(SearchCriteria(roots: [.local(fifo)], contentText: "x"), executable: rg!, flag: CancellationFlag(),
+                                    slot: slot, continuation: continuation)
+            finished.set(true)
+        }.start()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(!finished.get())
+        slot.terminate()
+        for _ in 0..<100 where !finished.get() { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(finished.get())
+        continuation.finish()
+        _ = stream
+    }
+
+    /// Maska i wyrażenie skompilowane raz dają te same wyniki co pojedyncze sprawdzenie.
+    @Test func matcherMatchesCriteria() {
+        let item = FileItem(path: .local("/x/Raport-2024.TXT"), kind: .file, size: 10)
+        for c in [SearchCriteria(roots: [], nameMask: "*.txt"), SearchCriteria(roots: [], nameRegex: "^raport-\\d+"),
+                  SearchCriteria(roots: [], nameRegex: "^raport", caseSensitive: true), SearchCriteria(roots: [], nameMask: "*.pdf")] {
+            #expect(MetadataMatcher(c).matches(item) == c.matchesMetadata(item))
+        }
+        #expect(MetadataMatcher(SearchCriteria(roots: [], nameMask: "*.txt")).matches(item))
+        #expect(!MetadataMatcher(SearchCriteria(roots: [], nameRegex: "^raport", caseSensitive: true)).matches(item))
+    }
 }

@@ -41,6 +41,8 @@ public struct UndoStep: Sendable, Hashable {
     public var original: JournalAction
     public var action: UndoStepAction
     public var conflict: UndoConflict?
+    /// Wpis dziennika, który ten krok cofa (do oznaczenia przy częściowym cofnięciu partii).
+    public var entryID: UUID?
 
     public var preview: PlannedOperation {
         switch action {
@@ -75,7 +77,7 @@ public enum UndoPlanner {
         var steps: [UndoStep] = []
         var simulated = Simulation()
         for batch in batches.reversed() where batch.isUndoable {
-            for entry in batch.entries.reversed() {
+            for entry in batch.pendingEntries.reversed() {
                 steps.append(step(for: entry, batchID: batch.id, sim: &simulated))
             }
         }
@@ -89,7 +91,12 @@ public enum UndoPlanner {
 
         func exists(_ p: VFSPath) -> Bool {
             if occupied.contains(p) { return true }
-            if freed.contains(p) || freed.contains(where: { p.isDescendant(of: $0) }) { return false }
+            // Zwolniona ścieżka albo jej przodek — w górę po rodzicach (O(głębokość)), nie po całym zbiorze.
+            var ancestor: VFSPath? = p
+            while let a = ancestor {
+                if freed.contains(a) { return false }
+                ancestor = a.parent
+            }
             var st = stat()
             return lstat(p.path, &st) == 0
         }
@@ -149,7 +156,7 @@ public enum UndoPlanner {
         case let .deletedPermanently(path):
             conflict = .irreversible(path)
         }
-        return UndoStep(batchID: batchID, original: entry.action, action: action, conflict: conflict)
+        return UndoStep(batchID: batchID, original: entry.action, action: action, conflict: conflict, entryID: entry.id)
     }
 
     /// Wykonuje plan. Kroki z konfliktem są pomijane, chyba że `force` (wtedy wykonywane są te,
@@ -157,11 +164,20 @@ public enum UndoPlanner {
     public static func execute(_ plan: UndoPlan, journal: OperationJournal?, force: Bool = false) -> UndoResult {
         let fs = LocalFS()
         var result = UndoResult(performed: 0, skipped: [], errors: [])
+        // Partie z pominiętym lub nieudanym krokiem nie są oznaczane jako cofnięte w całości —
+        // tylko ich wykonane wpisy (reszta zostaje do ponownego cofnięcia).
+        var incomplete: Set<UUID> = []
+        var doneEntries: [UUID: Set<UUID>] = [:]
+        func markDone(_ step: UndoStep) {
+            if let id = step.entryID { doneEntries[step.batchID, default: []].insert(id) }
+        }
         for step in plan.steps {
             if let conflict = step.conflict {
                 let forcible: Bool = if case .modified = conflict { true } else { false }
                 if !(force && forcible) {
                     result.skipped.append(conflict)
+                    // Trwałego usunięcia nie da się cofnąć nigdy — nie blokuje oznaczenia partii.
+                    if case .irreversible = conflict { markDone(step) } else { incomplete.insert(step.batchID) }
                     continue
                 }
             }
@@ -176,11 +192,19 @@ public enum UndoPlanner {
                 case .none: continue
                 }
                 result.performed += 1
+                markDone(step)
             } catch {
+                incomplete.insert(step.batchID)
                 result.errors.append((step.action.primaryPath, VFSError.from(error, path: step.action.primaryPath)))
             }
         }
-        for id in plan.batches { journal?.markUndone(id) }
+        for id in plan.batches {
+            if incomplete.contains(id) {
+                journal?.markUndone(entries: doneEntries[id] ?? [], in: id)
+            } else {
+                journal?.markUndone(id)
+            }
+        }
         return result
     }
 }

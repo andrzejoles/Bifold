@@ -35,6 +35,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
         commandLine = CommandLineBar(workspace: workspace)
         jobsBar = JobsBar(workspace: workspace)
         functionBar = FunctionKeyBar(workspace: workspace)
+        terminal.workspace = workspace
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1400, height: 860),
@@ -105,8 +106,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
             let side = self.workspace.activeSide
             self.left.setActive(side == .left)
             self.right.setActive(side == .right)
-            if self.window?.firstResponder is NSTableView || self.window?.firstResponder is NSCollectionView || self.window?.firstResponder is NSBrowser
-                || self.window?.firstResponder is NSOutlineView || self.window?.firstResponder == self.window {
+            // Fokus idzie za aktywnym panelem, jeśli był w którymś panelu (lista, drzewo, karta-terminal)
+            // albo nigdzie — ale nie z pól tekstowych (filtr, linia poleceń) ani z dolnego terminala.
+            let responder = self.window?.firstResponder
+            let inPanel = (responder as? NSView).map { $0.isDescendant(of: self.left.view) || $0.isDescendant(of: self.right.view) } ?? false
+            if responder == nil || responder === self.window || (inPanel && !(responder is NSText)) {
                 self.focusActivePanel()
             }
         }
@@ -157,7 +161,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
         if visible { agentPane.focusTerminal() } else { focusActivePanel() }
     }
 
-    func terminalClosed() { updateBottom() }
+    func terminalClosed(refocus: Bool) {
+        updateBottom()
+        if refocus || window?.firstResponder == nil || window?.firstResponder === window { focusActivePanel() }
+    }
 
     /// Pokazuje dolną część okna, gdy widoczny jest terminal lub panel agenta.
     private func updateBottom() {

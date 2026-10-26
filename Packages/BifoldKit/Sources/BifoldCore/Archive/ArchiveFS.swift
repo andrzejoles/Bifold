@@ -20,10 +20,13 @@ public final class ArchiveFS: FileSystemProvider {
         ("/" + path.split(separator: "/").filter { $0 != "." }.joined(separator: "/")).precomposedStringWithCanonicalMapping
     }
 
-    /// Wpis, który da się pokazać i rozpakować: nie korzeń archiwum (`.`) i bez `..` — 7zz rozpakowuje
-    /// `../x` jako `x`, a ścieżka liczona z nazwy wskazywałaby plik poza katalogiem tymczasowym.
+    /// Wpis, który da się pokazać i rozpakować: nie korzeń archiwum (`.`), a każdy składnik ścieżki to
+    /// bezpieczna nazwa (bez `..` — 7zz rozpakowuje `../x` jako `x`, a ścieżka liczona z nazwy wskazywałaby
+    /// plik poza katalogiem tymczasowym — i bez znaków sterujących, jak nazwy z urządzeń, D46).
+    /// Składniki `.` (tar z „.”: `./kat/a.txt`) są pomijane, jak w `key`.
     static func isUsable(_ path: String) -> Bool {
-        key(path) != "/" && !path.split(separator: "/").contains("..")
+        let components = path.split(separator: "/").filter { $0 != "." }
+        return !components.isEmpty && components.allSatisfy { isSafeComponentName(String($0)) }
     }
 
     public var hostLocation: VFSPath? { archive }
@@ -95,10 +98,20 @@ public final class ArchiveFS: FileSystemProvider {
 
     public func readContents(_ path: VFSPath, range: Range<Int64>?) async throws -> Data {
         let tool = tool, archive = archive, password = password, entry = entryPath(path)
-        let data = try await runBlocking { try tool.read(archive, entry: entry, password: password) }
-        guard let range else { return data }
-        let lower = Int(max(0, range.lowerBound)), upper = Int(min(Int64(data.count), range.upperBound))
-        return lower < upper ? data.subdata(in: lower..<upper) : Data()
+        // Z zakresem — strumieniowo, bez wczytywania całego wpisu (podgląd początku pliku 6 GB).
+        let flag = CancellationFlag()
+        return try await withTaskCancellationHandler {
+            try await runBlocking { try tool.read(archive, entry: entry, password: password, range: range, isCancelled: { flag.isCancelled }) }
+        } onCancel: {
+            flag.cancel()
+        }
+    }
+
+    /// Rozpakowuje jeden plik do katalogu (bez ścieżki z archiwum) i zwraca jego ścieżkę lokalną —
+    /// do podglądu dużych plików bez trzymania ich w pamięci.
+    public func extractFile(_ path: VFSPath, to directory: VFSPath, isCancelled: @escaping @Sendable () -> Bool = { false }) throws -> VFSPath {
+        guard let entry = entriesByPath[Self.key(path.path)], !entry.isDirectory else { throw VFSError.notFound(path) }
+        return try tool.extractEntry(archive, entry: entry.path, to: directory, password: password, isCancelled: isCancelled)
     }
 
     public func volumeInfo(for path: VFSPath) async throws -> VolumeInfo {

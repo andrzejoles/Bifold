@@ -21,6 +21,15 @@ import Testing
         for bad in ["/private/etc/SUDOERS", "/private/var/ROOT", "/Library/KEYCHAINS", "/SYSTEM", "/usr/BIN/sudo", "/etc/Sudoers"] {
             #expect(throws: HelperError.self, "\(bad)") { try HelperOperations.validate(bad) }
         }
+        // Przodkowie katalogów zabronionych (usunięcie /Library usunęłoby /Library/Keychains) i katalogi
+        // najwyższego poziomu; sudoers.d i demony systemowe.
+        for bad in ["/Library", "/private/var", "/private/etc", "/usr", "/private", "/Applications", "/Users", "/Volumes",
+                    "/private/etc/sudoers.d/x", "/etc/sudoers.d/x", "/Library/LaunchDaemons/x.plist", "/LIBRARY", "/Private/Etc"] {
+            #expect(throws: HelperError.self, "\(bad)") { try HelperOperations.validate(bad) }
+        }
+        // Zawartość katalogów najwyższego poziomu nadal dozwolona (np. program w /Applications).
+        #expect(try HelperOperations.validate("/Applications/Nieistniejący.app") == "/Applications/Nieistniejący.app")
+        #expect(try HelperOperations.validate("/Library/Fonts") == "/Library/Fonts")
         // Dowiązanie do zabronionego katalogu — rozwiązywane przez realpath rodzica.
         try FileManager.default.createSymbolicLink(atPath: t.path + "/sys", withDestinationPath: "/System")
         #expect(throws: HelperError.self) { try HelperOperations.validate(t.path + "/sys/Library") }
@@ -51,6 +60,16 @@ import Testing
         _ = try HelperOperations.execute(HelperRequest(operation: .remove, paths: [t.path + "/d"]))
         #expect(!FileManager.default.fileExists(atPath: t.path + "/d"))
         #expect(throws: HelperError.self) { try HelperOperations.execute(HelperRequest(operation: .setOwner, paths: [t.path + "/h"], owner: 0)) }
+    }
+
+    /// Nazwa usługi Mach (= etykieta i plik demona) z Info.plist albo z identyfikatora pakietu — bundle id
+    /// wpisany tylko w Config/Brand.xcconfig.
+    @Test func machServiceFromBundle() {
+        #expect(HelperConstants.machService(info: "a.b.helper", bundleIdentifier: "x") == "a.b.helper")
+        #expect(HelperConstants.machService(info: nil, bundleIdentifier: "local.aoles.bifold") == "local.aoles.bifold.helper")
+        #expect(HelperConstants.machService(info: nil, bundleIdentifier: "local.aoles.bifold.helper") == "local.aoles.bifold.helper")
+        #expect(HelperConstants.machService(info: "$(BIFOLD_BUNDLE_ID).helper", bundleIdentifier: "a.b") == "a.b.helper")
+        #expect(HelperConstants.plistName == HelperConstants.machService + ".plist")
     }
 
     @Test func authorizationWithoutRightsIsRejected() {

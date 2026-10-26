@@ -84,13 +84,24 @@ final class LanguageService {
         notice = L10n.tr("Usunięto zaimportowany język \(code).")
     }
 
-    /// Ponowne uruchomienie: nowa kopia startuje po zakończeniu tej.
+    /// Prośba o ponowne uruchomienie; kasowana, gdy zamknięcie zostanie anulowane (np. trwające operacje).
+    var relaunchRequested = false
+
+    /// Ponowne uruchomienie: nowa kopia startuje po zakończeniu tej. Skrypt startuje dopiero
+    /// w `applicationWillTerminate` (`launchRelaunchHelperIfRequested`) — gdyby zamknięcie anulowano,
+    /// aplikacja nie uruchomiłaby się sama później.
     func restart() {
+        relaunchRequested = true
+        NSApp.terminate(nil)
+    }
+
+    func launchRelaunchHelperIfRequested() {
+        guard relaunchRequested else { return }
+        relaunchRequested = false
         let path = Bundle.main.bundlePath
         let p = Process()
         p.executableURL = URL(filePath: "/bin/sh")
         p.arguments = ["-c", "while kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$0\"", path]
         try? p.run()
-        NSApp.terminate(nil)
     }
 }

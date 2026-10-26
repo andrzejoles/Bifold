@@ -12,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var adminHelper: AdminHelperClient!
     private let updates = UpdateService()
     private let observations = ObservationBag()
+    private var appliedTheme: AppTheme?
+    private var menuBindings: [KeyChord: CommandID]?
+    private var menuCommandCount = 0
 
     static func main() {
         let app = NSApplication.shared
@@ -40,13 +43,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         agents.mainWindow = mainWindow
         mainWindow.agentPane = agents.pane
         menuBuilder = MenuBuilder(workspace: workspace)
-        NSApp.mainMenu = menuBuilder.build()
+        menuBuilder.mainWindow = mainWindow.window
 
+        // Obserwacja reaguje na każdą zmianę ustawień — motyw i menu tylko, gdy zmieniło się to, od czego zależą.
         observations.add { [weak self] in
             guard let self else { return }
-            _ = self.workspace.keymap
-            Theme.apply(self.workspace.settings.theme)
-            NSApp.mainMenu = self.menuBuilder.build()
+            let theme = self.workspace.settings.theme
+            if theme != self.appliedTheme {
+                self.appliedTheme = theme
+                Theme.apply(theme)
+            }
+            let bindings = self.workspace.keymap.bindings
+            let count = self.workspace.registry.commands.count
+            if bindings != self.menuBindings || count != self.menuCommandCount {
+                self.menuBindings = bindings
+                self.menuCommandCount = count
+                NSApp.mainMenu = self.menuBuilder.build()
+            }
         }
 
         mainWindow.showWindow(nil)
@@ -77,7 +90,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.informativeText = L10n.tr("Zakończenie przerwie \(active.count) zadań. Częściowo skopiowane pliki zostaną usunięte.")
             alert.addButton(withTitle: L10n.tr("Przerwij i zakończ"))
             alert.addButton(withTitle: L10n.tr("Anuluj"))
-            guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+            guard alert.runModal() == .alertFirstButtonReturn else {
+                LanguageService.shared.relaunchRequested = false
+                return .terminateCancel
+            }
             workspace.jobs.cancelAll()
         }
         return .terminateNow
@@ -87,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         agents?.controller.stop()
         workspace.remotes.stop()
         workspace.saveSession()
+        LanguageService.shared?.launchRelaunchHelperIfRequested()
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }

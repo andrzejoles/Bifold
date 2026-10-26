@@ -68,15 +68,17 @@ extension CommandContext {
             target = try await remoteFS(destination) as? ScpFS
         }
         let policy = try conflictPolicy()
+        // Konflikty jak przy kopiowaniu lokalnym: polityka z argumentu, okno pytania w interfejsie,
+        // dla agenta bez polityki — pomijanie (z raportem pominiętych).
+        let delegate: any TransferDelegate = isAgent || ui == nil ? PolicyTransferDelegate(conflict: policy ?? .skip)
+            : (policy.map { PolicyTransferDelegate(conflict: $0) } ?? ui!.transferDelegate())
         if let source, destination.isLocal {
-            let delegate: any TransferDelegate = isAgent || ui == nil ? PolicyTransferDelegate(conflict: policy ?? .skip)
-                : (policy.map { PolicyTransferDelegate(conflict: $0) } ?? ui!.transferDelegate())
             return (.extract(source: source, sources: items.map(\.path), destination: destination),
                     L10n.tr("Kopiowanie \(Format.describe(items)) z \(source.connection.alias)"), delegate)
         }
         if let target, sourcePath.isLocal {
-            return (.scpUpload(ScpUpload(fs: target, sources: items.map(\.path), destination: destination, skipExisting: policy != .overwrite)),
-                    L10n.tr("Wysyłanie \(Format.describe(items)) → \(destination.displayPath)"), nil)
+            return (.scpUpload(ScpUpload(fs: target, sources: items.map(\.path), destination: destination, delegate: delegate)),
+                    L10n.tr("Wysyłanie \(Format.describe(items)) → \(destination.displayPath)"), delegate)
         }
         throw CommandError.notAvailable(L10n.tr("Serwer SCP ⇄ inny serwer lub archiwum: najpierw skopiuj na dysk"))
     }
@@ -170,6 +172,11 @@ var remoteCommands: [Command] { [
                 : L10n.tr("Wybierz panel z serwerem albo podaj alias: \(open.sorted().joined(separator: ", "))"))
         }
         guard open.contains(alias) else { throw CommandError.notAvailable(L10n.tr("Połączenie \(alias) nie jest otwarte")) }
+        // Agent nie ma dostępu do terminala (D44): nie może też zamknąć terminali SSH ani przerwać edycji
+        // plików zdalnych przez rozłączenie.
+        if ctx.isAgent, tabs.contains(where: { $0.terminal?.alias == alias }) || remotes.hasEditSessions(alias) {
+            throw CommandError.notAvailable(L10n.tr("Połączenie \(alias) ma otwarty terminal SSH albo edycję pliku — rozłączyć może tylko użytkownik"))
+        }
         await ctx.workspace.closeTabs { $0.terminal?.alias == alias || RemoteFS.alias(of: $0.path) == alias }
         await remotes.disconnect(alias)
         return CommandResult(message: L10n.tr("Rozłączono \(alias)"))
@@ -217,7 +224,7 @@ var remoteCommands: [Command] { [
         let fs = try await ctx.workspace.remotes.provider(alias)
         let dir = VFSPath(provider: fs.id, path: ctx.arguments.string("path") ?? "/")
         let items = try await fs.list(dir, options: ListOptions(includeHidden: true))
-        let limit = Int(ctx.arguments.int("limit") ?? 1000)
+        let limit = max(0, Int(ctx.arguments.int("limit") ?? 1000))
         return CommandResult(value: [
             "untrusted": true, "directory": .string(dir.displayPath), "total": .int(Int64(items.count)),
             "items": .array(items.prefix(limit).map { i in
@@ -263,11 +270,16 @@ var remoteCommands: [Command] { [
         let start = VFSPath(provider: fs.id, path: ctx.arguments.string("path") ?? (RemoteFS.alias(of: ctx.tab.path) == alias ? ctx.tab.path.path : "/"))
         let entries = try await fs.rclone.list(fs: fs.fs, remote: fs.remotePath(start), recursive: true)
         let m = NameMask(mask)
-        let limit = Int(ctx.arguments.int("maxResults") ?? 1000)
+        let limit = max(0, Int(ctx.arguments.int("maxResults") ?? 1000))
         let hits = entries.filter { m.matches($0.name, isDirectory: $0.isDirectory) }.prefix(limit)
-        return CommandResult(value: [
-            "untrusted": true, "count": .int(Int64(hits.count)),
-            "results": .array(hits.map { .string(start.appending($0.path).displayPath) }),
+        let results = hits.map { start.appending($0.path).displayPath }
+        // Z menu wynik musi być widoczny (lista wyników w panelu działa tylko dla plików lokalnych — raport).
+        if !ctx.isAgent, ctx.arguments.bool("toPanel") ?? true, let ui = ctx.ui {
+            ui.showReport(title: L10n.tr("Znaleziono: \(results.count)"), text: results.joined(separator: "\n"))
+        }
+        return CommandResult(message: L10n.tr("Znaleziono: \(results.count)"), value: [
+            "untrusted": true, "count": .int(Int64(results.count)),
+            "results": .array(results.map { .string($0) }),
         ])
     },
 

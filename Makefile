@@ -4,8 +4,11 @@ DERIVED = build/DerivedData.noindex
 APP = $(DERIVED)/Build/Products/Debug/Bifold.app
 # Bundle id tylko w Config/Brand.xcconfig.
 BUNDLE_ID := $(shell awk -F' = ' '/^BIFOLD_BUNDLE_ID/{print $$2}' Config/Brand.xcconfig)
+# Jeden cel (Apple Silicon) — bez ostrzeżenia „Using the first of multiple matching destinations”.
+XCODEBUILD = xcodebuild -project Bifold.xcodeproj -scheme $(SCHEME) -destination 'platform=macOS,arch=arm64' \
+	-derivedDataPath $(DERIVED) -skipPackagePluginValidation -skipMacroValidation
 
-.PHONY: bootstrap generate build release test test-release run strings perf-fixture clean version installer unregister
+.PHONY: bootstrap generate build release test test-release run strings clean version installer unregister
 
 bootstrap:
 	git submodule update --init --recursive
@@ -17,12 +20,13 @@ generate:
 
 build:
 	./scripts/set-version.sh
-	xcodebuild -project Bifold.xcodeproj -scheme $(SCHEME) -configuration Debug -derivedDataPath $(DERIVED) -skipPackagePluginValidation -skipMacroValidation build -quiet
+	$(XCODEBUILD) -configuration Debug build -quiet
 	@$(MAKE) -s unregister >/dev/null
 
+# Aplikacja jest tylko arm64; ARCHS dotyczy też celów pakietów SPM (w Release budowałyby się także dla x86_64).
 release:
 	./scripts/set-version.sh
-	xcodebuild -project Bifold.xcodeproj -scheme $(SCHEME) -configuration Release -derivedDataPath $(DERIVED) -skipPackagePluginValidation -skipMacroValidation build -quiet
+	$(XCODEBUILD) -configuration Release ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build -quiet
 
 test:
 	cd Packages/BifoldKit && swift test
@@ -42,10 +46,6 @@ unregister:
 
 strings:
 	python3 scripts/gen-strings.py
-
-# Katalog testowy ze 100 000 plików: /tmp/bifold-100k
-perf-fixture:
-	mkdir -p /tmp/bifold-100k && cd /tmp/bifold-100k && seq 1 100000 | xargs -n 1000 touch
 
 # Wersja z historii gita (jak w CantatePresenter): 1 + PR/10 . PR mod 10 . commity od ostatniego PR.
 version:
