@@ -54,8 +54,11 @@ public struct LocalFS: FileSystemProvider {
         return items
     }
 
+    // Metody asynchroniczne wykonują wywołania systemowe przez `runBlocking` — poza pulą wątków
+    // Swift Concurrency, której blokowanie (wolny dysk, wolumin sieciowy) wstrzymałoby inne zadania.
+
     public func item(at path: VFSPath) async throws -> FileItem {
-        try itemSync(at: path)
+        try await runBlocking { try itemSync(at: path) }
     }
 
     public func itemSync(at path: VFSPath) throws -> FileItem {
@@ -125,11 +128,13 @@ public struct LocalFS: FileSystemProvider {
     public func createDirectory(_ path: VFSPath) async throws {
         try requireLocal(path)
         try validateFileName(path.name)
-        guard mkdir(path.path, 0o755) == 0 else { throw VFSError.from(errno: errno, path: path) }
+        try await runBlocking {
+            guard mkdir(path.path, 0o755) == 0 else { throw VFSError.from(errno: errno, path: path) }
+        }
     }
 
     public func createFile(_ path: VFSPath, contents: Data = Data()) async throws {
-        try createFileSync(path, contents: contents)
+        try await runBlocking { try createFileSync(path, contents: contents) }
     }
 
     public func createFileSync(_ path: VFSPath, contents: Data = Data()) throws {
@@ -150,7 +155,7 @@ public struct LocalFS: FileSystemProvider {
         try validateFileName(newName)
         guard let parent = path.parent else { throw VFSError.unsupported("rename /") }
         let target = parent.appending(newName)
-        try moveSync(path, to: target)
+        try await runBlocking { try moveSync(path, to: target) }
         return target
     }
 
@@ -173,8 +178,20 @@ public struct LocalFS: FileSystemProvider {
         }
     }
 
+    /// Błąd `trashSync` dla woluminu bez Kosza (tylko wtedy wolno zastąpić Kosz trwałym usunięciem).
+    public static let trashUnavailable = VFSError.unsupported("trash")
+
+    /// Wolumin nie obsługuje Kosza (`NSFeatureUnsupportedError` albo `ENOTSUP`).
+    static func isTrashUnavailable(_ error: any Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain && ns.code == NSFeatureUnsupportedError { return true }
+        if ns.domain == NSPOSIXErrorDomain && (ns.code == Int(ENOTSUP) || ns.code == Int(EOPNOTSUPP)) { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError { return isTrashUnavailable(underlying) }
+        return false
+    }
+
     public func trash(_ path: VFSPath) async throws -> VFSPath? {
-        try trashSync(path)
+        try await runBlocking { try trashSync(path) }
     }
 
     public func trashSync(_ path: VFSPath) throws -> VFSPath? {
@@ -185,13 +202,14 @@ public struct LocalFS: FileSystemProvider {
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: &resulting)
         } catch {
+            if Self.isTrashUnavailable(error) { throw Self.trashUnavailable }
             throw VFSError.from(error, path: path)
         }
         return (resulting as URL?).map { VFSPath.local($0) }
     }
 
     public func deletePermanently(_ path: VFSPath) async throws {
-        try deleteSync(path)
+        try await runBlocking { try deleteSync(path) }
     }
 
     public func deleteSync(_ path: VFSPath) throws {
@@ -206,7 +224,7 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func setAttributes(_ path: VFSPath, _ change: AttributeChange) async throws {
-        try setAttributesSync(path, change)
+        try await runBlocking { try setAttributesSync(path, change) }
     }
 
     public func setAttributesSync(_ path: VFSPath, _ change: AttributeChange) throws {
@@ -247,7 +265,7 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func tags(of path: VFSPath) async throws -> [String] {
-        try tagsSync(of: path)
+        try await runBlocking { try tagsSync(of: path) }
     }
 
     public func tagsSync(of path: VFSPath) throws -> [String] {
@@ -262,7 +280,7 @@ public struct LocalFS: FileSystemProvider {
     }
 
     public func setTags(_ tags: [String], on path: VFSPath) async throws {
-        try setTagsSync(tags, on: path)
+        try await runBlocking { try setTagsSync(tags, on: path) }
     }
 
     public func setTagsSync(_ tags: [String], on path: VFSPath) throws {

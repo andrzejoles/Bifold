@@ -35,6 +35,25 @@ import Testing
         #expect(r.newerLeft == ["b"] && r.newerRight == ["a"] && r.identical == 1)
         #expect(r.markLeft == ["tylkoL", "b"] && r.markRight == ["tylkoP", "a"])
     }
+
+    /// Ścieżki z serwera z niebezpiecznymi składnikami nie są składane z lokalnym korzeniem.
+    @Test func syncRejectsUnsafePaths() throws {
+        #expect(SyncPlanner.isSafeRelativePath("kat/plik.txt"))
+        for bad in ["../x.txt", "kat/../../x", "/etc/hosts", "a//b", "./a", "kat/zły\nplik", ""] {
+            #expect(!SyncPlanner.isSafeRelativePath(bad), "\(bad)")
+        }
+        let tmp = try TempDir()
+        try tmp.file("poza.txt", "nie ruszać")
+        let root = try tmp.dir("cel")
+        let plan = SyncPlan(sourceFs: "/zrodlo", destinationFs: root.path, mode: .mirror,
+                            actions: [SyncAction(kind: .deleteFromDestination, path: "../poza.txt", reason: "")], identical: 0,
+                            localSource: nil, localDestination: root)
+        // rclone nie jest potrzebny: niebezpieczna ścieżka odpada przed jakimkolwiek wywołaniem.
+        let errors = try SyncPlanner.execute(plan, rclone: Rclone(executable: "/nonexistent", socket: URL(filePath: "/tmp/bifold-nie-ma.sock")),
+                                             control: JobControl(), journal: nil, batchID: nil) { _ in }
+        #expect(errors.count == 1)
+        #expect(try tmp.read("poza.txt") == "nie ruszać")
+    }
 }
 
 @Suite(.serialized, .enabled(if: rclonePath != nil)) struct SyncTests {

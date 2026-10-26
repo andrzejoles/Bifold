@@ -141,7 +141,8 @@ public final class JobQueue {
     private func start(_ job: Job) {
         started.insert(job.id)
         job.state = job.control.isPaused ? .paused : .running
-        let batchID = journal.beginBatch(title: job.title, invoker: job.invoker)
+        // Partia trwającego zadania nie jest proponowana do cofnięcia, dopóki zadanie się nie skończy.
+        let batchID = journal.beginBatch(title: job.title, invoker: job.invoker, finished: false)
         job.batchID = batchID
         let spec = job.spec, control = job.control, delegate = job.delegate, journal = journal
         let progressSink = ProgressSink(job: job)
@@ -191,17 +192,18 @@ public final class JobQueue {
                             // Nowe poddrzewo jako całość — cofnięcie przenosi je do Kosza.
                             journal.record(.copied(from: a, to: target), in: batchID)
                         }
-                        let before = Set((try? FileManager.default.contentsOfDirectory(atPath: target.path)) ?? [])
                         do {
-                            try tool.extract(a, to: target, overwrite: overwrite, password: nil, isCancelled: { control.isCancelled })
+                            if subfolders {
+                                // Nowy, pusty katalog — rozpakowanie bezpośrednio, nie ma czego nadpisać.
+                                try tool.extract(a, to: target, overwrite: overwrite, password: nil, isCancelled: { control.isCancelled })
+                            } else {
+                                errors += try JobQueue.extractThroughTemporary(a, into: target, tool: tool, overwrite: overwrite, control: control,
+                                                                              delegate: delegate, journal: journal, batchID: batchID)
+                            }
+                        } catch VFSError.cancelled {
+                            throw VFSError.cancelled
                         } catch {
                             errors.append("\(a.name): \(error.localizedDescription)")
-                        }
-                        if !subfolders {
-                            let after = Set((try? FileManager.default.contentsOfDirectory(atPath: target.path)) ?? [])
-                            for name in after.subtracting(before).sorted() {
-                                journal.record(.copied(from: a, to: target.appending(name)), in: batchID)
-                            }
                         }
                         p.filesDone += 1
                         progressSink.update(p)
@@ -226,6 +228,7 @@ public final class JobQueue {
             } catch {
                 outcome = .failed(error.localizedDescription)
             }
+            journal.endBatch(batchID)
             let finalErrors = errors
             Task { @MainActor in
                 progressSink.flush()
@@ -242,6 +245,32 @@ public final class JobQueue {
         job.waiters = []
         waiters.forEach { $0.resume(returning: state) }
         startNext()
+    }
+
+    /// Rozpakowanie do istniejącego katalogu: najpierw do katalogu tymczasowego na tym samym woluminie,
+    /// potem przeniesienie silnikiem kopiowania — nadpisywane pliki trafiają do Kosza (D14), wszystko
+    /// jest w dzienniku (cofalne), a `7zz -aoa` niczego nie nadpisuje trwale.
+    nonisolated static func extractThroughTemporary(
+        _ archive: VFSPath, into target: VFSPath, tool: SevenZip, overwrite: SevenZip.Overwrite, control: JobControl,
+        delegate: (any TransferDelegate)?, journal: OperationJournal, batchID: UUID
+    ) throws -> [String] {
+        let temp = target.appending(".bifold-extract-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(atPath: temp.path, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(atPath: temp.path) }
+        try tool.extract(archive, to: temp, overwrite: .overwrite, password: nil, isCancelled: { control.isCancelled })
+        let items = try FileManager.default.contentsOfDirectory(atPath: temp.path).sorted().map { temp.appending($0) }
+        guard !items.isEmpty else { return [] }
+        let conflict: ConflictResolution = switch overwrite {
+        case .skip: .skip
+        case .overwrite: .overwrite
+        case .rename: .rename
+        }
+        let engine = TransferEngine(
+            request: TransferRequest(kind: .move, sources: items, destinationDirectory: target), control: control,
+            delegate: FixedConflictDelegate(conflict: conflict, errors: delegate), journal: journal, batchID: batchID)
+        engine.recordMovesAsCopies = true
+        try engine.run()
+        return engine.errors.map { "\(archive.name): \($0.0.name): \($0.1.localizedDescription)" }
     }
 
     nonisolated static func runTrash(_ paths: [VFSPath], control: JobControl, journal: OperationJournal, batchID: UUID, sink: ProgressSink) throws -> [String] {
@@ -283,6 +312,18 @@ public final class JobQueue {
             sink.update(p)
         }
         return errors
+    }
+}
+
+/// Konflikty według trybu wybranego przed zadaniem, błędy — przez delegata zadania (albo pomijane).
+struct FixedConflictDelegate: TransferDelegate {
+    let conflict: ConflictResolution
+    let errors: (any TransferDelegate)?
+
+    func resolveConflict(_ conflict: FileConflict) async -> ConflictDecision { ConflictDecision(self.conflict, applyToAll: true) }
+
+    func resolveError(path: VFSPath, error: VFSError) async -> ErrorDecision {
+        await errors?.resolveError(path: path, error: error) ?? .skip
     }
 }
 

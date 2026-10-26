@@ -114,16 +114,19 @@ public final class TransferEngine: @unchecked Sendable {
             if isCancelled() { throw VFSError.cancelled }
             let item = try fs.itemSync(at: source)
             let dest = request.destination(for: source)
-            if item.kind == .directory, dest.isDescendant(of: source) && dest != source {
+            // Po i-węzłach, nie po tekście ścieżki: `SRC/inner`, dowiązanie do wnętrza źródła i firmlinki
+            // też wskazują wnętrze katalogu źródłowego.
+            if item.kind == .directory, isInsideOrSame(request.destinationDirectory, source) {
                 throw VFSError.destinationInsideSource(source)
             }
+            let sameEntry = isSameEntry(source, dest)
             var conflict = false
             let size: DirectorySize
             if item.kind == .directory {
                 size = try DirectorySizer.sizeSync(of: source, isCancelled: isCancelled)
                 plan.subtreeSizes[source] = size
                 plan.directoryCount += 1 + size.directories
-                if let existing = try? fs.itemSync(at: dest), dest != source {
+                if !sameEntry, let existing = try? fs.itemSync(at: dest) {
                     if existing.kind == .directory {
                         collectMergeConflicts(source: source, dest: dest, into: &plan, fs: fs)
                     } else {
@@ -132,7 +135,7 @@ public final class TransferEngine: @unchecked Sendable {
                 }
             } else {
                 size = DirectorySize(bytes: max(0, item.size), files: 1)
-                if dest != source, pathExists(fs, dest) { conflict = true }
+                if !sameEntry, pathExists(fs, dest) { conflict = true }
             }
             if conflict { plan.conflicts.append(dest) }
             plan.totalBytes += size.bytes
@@ -189,9 +192,17 @@ public final class TransferEngine: @unchecked Sendable {
         progress.currentItem = item.name
 
         var destination = requestedDestination
-        if destination == source {
+        // Ten sam element (także nazwa różniąca się tylko wielkością liter na woluminie bez jej
+        // rozróżniania): to nie konflikt — „Nadpisz” zabrałoby do Kosza samo źródło.
+        if TransferEngine.isSameEntry(source, destination) {
             if request.kind == .move {
-                skip(item)
+                guard destination != source else {
+                    skip(item)
+                    return
+                }
+                guard try attempt(source, { try fs.moveSync(source, to: destination) }) != nil else { return }
+                journal(.moved(from: source, to: destination), fingerprint: (try? fs.itemSync(at: destination))?.fingerprint)
+                complete(item)
                 return
             }
             destination = TransferEngine.uniqueName(for: destination)
@@ -277,14 +288,19 @@ public final class TransferEngine: @unchecked Sendable {
     /// Kopiuje plik lub dowiązanie do pliku tymczasowego i atomowo zmienia nazwę na docelową.
     private func copyLeaf(_ item: FileItem, to destination: VFSPath, recordAsNew: Bool) throws {
         let parent = destination.parent!
-        let temp = parent.appending(".\(destination.name).bifold-partial-\(UInt32.random(in: 0...UInt32.max))")
+        // Stała długość nazwy tymczasowej — z nazwą docelową w środku długie nazwy przekraczały 255 bajtów.
+        let temp = parent.appending(".bifold-partial-\(UUID().uuidString)")
         let done = try attempt(item.path) { () throws -> Bool in
             try self.copyFileData(from: item.path, to: temp, size: max(0, item.size))
+            // `copyfile` kopiuje też flagi: zablokowanego (`uchg`) pliku tymczasowego nie da się
+            // przemianować ani usunąć. Zdejmujemy blokadę na czas zmiany nazwy.
+            let protection = TransferEngine.removeProtectionFlags(temp.path)
             guard renamex_np(temp.path, destination.path, UInt32(RENAME_EXCL)) == 0 else {
                 let e = errno
-                unlink(temp.path)
+                TransferEngine.forceUnlink(temp.path)
                 throw VFSError.from(errno: e, path: destination)
             }
+            TransferEngine.restoreProtectionFlags(destination.path, protection)
             return true
         }
         guard done != nil else { return }
@@ -317,7 +333,7 @@ public final class TransferEngine: @unchecked Sendable {
         let rc = copyfile(source.path, temp.path, state, flags)
         if rc != 0 {
             let e = errno
-            unlink(temp.path)
+            TransferEngine.forceUnlink(temp.path)
             if context.cancelled || control.isCancelled { throw VFSError.cancelled }
             throw VFSError.from(errno: e, path: source)
         }
@@ -330,8 +346,9 @@ public final class TransferEngine: @unchecked Sendable {
         let trashed = try attempt(existing.path) { () throws -> VFSPath? in
             do {
                 return try self.fs.trashSync(existing.path)
-            } catch VFSError.io, VFSError.unsupported {
-                // Wolumin bez Kosza — trwałe usunięcie.
+            } catch let error as VFSError where error == LocalFS.trashUnavailable {
+                // Tylko jawny „wolumin bez Kosza” — trwałe usunięcie. Inne błędy idą do delegata
+                // (ponów / pomiń), żeby nie usuwać na stałe z powodu przejściowego problemu.
                 try self.fs.deleteSync(existing.path)
                 return nil
             }
@@ -452,6 +469,61 @@ public final class TransferEngine: @unchecked Sendable {
     }
 
     // MARK: Pomocnicze
+
+    /// Ten sam wpis katalogu pod inną pisownią (wielkość liter, normalizacja Unicode): ten sam i-węzeł
+    /// w tym samym katalogu nadrzędnym. Twarde dowiązania o różnych nazwach to osobne wpisy.
+    static func isSameEntry(_ a: VFSPath, _ b: VFSPath) -> Bool {
+        if a == b { return true }
+        guard a.isLocal, b.isLocal, let pa = a.parent, let pb = b.parent else { return false }
+        var sa = stat(), sb = stat()
+        guard lstat(a.path, &sa) == 0, lstat(b.path, &sb) == 0, sa.st_dev == sb.st_dev, sa.st_ino == sb.st_ino else { return false }
+        var spa = stat(), spb = stat()
+        guard stat(pa.path, &spa) == 0, stat(pb.path, &spb) == 0, spa.st_dev == spb.st_dev, spa.st_ino == spb.st_ino else { return false }
+        let isDirectory = sa.st_mode & S_IFMT == S_IFDIR
+        return isDirectory || sa.st_nlink == 1 || a.name.compare(b.name, options: [.caseInsensitive]) == .orderedSame
+    }
+
+    /// Czy katalog `directory` (albo jego najbliższy istniejący przodek) jest katalogiem `source` lub leży
+    /// w nim. Porównanie i-węzłów w górę ścieżki rzeczywistej — niezależne od wielkości liter i dowiązań.
+    static func isInsideOrSame(_ directory: VFSPath, _ source: VFSPath) -> Bool {
+        guard directory.isLocal, source.isLocal else { return false }
+        var ss = stat()
+        guard lstat(source.path, &ss) == 0 else { return false }
+        var probe = directory
+        while realPath(probe.path) == nil, let parent = probe.parent { probe = parent }
+        guard var current = realPath(probe.path) else { return false }
+        while true {
+            var st = stat()
+            if stat(current, &st) == 0, st.st_dev == ss.st_dev, st.st_ino == ss.st_ino { return true }
+            if current == "/" || current.isEmpty { return false }
+            current = (current as NSString).deletingLastPathComponent
+        }
+    }
+
+    private static let protectionFlags = UInt32(UF_IMMUTABLE | UF_APPEND)
+
+    /// Zdejmuje blokadę (`uchg`/`uappnd`) i zwraca zdjęte flagi.
+    static func removeProtectionFlags(_ path: String) -> UInt32 {
+        var st = stat()
+        guard lstat(path, &st) == 0, st.st_flags & protectionFlags != 0 else { return 0 }
+        guard lchflags(path, st.st_flags & ~protectionFlags) == 0 else { return 0 }
+        return st.st_flags & protectionFlags
+    }
+
+    static func restoreProtectionFlags(_ path: String, _ flags: UInt32) {
+        guard flags != 0 else { return }
+        var st = stat()
+        guard lstat(path, &st) == 0 else { return }
+        _ = lchflags(path, st.st_flags | flags)
+    }
+
+    /// Usuwa plik tymczasowy także wtedy, gdy skopiowano na niego blokadę.
+    static func forceUnlink(_ path: String) {
+        if unlink(path) != 0 {
+            _ = removeProtectionFlags(path)
+            unlink(path)
+        }
+    }
 
     static func sameDevice(_ a: VFSPath, _ b: VFSPath) -> Bool {
         var sa = stat(), sb = stat()

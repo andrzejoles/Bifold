@@ -9,29 +9,42 @@ public struct FileOperations: Sendable {
         self.journal = journal
     }
 
+    // Wywołania systemowe idą przez `runBlocking` — nie blokują puli wątków Swift Concurrency.
+
     public func makeDirectory(_ path: VFSPath, invoker: Invoker = .user) async throws {
         try await fs.createDirectory(path)
+        let fs = fs
+        let fingerprint = try? await runBlocking { try fs.itemSync(at: path).fingerprint }
         let batch = journal.beginBatch(title: L10n.tr("Nowy katalog \(path.name)"), invoker: invoker)
-        journal.record(.created(path: path, isDirectory: true), fingerprint: try? fs.itemSync(at: path).fingerprint, in: batch)
+        journal.record(.created(path: path, isDirectory: true), fingerprint: fingerprint, in: batch)
     }
 
     public func createFile(_ path: VFSPath, invoker: Invoker = .user) async throws {
         try await fs.createFile(path, contents: Data())
+        let fs = fs
+        let fingerprint = try? await runBlocking { try fs.itemSync(at: path).fingerprint }
         let batch = journal.beginBatch(title: L10n.tr("Nowy plik \(path.name)"), invoker: invoker)
-        journal.record(.created(path: path, isDirectory: false), fingerprint: try? fs.itemSync(at: path).fingerprint, in: batch)
+        journal.record(.created(path: path, isDirectory: false), fingerprint: fingerprint, in: batch)
     }
 
     @discardableResult
     public func rename(_ path: VFSPath, to newName: String, invoker: Invoker = .user) async throws -> VFSPath {
         let target = try await fs.rename(path, to: newName)
+        let fs = fs
+        let fingerprint = try? await runBlocking { try fs.itemSync(at: target).fingerprint }
         let batch = journal.beginBatch(title: L10n.tr("Zmiana nazwy \(path.name) → \(newName)"), invoker: invoker)
-        journal.record(.moved(from: path, to: target), fingerprint: try? fs.itemSync(at: target).fingerprint, in: batch)
+        journal.record(.moved(from: path, to: target), fingerprint: fingerprint, in: batch)
         return target
     }
 
     public func setAttributes(_ paths: [VFSPath], _ change: AttributeChange, invoker: Invoker = .user) async throws {
         guard !change.isEmpty, !paths.isEmpty else { return }
+        let fs = fs, journal = journal
         let batch = journal.beginBatch(title: L10n.tr("Zmiana atrybutów (\(paths.count))"), invoker: invoker)
+        try await runBlocking { try Self.applyAttributes(paths, change, fs: fs, journal: journal, batch: batch) }
+    }
+
+    private static func applyAttributes(_ paths: [VFSPath], _ change: AttributeChange, fs: LocalFS, journal: OperationJournal, batch: UUID) throws {
         for path in paths {
             let item = try fs.itemSync(at: path)
             let before = AttributeChange(
@@ -49,11 +62,14 @@ public struct FileOperations: Sendable {
 
     public func setTags(_ paths: [VFSPath], tags: [String], invoker: Invoker = .user) async throws {
         guard !paths.isEmpty else { return }
+        let fs = fs, journal = journal
         let batch = journal.beginBatch(title: L10n.tr("Zmiana tagów (\(paths.count))"), invoker: invoker)
-        for path in paths {
-            let before = try fs.tagsSync(of: path)
-            try fs.setTagsSync(tags, on: path)
-            journal.record(.tagsChanged(path: path, before: before, after: tags), in: batch)
+        try await runBlocking {
+            for path in paths {
+                let before = try fs.tagsSync(of: path)
+                try fs.setTagsSync(tags, on: path)
+                journal.record(.tagsChanged(path: path, before: before, after: tags), in: batch)
+            }
         }
     }
 
@@ -65,6 +81,18 @@ public struct FileOperations: Sendable {
     /// Plan cofnięcia całej sesji agenta.
     public func undoPlan(forAgentSession sessionID: String) -> UndoPlan {
         UndoPlanner.plan(for: journal.batches(forAgentSession: sessionID))
+    }
+
+    /// Jak `undoPlanForLast`, ale sprawdzanie dysku (lstat każdego wpisu) poza wątkiem głównym.
+    public func planUndoLast(where predicate: (JournalBatch) -> Bool = { _ in true }) async -> UndoPlan? {
+        guard let batch = journal.lastUndoable(where: predicate) else { return nil }
+        return try? await runBlocking { UndoPlanner.plan(for: [batch]) }
+    }
+
+    /// Jak `undoPlan(forAgentSession:)`, ale sprawdzanie dysku poza wątkiem głównym.
+    public func planUndo(forAgentSession sessionID: String) async -> UndoPlan {
+        let batches = journal.batches(forAgentSession: sessionID)
+        return (try? await runBlocking { UndoPlanner.plan(for: batches) }) ?? UndoPlan(batches: [], steps: [])
     }
 
     public func execute(_ plan: UndoPlan, force: Bool = false) async -> UndoResult {

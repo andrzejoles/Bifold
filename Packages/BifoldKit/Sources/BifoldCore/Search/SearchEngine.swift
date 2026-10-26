@@ -53,24 +53,65 @@ public struct SearchCriteria: Codable, Sendable, Hashable {
 
     var hasContentSearch: Bool { !contentText.isEmpty }
 
-    /// Warunki niezależne od treści.
+    /// Warunki niezależne od treści (pojedyncze sprawdzenie; przy przeglądaniu — `MetadataMatcher`).
     func matchesMetadata(_ item: FileItem) -> Bool {
-        if !includeHidden && item.isHidden { return false }
-        switch kind {
+        MetadataMatcher(self).matches(item)
+    }
+}
+
+/// Warunki niezależne od treści z maską/wyrażeniem skompilowanym raz na całe wyszukiwanie
+/// (wcześniej kompilowane dla każdego pliku).
+struct MetadataMatcher {
+    let criteria: SearchCriteria
+    private let regex: NameRegex?
+    private let mask: NameMask?
+
+    init(_ criteria: SearchCriteria) {
+        self.criteria = criteria
+        regex = criteria.nameRegex.isEmpty ? nil : NameRegex(criteria.nameRegex, caseInsensitive: !criteria.caseSensitive)
+        mask = criteria.nameRegex.isEmpty && !criteria.nameMask.isEmpty ? NameMask(criteria.nameMask) : nil
+    }
+
+    func matches(_ item: FileItem) -> Bool {
+        let c = criteria
+        if !c.includeHidden && item.isHidden { return false }
+        switch c.kind {
         case .any: break
         case .files: if item.isNavigable { return false }
         case .directories: if !item.isNavigable { return false }
         }
-        if !nameRegex.isEmpty {
-            guard NameRegex(nameRegex, caseInsensitive: !caseSensitive).matches(item.name) else { return false }
-        } else if !nameMask.isEmpty, !NameMask(nameMask).matches(item) {
-            return false
-        }
-        if let a = modifiedAfter, (item.modified ?? .distantPast) < a { return false }
-        if let b = modifiedBefore, (item.modified ?? .distantFuture) > b { return false }
-        if let min = minSize, item.isNavigable || item.size < min { return false }
-        if let max = maxSize, item.isNavigable || item.size > max { return false }
+        if let regex, !regex.matches(item.name) { return false }
+        if let mask, !mask.matches(item) { return false }
+        if let a = c.modifiedAfter, (item.modified ?? .distantPast) < a { return false }
+        if let b = c.modifiedBefore, (item.modified ?? .distantFuture) > b { return false }
+        if let min = c.minSize, item.isNavigable || item.size < min { return false }
+        if let max = c.maxSize, item.isNavigable || item.size > max { return false }
         return true
+    }
+}
+
+/// Proces `rg` bieżącego wyszukiwania — anulowanie kończy go od razu, a nie dopiero przy
+/// następnym wierszu wyniku (rg potrafi długo milczeć na dużych plikach).
+final class ProcessSlot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+    private var stopped = false
+
+    /// Zapamiętuje uruchomiony proces; jeśli wyszukiwanie już anulowano — kończy go od razu.
+    func set(_ p: Process) {
+        let stop = lock.withLock { () -> Bool in
+            process = p
+            return stopped
+        }
+        if stop { p.terminate() }
+    }
+
+    func terminate() {
+        let p = lock.withLock { () -> Process? in
+            stopped = true
+            return process
+        }
+        if let p, p.isRunning { p.terminate() }
     }
 }
 
@@ -103,6 +144,7 @@ public enum SearchEngine {
     public static func search(_ criteria: SearchCriteria, ripgrep: String?) -> AsyncStream<SearchEvent> {
         AsyncStream(bufferingPolicy: .unbounded) { continuation in
             let flag = CancellationFlag()
+            let slot = ProcessSlot()
             let thread = Thread {
                 if criteria.hasContentSearch {
                     guard let ripgrep else {
@@ -110,14 +152,17 @@ public enum SearchEngine {
                         continuation.finish()
                         return
                     }
-                    runRipgrep(criteria, executable: ripgrep, flag: flag, continuation: continuation)
+                    runRipgrep(criteria, executable: ripgrep, flag: flag, slot: slot, continuation: continuation)
                 } else {
                     walk(criteria, flag: flag, continuation: continuation)
                 }
                 continuation.finish()
             }
             thread.name = "bifold.search"
-            continuation.onTermination = { _ in flag.cancel() }
+            continuation.onTermination = { _ in
+                flag.cancel()
+                slot.terminate()
+            }
             thread.start()
         }
     }
@@ -144,6 +189,7 @@ public enum SearchEngine {
 
     static func walk(_ c: SearchCriteria, flag: CancellationFlag, continuation: AsyncStream<SearchEvent>.Continuation) {
         let fs = LocalFS()
+        let matcher = MetadataMatcher(c)
         var count = 0
         var scanned = 0
         var stack = c.roots.reversed().map { $0 }
@@ -153,19 +199,20 @@ public enum SearchEngine {
             scanned += 1
             if scanned % 50 == 0 { continuation.yield(.progress(scannedDirectories: scanned, current: dir.path)) }
             for item in items {
+                if flag.isCancelled { break }
                 if let tool = c.archiveTool, item.kind == .file, ArchiveFS.isArchive(item.name),
-                   let entries = try? SevenZip(executable: tool).list(item.path, password: nil) {
+                   let entries = try? SevenZip(executable: tool).list(item.path, password: nil, isCancelled: { flag.isCancelled }) {
                     let matching = entries.filter { e in
                         let name = (e.path as NSString).lastPathComponent
                         let probe = FileItem(path: .local("/" + e.path), name: name, kind: e.isDirectory ? .directory : .file, size: e.size, modified: e.modified)
-                        return c.matchesMetadata(probe)
+                        return matcher.matches(probe)
                     }
                     if !matching.isEmpty {
                         continuation.yield(.hit(SearchHit(item: item, matches: matching.prefix(20).map { .init(line: 0, text: "📦 " + $0.path) })))
                         count += 1
                     }
                 }
-                if c.matchesMetadata(item) {
+                if matcher.matches(item) {
                     continuation.yield(.hit(SearchHit(item: item, matches: [])))
                     count += 1
                     if count >= c.maxResults {
@@ -210,7 +257,8 @@ public enum SearchEngine {
         return args
     }
 
-    static func runRipgrep(_ c: SearchCriteria, executable: String, flag: CancellationFlag, continuation: AsyncStream<SearchEvent>.Continuation) {
+    static func runRipgrep(_ c: SearchCriteria, executable: String, flag: CancellationFlag, slot: ProcessSlot = ProcessSlot(),
+                           continuation: AsyncStream<SearchEvent>.Continuation) {
         let patternURL = FileManager.default.temporaryDirectory.appending(path: "bifold-rg-\(UUID().uuidString)")
         FileManager.default.createFile(atPath: patternURL.path, contents: Data(c.contentText.utf8), attributes: [.posixPermissions: 0o600])
         defer { try? FileManager.default.removeItem(at: patternURL) }
@@ -224,7 +272,10 @@ public enum SearchEngine {
             continuation.yield(.failed(error.localizedDescription))
             return
         }
+        slot.set(process)
+        if flag.isCancelled { slot.terminate() }
         let fs = LocalFS()
+        let matcher = MetadataMatcher(c)
         var current: (path: String, matches: [SearchHit.LineMatch])?
         var count = 0
         var truncated = false
@@ -234,7 +285,7 @@ public enum SearchEngine {
         func flush() {
             guard let cur = current else { return }
             current = nil
-            guard let item = try? fs.itemSync(at: .local(cur.path)), c.matchesMetadata(item) else { return }
+            guard let item = try? fs.itemSync(at: .local(cur.path)), matcher.matches(item) else { return }
             continuation.yield(.hit(SearchHit(item: item, matches: cur.matches)))
             count += 1
         }
