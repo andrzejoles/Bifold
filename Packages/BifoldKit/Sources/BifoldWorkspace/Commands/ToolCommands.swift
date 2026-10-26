@@ -121,11 +121,14 @@ var queueCommands: [Command] { [
     ) { ctx in
         let limit: Int64
         if let v = ctx.arguments.int("bytesPerSecond") {
+            guard v >= 0 else { throw CommandError.invalidArgument("bytesPerSecond", String(v)) }
             limit = v
         } else {
             let text = try await ctx.text("bytesPerSecond", title: L10n.tr("Limit prędkości"), message: L10n.tr("MB/s (0 = bez limitu):"), default: "0")
-            guard let mb = Double(text.replacingOccurrences(of: ",", with: ".")) else { throw CommandError.invalidArgument("bytesPerSecond", text) }
-            limit = Int64(mb * 1024 * 1024)
+            // „inf”, „nan”, „1e20” albo ujemne — błąd zamiast awarii przy konwersji do Int64.
+            guard let mb = Double(text.replacingOccurrences(of: ",", with: ".")), mb.isFinite, mb >= 0,
+                  let bytes = Int64(exactly: (mb * 1024 * 1024).rounded()) else { throw CommandError.invalidArgument("bytesPerSecond", text) }
+            limit = bytes
         }
         for job in jobArgument(ctx) { ctx.workspace.jobs.setSpeedLimit(job, limit) }
         return .ok
@@ -236,7 +239,7 @@ var toolCommands: [Command] { [
         let info = try Volumes.info(for: volume)
         guard info.isEjectable || info.isRemovable || info.isNetwork else { throw CommandError.notAvailable(L10n.tr("Tego woluminu nie można wysunąć")) }
         for tab in ctx.workspace.left.tabs + ctx.workspace.right.tabs where tab.path.isDescendant(of: info.path) {
-            try? await tab.navigate(to: .local(NSHomeDirectory()))
+            try? await tab.navigate(to: ctx.workspace.homePath)
         }
         try await Volumes.eject(info.path)
         ctx.workspace.refreshVolumes()
