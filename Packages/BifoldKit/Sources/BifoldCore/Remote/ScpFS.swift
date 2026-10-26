@@ -151,8 +151,10 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
             default: .other
             }
             if kind == .symlink, let arrow = name.range(of: " -> ") { name = String(name[..<arrow.lowerBound]) }
-            guard !name.isEmpty, keepDots || (name != "." && name != "..") else { continue }
             if keepDots, name.contains("/") { name = (name as NSString).lastPathComponent }
+            // Wyjście `ls` z serwera jest niezaufane: nazwa z `/` albo podrzucony wierszem z nową linią
+            // `../…` zapisałby przy pobieraniu katalogu plik poza katalogiem docelowym.
+            guard isSafeComponentName(name) || (keepDots && (name == "." || name == "..")) else { continue }
             // Urządzenia: „główny, poboczny” zamiast rozmiaru.
             let isDevice = words[k - 1].0.hasSuffix(",") || words[k - 2].0.hasSuffix(",")
             let size = isDevice ? 0 : (Int64(words[k - 1].0) ?? 0)

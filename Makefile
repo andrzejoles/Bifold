@@ -2,6 +2,8 @@
 SCHEME = Bifold
 DERIVED = build/DerivedData.noindex
 APP = $(DERIVED)/Build/Products/Debug/Bifold.app
+# Bundle id tylko w Config/Brand.xcconfig.
+BUNDLE_ID := $(shell awk -F' = ' '/^BIFOLD_BUNDLE_ID/{print $$2}' Config/Brand.xcconfig)
 
 .PHONY: bootstrap generate build release test test-release run strings perf-fixture clean version installer unregister
 
@@ -35,7 +37,7 @@ run: build
 # Usuwa z systemu (Launchpad, „Otwórz za pomocą”) wszystkie kopie Bifolda poza /Applications.
 unregister:
 	@/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -dump \
-	  | awk '/^path:/{p=$$0} /identifier: *local.aoles.bifold$$/{print p}' | sed 's/^path: *//; s/ (0x[0-9a-f]*)$$//' | grep -v '^/Applications/' | sort -u \
+	  | awk -v id='$(BUNDLE_ID)' '/^path:/{p=$$0} $$1=="identifier:" && $$2==id {print p}' | sed 's/^path: *//; s/ (0x[0-9a-f]*)$$//' | grep -v '^/Applications/' | sort -u \
 	  | while read -r p; do /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$$p"; echo "wyrejestrowano $$p"; done
 
 strings:

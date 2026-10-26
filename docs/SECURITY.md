@@ -81,11 +81,12 @@
   nie jest zapisywane. Agent dostaje `password_required`.
 - **Urządzenia**: tylko odczyt; dla agenta poziom „Odczyt”. Nazwy z telefonu są niezaufane: nazwy z `/`,
   `.`/`..` albo znakami sterującymi są pomijane (ścieżki lokalne przy kopiowaniu, protokół `bifold-mtp`),
-  narzędzia urządzeń mają limit czasu (D46).
+  narzędzia urządzeń mają limit czasu (D46). To samo dotyczy nazw z serwerów (wyjście `ls` przy SCP,
+  listingi rclone) i wpisów archiwów (`../…` pomijane) — wspólne `isSafeComponentName`.
 - **Pomocnik administratora**: klient weryfikowany wymaganiem podpisu kodu (`setCodeSigningRequirement`
   na połączeniu XPC), stała lista operacji, każda z osobnym prawem w bazie autoryzacji (hasło
   administratora przy każdej operacji, bez współdzielenia), walidacja ścieżek (realpath rodzica, katalogi
-  systemowe zabronione). Agent nie ma dostępu do żadnej z tych komend.
+  systemowe zabronione — porównanie bez rozróżniania wielkości liter, jak APFS). Agent nie ma dostępu do żadnej z tych komend.
 
 ## 5. Testowanie
 

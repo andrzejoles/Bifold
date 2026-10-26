@@ -220,16 +220,11 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
         return try helper.request(command, timeout: timeout)
     }
 
-    /// Nazwa z telefonu, której można użyć jako składnika ścieżki: bez `/`, `.`/`..` i znaków
-    /// sterujących — nazwy trafiają do ścieżek lokalnych przy kopiowaniu i do poleceń pomocnika
-    /// (znak nowej linii dodałby polecenie), a telefon (lub udające go urządzenie USB) może podać dowolną.
-    static func isSafeName(_ name: String) -> Bool {
-        (try? validateFileName(name)) != nil && !name.unicodeScalars.contains { $0.properties.generalCategory == .control }
-    }
-
     static func entries(_ items: Any?, storage: UInt32) -> [Entry] {
         ((items as? [[String: Any]]) ?? []).compactMap { e in
-            guard let id = (e["id"] as? NSNumber)?.uint32Value, let name = e["name"] as? String, isSafeName(name) else { return nil }
+            guard let id = (e["id"] as? NSNumber)?.uint32Value, let name = e["name"] as? String, isSafeComponentName(name) else { return nil }
+            // Nazwy z telefonu trafiają do ścieżek lokalnych przy kopiowaniu i do poleceń pomocnika
+            // (znak nowej linii dodałby polecenie), a telefon (lub udające go urządzenie USB) może podać dowolną.
             let mtime = (e["mtime"] as? NSNumber)?.doubleValue ?? 0
             return Entry(id: id, storage: storage, name: name, size: (e["size"] as? NSNumber)?.int64Value ?? 0,
                          modified: mtime > 0 ? Date(timeIntervalSince1970: mtime) : nil, isFolder: e["folder"] as? Bool ?? false)
@@ -246,7 +241,7 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
         }
         let list = ((r["storages"] as? [[String: Any]]) ?? []).compactMap { s -> Entry? in
             guard let id = (s["id"] as? NSNumber)?.uint32Value else { return nil }
-            let name = (s["name"] as? String).flatMap { Self.isSafeName($0) ? $0 : nil } ?? L10n.tr("Pamięć \(id)")
+            let name = (s["name"] as? String).flatMap { isSafeComponentName($0) ? $0 : nil } ?? L10n.tr("Pamięć \(id)")
             return Entry(id: Self.root, storage: id, name: name, size: -1, modified: nil, isFolder: true,
                          total: (s["total"] as? NSNumber)?.int64Value ?? 0, free: (s["free"] as? NSNumber)?.int64Value ?? 0)
         }

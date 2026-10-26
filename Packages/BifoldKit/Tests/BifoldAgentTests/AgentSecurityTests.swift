@@ -281,6 +281,10 @@ import Testing
         #expect(b.isBlocked("/Users/test/Documents/../.ssh/config"))
         #expect(!b.isBlocked("/Users/test/.sshx"))
         #expect(!b.isBlocked("/Users/test/Documents"))
+        // APFS nie rozróżnia normalizacji Unicode: ta sama nazwa w NFD też jest zablokowana.
+        let polish = BlockedPaths(["~/Prywatne/Zażółć"], home: home)
+        #expect(polish.isBlocked("/Users/test/Prywatne/" + "Zażółć".decomposedStringWithCanonicalMapping + "/plan.txt"))
+        #expect(polish.isBlocked("/Users/test/prywatne/ZAŻÓŁĆ"))
     }
 
     @MainActor @Test func leastPrivilege() {

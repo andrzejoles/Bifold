@@ -4,6 +4,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — przegląd kodu, część 2
+- Archiwa: wpisy ze ścieżką `../…` (spreparowane archiwum) są pomijane — przy kopiowaniu z archiwum
+  wskazywałyby istniejący plik poza katalogiem tymczasowym; archiwa tar z „.” (`./kat/…`) pokazują
+  `kat` zamiast folderu „.”, a kopiowanie z nich działa.
+- Serwery: nazwy z wyjścia `ls` (SCP) i z rclone z `/`, `..` albo znakami sterującymi są pomijane —
+  pobieranie katalogu z SCP mogło zapisać plik poza katalogiem docelowym.
+- Pomocnik administratora: lista katalogów zabronionych bez rozróżniania wielkości liter
+  (`/private/etc/SUDOERS` omijało ją na APFS).
+- Miniatury: długa nazwa w dwóch liniach z „…” na końcu drugiej (wcześniej ucięta bez wielokropka).
+- `make unregister` czyta bundle id z `Config/Brand.xcconfig`.
+
 ### Poprawione — przegląd kodu
 - Długa nazwa pliku w widoku szczegółów (i w widoku skróconym) zawijała się do drugiej linii w wierszu
   o stałej wysokości: tekst z atrybutami bez stylu akapitu pomijał obcinanie z pola. Teraz jedna linia

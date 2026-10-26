@@ -97,7 +97,10 @@ public enum HelperOperations {
             throw HelperError.invalidRequest("katalog nadrzędny nie istnieje: \(parent)")
         }
         let path = (realParent == "/" ? "" : realParent) + "/" + comps.last!
-        for f in forbiddenPrefixes where path == f || path.hasPrefix(f + "/") {
+        // Bez rozróżniania wielkości liter: APFS domyślnie jej nie rozróżnia, a realpath poprawia tylko
+        // rodzica — „/private/etc/SUDOERS” to ten sam plik co „/private/etc/sudoers”.
+        let folded = path.lowercased()
+        for f in forbiddenPrefixes.map({ $0.lowercased() }) where folded == f || folded.hasPrefix(f + "/") {
             throw HelperError.forbiddenPath(path)
         }
         guard path != "/" else { throw HelperError.forbiddenPath(path) }

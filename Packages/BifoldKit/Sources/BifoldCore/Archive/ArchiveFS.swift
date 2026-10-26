@@ -15,8 +15,15 @@ public final class ArchiveFS: FileSystemProvider {
     /// Klucze w NFC (nazwy w archiwum bywają w NFD); `Entry.path` zostaje oryginalne dla 7zz.
     private let entriesByPath: [String: SevenZip.Entry]
 
+    /// Klucz wpisu: bez składników `.` (tar z „.” ma wpisy `./kat/a.txt`) i w NFC.
     static func key(_ path: String) -> String {
-        ("/" + path.split(separator: "/").joined(separator: "/")).precomposedStringWithCanonicalMapping
+        ("/" + path.split(separator: "/").filter { $0 != "." }.joined(separator: "/")).precomposedStringWithCanonicalMapping
+    }
+
+    /// Wpis, który da się pokazać i rozpakować: nie korzeń archiwum (`.`) i bez `..` — 7zz rozpakowuje
+    /// `../x` jako `x`, a ścieżka liczona z nazwy wskazywałaby plik poza katalogiem tymczasowym.
+    static func isUsable(_ path: String) -> Bool {
+        key(path) != "/" && !path.split(separator: "/").contains("..")
     }
 
     public var hostLocation: VFSPath? { archive }
@@ -41,7 +48,7 @@ public final class ArchiveFS: FileSystemProvider {
         self.tool = tool
         self.password = password
         id = ProviderID("archive:\(UUID().uuidString.prefix(8).lowercased())")
-        let entries = try tool.list(archive, password: password)
+        let entries = try tool.list(archive, password: password).filter { Self.isUsable($0.path) }
         var byPath: [String: SevenZip.Entry] = [:]
         var tree: [String: [SevenZip.Entry]] = [:]
         // Katalogi pośrednie, których archiwum nie zawiera jawnie (częste w ZIP).

@@ -27,6 +27,9 @@ final class GridListView: NSView, FileListView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Rozmiar komórki miniatury (etykieta pod ikoną zawija się w tej szerokości).
+    static let thumbnailItemSize = NSSize(width: 120, height: 128)
+
     private func setup() {
         let layout = NSCollectionViewFlowLayout()
         switch style {
@@ -38,7 +41,7 @@ final class GridListView: NSView, FileListView {
             layout.sectionInset = NSEdgeInsets(top: 2, left: 4, bottom: 2, right: 4)
         case .thumbnails:
             layout.scrollDirection = .vertical
-            layout.itemSize = NSSize(width: 120, height: 128)
+            layout.itemSize = Self.thumbnailItemSize
             layout.minimumInteritemSpacing = 8
             layout.minimumLineSpacing = 8
             layout.sectionInset = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
@@ -99,7 +102,8 @@ final class GridListView: NSView, FileListView {
     fileprivate func configure(_ cell: GridItem, _ item: FileItem) {
         let marked = tab?.selection.contains(item.path) ?? false
         let style = item.isParentLink ? nil : workspace.colorRules.style(for: item)
-        // Miniatury: dwie linie z wielokropkiem na końcu drugiej; skrócony: jedna z wielokropkiem w środku.
+        // Miniatury: zawijanie słów, a ostatnia z dwóch linii z wielokropkiem (truncatesLastVisibleLine);
+        // skrócony: jedna linia z wielokropkiem w środku.
         let lineBreak: NSLineBreakMode = cell.label.maximumNumberOfLines == 1 ? .byTruncatingMiddle : .byWordWrapping
         cell.label.attributedStringValue = NSAttributedString(
             string: item.name, attributes: Theme.attributes(size: CGFloat(workspace.settings.fontSize), style: style, marked: marked, lineBreak: lineBreak))
@@ -166,6 +170,8 @@ final class GridItem: NSCollectionViewItem {
         case .brief:
             label.alignment = .left
             label.maximumNumberOfLines = 1
+            label.cell?.wraps = false
+            label.preferredMaxLayoutWidth = 0
             NSLayoutConstraint.activate([
                 icon.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 2),
                 icon.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -178,6 +184,10 @@ final class GridItem: NSCollectionViewItem {
         case .thumbnails:
             label.alignment = .center
             label.maximumNumberOfLines = 2
+            label.cell?.wraps = true
+            // Szerokość komórki minus marginesy — bez niej wieloliniowe pole w Auto Layout obcina drugą
+            // linię bez wielokropka.
+            label.preferredMaxLayoutWidth = GridListView.thumbnailItemSize.width - 4
             NSLayoutConstraint.activate([
                 icon.topAnchor.constraint(equalTo: view.topAnchor, constant: 4),
                 icon.centerXAnchor.constraint(equalTo: view.centerXAnchor),
