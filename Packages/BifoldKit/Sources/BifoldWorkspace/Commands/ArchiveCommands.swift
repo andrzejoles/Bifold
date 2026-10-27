@@ -38,16 +38,29 @@ extension Workspace {
     }
 
     /// Plik z archiwum, serwera albo telefonu skopiowany do katalogu tymczasowego (podgląd, Quick Look,
-    /// edytor) — wynik ma zawsze ścieżkę lokalną.
-    public func materialize(_ item: FileItem) async throws -> FileItem {
+    /// edytor) — wynik ma zawsze ścieżkę lokalną. Katalogów (i dowiązań do katalogów) spoza dysku lokalnego
+    /// nie kopiuje — inaczej podgląd pobierał całe drzewo z serwera albo telefonu bez limitu.
+    /// - Parameter removeOnExit: katalog tymczasowy jest usuwany przy zamykaniu aplikacji (`saveSession`);
+    ///   `false` dla plików otwieranych do edycji (F4) — edytor może je trzymać dłużej niż Bifold. Kopie
+    ///   starsze niż doba usuwa `start()` przy kolejnym uruchomieniu.
+    public func materialize(_ item: FileItem, removeOnExit: Bool = true) async throws -> FileItem {
         if item.path.isLocal { return item }
+        guard !item.isNavigable else {
+            throw CommandError.notAvailable(L10n.tr("Katalogu spoza dysku lokalnego nie można otworzyć jak pliku"))
+        }
         let provider = try providers.provider(for: item.path)
         if let remote = provider as? any RemoteFileProvider {
-            return try LocalFS().itemSync(at: .local(try await remote.download(item.path)))
+            let url = try await remote.download(item.path)
+            // Pobranie trafia do własnego katalogu (`bifold-remote-…`, `.bifold-scp-…`) — tylko taki usuwamy.
+            let dir = url.deletingLastPathComponent()
+            if removeOnExit, dir.lastPathComponent.hasPrefix("bifold-remote-") || dir.lastPathComponent.hasPrefix(".bifold-scp-") {
+                temporaryViewDirectories.insert(dir)
+            }
+            return try LocalFS().itemSync(at: .local(url))
         }
         let archive = provider as? ArchiveFS, device = provider as? any ExtractingProvider
         guard archive != nil || device != nil else { throw VFSError.unsupported(item.path.description) }
-        let dir = FileManager.default.temporaryDirectory.appending(path: "bifold-view-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
+        let dir = FileManager.default.temporaryDirectory.appending(path: Self.viewCopyPrefix + UUID().uuidString.prefix(8), directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         // Przy błędzie albo anulowaniu katalog tymczasowy nie zostaje.
         do {
@@ -68,10 +81,36 @@ extension Workspace {
                 flag.cancel()
             }
             try Task.checkCancellation()
-            return try LocalFS().itemSync(at: local)
+            let result = try LocalFS().itemSync(at: local)
+            if removeOnExit { temporaryViewDirectories.insert(dir) }
+            return result
         } catch {
             try? FileManager.default.removeItem(at: dir)
             throw error
+        }
+    }
+
+    /// Przedrostek katalogów tymczasowych kopii do podglądu.
+    nonisolated static let viewCopyPrefix = "bifold-view-"
+
+    /// Usuwa katalogi tymczasowe kopii do podglądu z tej sesji (przy zamykaniu aplikacji).
+    public func removeTemporaryViewCopies() {
+        for dir in temporaryViewDirectories { try? FileManager.default.removeItem(at: dir) }
+        temporaryViewDirectories = []
+    }
+
+    /// Usuwa pozostałości po wcześniejszych uruchomieniach: tylko własne katalogi `bifold-view-…` starsze
+    /// niż `age` (plik otwarty do edycji z poprzedniej sesji ma dobę, zanim zniknie).
+    nonisolated static func removeStaleViewCopies(in directory: URL, olderThan age: TimeInterval = 86_400, now: Date = Date()) {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: directory.path) else { return }
+        for name in names where name.hasPrefix(viewCopyPrefix) {
+            let url = directory.appending(path: name, directoryHint: .isDirectory)
+            var st = stat()
+            // Bez podążania za dowiązaniami: tylko prawdziwe katalogi o naszej nazwie i naszym właścicielu.
+            guard lstat(url.path, &st) == 0, st.st_mode & S_IFMT == S_IFDIR, st.st_uid == getuid() else { continue }
+            let modified = Date(timeIntervalSince1970: TimeInterval(st.st_mtimespec.tv_sec))
+            if now.timeIntervalSince(modified) > age { try? fm.removeItem(at: url) }
         }
     }
 }
@@ -151,8 +190,10 @@ var archiveCommands: [Command] { [
             .extractArchives(archives.map(\.path), destination: dest, tool: tool, overwrite: overwrite, subfolders: ctx.arguments.bool("subfolders") ?? true),
             title: L10n.tr("Rozpakowywanie \(Format.describe(archives))"), invoker: ctx.invoker)
         let state = await ctx.workspace.jobs.wait(for: job)
+        // Błędy zawierają nazwy wpisów archiwum (SECURITY.md §4.6).
+        let value: JSONValue = ["destination": .string(dest.path), "state": .string("\(state)"), "errors": .array(job.errors.map { .string($0) })]
         return CommandResult(message: job.errors.isEmpty ? dest.path : job.errors.joined(separator: "\n"),
-                             value: ["destination": .string(dest.path), "state": .string("\(state)"), "errors": .array(job.errors.map { .string($0) })])
+                             value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(
@@ -169,7 +210,8 @@ var archiveCommands: [Command] { [
             json.append(["archive": .string(a.path.path), "ok": .bool(ok)])
         }
         if !ctx.isAgent { ctx.ui?.showReport(title: L10n.tr("Test archiwów"), text: lines.joined(separator: "\n")) }
-        return CommandResult(message: lines.joined(separator: "\n"), value: .array(json))
+        // Nazwy archiwów pochodzą z dysku (SECURITY.md §4.6).
+        return CommandResult(message: lines.joined(separator: "\n"), value: ctx.isAgent ? untrusted(.array(json)) : .array(json))
     },
 
     Command(CommandDescriptor(

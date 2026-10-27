@@ -2205,6 +2205,35 @@
         }
       }
     },
+    "Celem lustra nie może być cały wolumin — usunęłoby to z niego wszystko spoza źródła": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A mirror can’t target a whole volume — it would delete everything on it that isn’t in the source"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziel einer Spiegelung kann kein ganzes Volume sein — alles, was nicht in der Quelle ist, würde gelöscht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El destino de un espejo no puede ser un volumen entero: se borraría todo lo que no esté en el origen"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Метою дзеркала не може бути весь том — з нього було б видалено все, чого немає в джерелі"
+          }
+        }
+      }
+    },
     "Ciemny": {
       "extractionState": "manual",
       "localizations": {
@@ -5221,6 +5250,35 @@
         }
       }
     },
+    "Katalog główny dysku (/) nie może być końcem synchronizacji": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The disk root (/) can’t be a synchronization endpoint"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Stammverzeichnis des Laufwerks (/) kann kein Synchronisationsende sein"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La raíz del disco (/) no puede ser un extremo de la sincronización"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кореневий каталог диска (/) не може бути кінцем синхронізації"
+          }
+        }
+      }
+    },
     "Katalog na serwerze": {
       "extractionState": "manual",
       "localizations": {
@@ -5478,6 +5536,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Тек: %lld · %@"
+          }
+        }
+      }
+    },
+    "Katalogu spoza dysku lokalnego nie można otworzyć jak pliku": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A folder outside the local disk can’t be opened as a file"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Ordner außerhalb des lokalen Laufwerks kann nicht wie eine Datei geöffnet werden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una carpeta fuera del disco local no se puede abrir como un archivo"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Теку поза локальним диском не можна відкрити як файл"
           }
         }
       }
@@ -11858,6 +11945,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Початок назви"
+          }
+        }
+      }
+    },
+    "Podaj katalog źródłowy i docelowy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the source and destination folders"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quell- und Zielordner angeben"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indica las carpetas de origen y destino"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вкажіть вихідний і цільовий каталоги"
           }
         }
       }
@@ -23487,6 +23603,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вибрано: %lld"
+          }
+        }
+      }
+    },
+    "Zbyt wiele różnych wierszy do porównania tekstowego": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many differing lines for a text comparison"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu viele unterschiedliche Zeilen für einen Textvergleich"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demasiadas líneas distintas para una comparación de texto"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Забагато різних рядків для текстового порівняння"
           }
         }
       }

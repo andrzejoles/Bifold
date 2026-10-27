@@ -18,15 +18,37 @@ public enum FileCompare {
         public var identical: Bool { removed == 0 && added == 0 }
     }
 
+    /// Najwięcej wierszy (łącznie w obu plikach, po odcięciu wspólnego początku i końca), dla których
+    /// liczony jest diff. `difference(from:)` jest w najgorszym razie kwadratowe — dwa pliki po 2 MB
+    /// z różnymi wierszami liczyłyby się godzinami; 20 000 wierszy to ok. 1,5 s.
+    public static let maxDiffLines = 20_000
+
     public static func text(_ a: String, _ b: String) -> TextResult {
+        // Bez limitu `nil` nie występuje, a `isCancelled` nigdy nie przerywa.
+        (try? text(a, b, maxLines: nil)) ?? TextResult(lines: [], removed: 0, added: 0)
+    }
+
+    /// Porównanie tekstu z limitem: `nil`, gdy różniący się fragment ma więcej niż `maxLines` wierszy
+    /// (wynik „zbyt duże do porównania tekstowego”). `isCancelled` przerywa przed i po liczeniu różnic
+    /// (`VFSError.cancelled`).
+    public static func text(_ a: String, _ b: String, maxLines: Int?, isCancelled: () -> Bool = { false }) throws -> TextResult? {
         let la = a.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         let lb = b.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        let diff = lb.difference(from: la)
+        if isCancelled() { throw VFSError.cancelled }
+        // Wspólny początek i koniec nie zmieniają minimalnego zbioru różnic — diff liczony tylko dla środka.
+        var prefix = 0
+        while prefix < la.count, prefix < lb.count, la[prefix] == lb[prefix] { prefix += 1 }
+        var suffix = 0
+        while suffix < la.count - prefix, suffix < lb.count - prefix, la[la.count - 1 - suffix] == lb[lb.count - 1 - suffix] { suffix += 1 }
+        let middleA = la[prefix..<(la.count - suffix)], middleB = lb[prefix..<(lb.count - suffix)]
+        if let maxLines, middleA.count + middleB.count > maxLines { return nil }
+        let diff = Array(middleB).difference(from: Array(middleA))
+        if isCancelled() { throw VFSError.cancelled }
         var removedAt = Set<Int>(), insertedAt = Set<Int>()
         for change in diff {
             switch change {
-            case let .remove(offset, _, _): removedAt.insert(offset)
-            case let .insert(offset, _, _): insertedAt.insert(offset)
+            case let .remove(offset, _, _): removedAt.insert(prefix + offset)
+            case let .insert(offset, _, _): insertedAt.insert(prefix + offset)
             }
         }
         var out: [Line] = []

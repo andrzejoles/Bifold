@@ -20,7 +20,9 @@ public final class Tab: Identifiable {
     /// Rośnie przy każdej zmianie `visibleItems` (sygnał przeładowania widoku).
     public private(set) var generation = 0
 
-    public var cursor: VFSPath?
+    /// Każda zmiana kursora poza wczytaniem i przeliczeniem listy (strzałki, klik, szybkie wyszukiwanie,
+    /// komendy) podbija `cursorMoves` — odświeżenie nie cofa kursora przesuniętego w jego trakcie.
+    public var cursor: VFSPath? { didSet { if !settingCursorInternally { cursorMoves &+= 1 } } }
     public private(set) var selection: Set<VFSPath> = []
     public private(set) var directorySizes: [VFSPath: DirectorySize] = [:]
     public private(set) var isLoading = false
@@ -44,6 +46,14 @@ public final class Tab: Identifiable {
     /// Liczba zastosowanych wyników jawnych nawigacji — odświeżenie, w trakcie którego któraś się
     /// zakończyła, jest nieaktualne (przywróciłoby kursor sprzed niej).
     @ObservationIgnored private var appliedNavigations = 0
+    @ObservationIgnored private var cursorMoves = 0
+    @ObservationIgnored private var settingCursorInternally = false
+    /// Katalog, którego odświeżenie pominięto, bo w trakcie wygrała jawna nawigacja — jej listing mógł
+    /// powstać przed zmianą zgłoszoną przez FSEvents, więc po jej zakończeniu katalog jest odświeżany ponownie.
+    @ObservationIgnored private var pendingReload: VFSPath?
+    /// Czy alias serwera jest nadal zapisany w Menedżerze połączeń (ustawia `Workspace` przez panel).
+    /// Brak dostawcy dla znanego aliasu (np. po zapisie połączenia) nie czyni wpisu historii martwym.
+    @ObservationIgnored var isKnownRemoteAlias: (@MainActor (String) -> Bool)?
 
     public init(path: VFSPath, viewMode: ViewMode = .details, sort: SortSpec = SortSpec(), showHidden: Bool = false, providers: ProviderRegistry) {
         self.path = path
@@ -111,7 +121,10 @@ public final class Tab: Identifiable {
         // Karta-terminal zostaje terminalem — katalogi otwiera `Workspace.open` w nowej karcie.
         guard terminal == nil else { throw CommandError.notAvailable(L10n.tr("Karta z terminalem SSH nie pokazuje plików — otwórz je w nowej karcie")) }
         navigationGeneration += 1
-        try await load(target, focus: focus, recordHistory: recordHistory, historyIndex: newIndex, generation: navigationGeneration, isReload: false)
+        let generation = navigationGeneration
+        // Po zakończeniu (także nieudanym) ostatniej nawigacji — odświeżenie pominięte w jej trakcie.
+        defer { if navigationGeneration == generation { runPendingReload() } }
+        try await load(target, focus: focus, recordHistory: recordHistory, historyIndex: newIndex, generation: generation, isReload: false)
     }
 
     /// Zmiana katalogu karty. Przejście do innego dostawcy wylicza tytuł na nowo — inaczej karta
@@ -123,11 +136,15 @@ public final class Tab: Identifiable {
         customTitle = Self.automaticTitle(for: target, provider: try? providers.provider(for: target))
     }
 
-    /// Tytuł wynikający z dostawcy ścieżki (telefony nadaje `device.open` — nazwa modelu z urządzenia).
+    /// Tytuł wynikający z dostawcy ścieżki (telefon: nazwa modelu z urządzenia — także w nowej karcie,
+    /// „Otwórz w drugim panelu” i po powrocie przez historię).
     static func automaticTitle(for path: VFSPath, provider: (any FileSystemProvider)?) -> String? {
         if let alias = RemoteFS.alias(of: path) { return "🌐 " + alias }
         if let results = provider as? SearchResultsFS { return "🔍 " + results.title }
         if let archive = provider as? ArchiveFS { return "📦 " + archive.displayName }
+        if path.isDevice, let device = provider as? any ExtractingProvider {
+            return (device is MTPDeviceFS ? "🤖 " : "📱 ") + device.displayName
+        }
         return nil
     }
 
@@ -142,6 +159,11 @@ public final class Tab: Identifiable {
         func isCurrent() -> Bool {
             navigationGeneration == generation && (!isReload || (path == target && appliedNavigations == appliedAtStart))
         }
+        /// Wynik pominięty; odświeżenie, które przegrało z jawną nawigacją, wraca po jej zakończeniu.
+        func skipped() -> Bool {
+            if isReload { reloadSkipped(target) }
+            return false
+        }
         let provider = try providers.provider(for: target)
         if !isReload { isLoading = true }
         defer { if !isReload, navigationGeneration == generation { isLoading = false } }
@@ -149,13 +171,13 @@ public final class Tab: Identifiable {
         do {
             listed = try await provider.list(target, options: ListOptions())
         } catch {
-            guard isCurrent() else { return false }
+            guard isCurrent() else { return skipped() }
             // Jawna nawigacja rzuca błąd, a karta zostaje w poprawnym katalogu; komunikat w pasku
             // ścieżki tylko przy nieudanym odświeżeniu bieżącego katalogu.
             if isReload { loadError = error.localizedDescription }
             throw error
         }
-        guard isCurrent() else { return false }
+        guard isCurrent() else { return skipped() }
         if !isReload { appliedNavigations += 1 }
         let changedDirectory = target != path
         setPath(target)
@@ -174,18 +196,18 @@ public final class Tab: Identifiable {
         if let newIndex { historyIndex = newIndex }
         let focusPath = focus.map { target.appending($0) }
         await processNow()
-        guard isCurrent() else { return false }
+        guard isCurrent() else { return skipped() }
         if let focusPath, visibleIndex[focusPath] != nil {
-            cursor = focusPath
+            setCursorInternally(focusPath)
         } else if changedDirectory || cursor.map({ visibleIndex[$0] == nil }) ?? true {
-            cursor = visibleItems.first(where: { !$0.isParentLink })?.path ?? visibleItems.first?.path
+            setCursorInternally(visibleItems.first(where: { !$0.isParentLink })?.path ?? visibleItems.first?.path)
         }
         // W tym samym synchronicznym fragmencie co ustawienie kursora: odświeżenie, które czekało na to
         // samo przeliczenie i wznowiło się przed nami, czeka teraz na swoje `volumeInfo` — po nim musi
         // zobaczyć tę nawigację, inaczej przywróciłoby kursor sprzed niej (np. „..” zamiast nowego katalogu).
         if !isReload { appliedNavigations += 1 }
         let info = try? await provider.volumeInfo(for: target)
-        guard isCurrent() else { return false }
+        guard isCurrent() else { return skipped() }
         volume = info
         startWatching(provider)
         // Także po ustawieniu kursora: odświeżenie rozpoczęte w trakcie tej nawigacji zapamiętało kursor
@@ -194,16 +216,20 @@ public final class Tab: Identifiable {
         return true
     }
 
-    /// Ponowne wczytanie bieżącego katalogu z zachowaniem kursora i zaznaczenia.
+    /// Ponowne wczytanie bieżącego katalogu z zachowaniem kursora i zaznaczenia. Kursor przesunięty przez
+    /// użytkownika w trakcie odświeżenia zostaje tam, gdzie go przesunął.
     public func reload() async {
         guard terminal == nil else { return }
         let keepCursor = cursor
         let keepIndex = cursorIndex
+        let movesAtStart = cursorMoves
         let generation = navigationGeneration
         do {
             guard try await load(path, focus: nil, recordHistory: false, generation: generation, isReload: true) else { return }
         } catch {
-            // Katalog zniknął — przejdź w górę do pierwszego istniejącego.
+            // Tylko katalog, którego już nie ma — przejdź w górę do pierwszego istniejącego. Inne błędy
+            // (limit czasu, zerwane połączenie, brak uprawnień) zostawiają kartę z komunikatem `loadError`.
+            guard Self.isMissingDirectory(error) else { return }
             var candidate = path.parent
             while let c = candidate {
                 if (try? await navigate(to: c, focus: nil)) != nil { return }
@@ -211,13 +237,45 @@ public final class Tab: Identifiable {
             }
             return
         }
-        if let keepCursor, visibleIndex[keepCursor] != nil {
-            cursor = keepCursor
-        } else if let keepIndex, !visibleItems.isEmpty {
-            cursor = visibleItems[min(keepIndex, visibleItems.count - 1)].path
+        if cursorMoves == movesAtStart {
+            if let keepCursor, visibleIndex[keepCursor] != nil {
+                setCursorInternally(keepCursor)
+            } else if let keepIndex, !visibleItems.isEmpty {
+                setCursorInternally(visibleItems[min(keepIndex, visibleItems.count - 1)].path)
+            }
         }
         let existing = Set(items.map(\.path))
         selection = selection.intersection(existing)
+    }
+
+    /// Odświeżenie przegrało z jawną nawigacją. Gdy karta jest nadal w tym katalogu albo nawigacja trwa,
+    /// odświeżenie wraca po jej zakończeniu (od razu, jeśli już się zakończyła) — inaczej zdarzenie
+    /// FSEvents przepadało, a lista zostawała w stanie sprzed zmiany.
+    private func reloadSkipped(_ target: VFSPath) {
+        guard path == target || isLoading else { return }
+        pendingReload = target
+        if !isLoading { runPendingReload() }
+    }
+
+    private func runPendingReload() {
+        guard let target = pendingReload else { return }
+        pendingReload = nil
+        guard target == path, terminal == nil else { return }
+        Task { [weak self] in await self?.reload() }
+    }
+
+    private func setCursorInternally(_ target: VFSPath?) {
+        settingCursorInternally = true
+        defer { settingCursorInternally = false }
+        cursor = target
+    }
+
+    /// Błąd oznaczający, że katalogu nie ma (a nie np. chwilowy brak połączenia).
+    static func isMissingDirectory(_ error: any Error) -> Bool {
+        switch error as? VFSError {
+        case .notFound?, .notADirectory?: true
+        default: false
+        }
     }
 
     /// Plik archiwum, jeśli karta jest wewnątrz archiwum.
@@ -262,6 +320,8 @@ public final class Tab: Identifiable {
                 guard history.indices.contains(index), history[index] == target else { throw error }
                 history.remove(at: index)
                 if index < historyIndex { historyIndex -= 1 }
+                // `[a, b, a]` bez `b` to jeden wpis `a` — inaczej Wstecz „przechodził” do bieżącego katalogu.
+                collapseAdjacentDuplicates()
                 lastError = error
             }
         }
@@ -269,10 +329,25 @@ public final class Tab: Identifiable {
     }
 
     private func isDeadHistoryEntry(_ target: VFSPath, _ error: any Error) -> Bool {
-        if (try? providers.provider(for: target)) == nil { return true }
-        switch error as? VFSError {
-        case .notFound?, .notADirectory?: return true
-        default: return false
+        if (try? providers.provider(for: target)) == nil {
+            // Serwer zapisany w Menedżerze połączeń, tylko chwilowo bez dostawcy (np. po zapisie połączenia
+            // albo rozłączeniu) — wpis nie jest martwy, inaczej Wstecz kasował całą historię serwera.
+            if let alias = RemoteFS.alias(of: target), isKnownRemoteAlias?(alias) == true { return false }
+            return true
+        }
+        return Self.isMissingDirectory(error)
+    }
+
+    /// Scala sąsiednie równe wpisy historii (po usunięciu martwego wpisu) z korektą `historyIndex`.
+    private func collapseAdjacentDuplicates() {
+        var i = 1
+        while i < history.count {
+            if history[i] == history[i - 1] {
+                history.remove(at: i)
+                if i <= historyIndex { historyIndex -= 1 }
+            } else {
+                i += 1
+            }
         }
     }
 
@@ -337,7 +412,7 @@ public final class Tab: Identifiable {
         visibleIndex = Dictionary(result.enumerated().map { ($1.path, $0) }, uniquingKeysWith: { a, _ in a })
         generation += 1
         if let c = cursor, visibleIndex[c] == nil {
-            cursor = result.first(where: { !$0.isParentLink })?.path ?? result.first?.path
+            setCursorInternally(result.first(where: { !$0.isParentLink })?.path ?? result.first?.path)
         }
     }
 
