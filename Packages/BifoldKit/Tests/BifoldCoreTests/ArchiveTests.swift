@@ -191,6 +191,24 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
         #expect(UndoPlanner.plan(for: journal.batches).conflicts == [.modified(target)])
     }
 
+    /// Odczyt całego pliku z archiwum (`range: nil`) też reaguje na anulowanie.
+    @Test func wholeEntryReadIsCancelledWhileBlocked() throws {
+        let tmp = try TempDir()
+        // FIFO bez piszącego: 7zz blokuje się na otwarciu archiwum.
+        let fifo = tmp.url.appending(path: "a.7z").path
+        #expect(mkfifo(fifo, 0o600) == 0)
+        let cancelled = Flag()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { cancelled.set() }
+        let threw = Flag()
+        let tool = tool
+        #expect(finishes(within: .seconds(3), unblocking: fifo) {
+            do { _ = try tool.read(.local(fifo), entry: "x", password: nil, range: nil, isCancelled: { cancelled.value }) } catch VFSError.cancelled {
+                threw.set()
+            } catch {}
+        }, "odczyt nie zareagował na anulowanie")
+        #expect(threw.value)
+    }
+
     /// Anulowane tworzenie archiwum (także wieloczęściowego) nie zostawia archiwum, części ani plików tymczasowych.
     @Test func cancelledCreateLeavesNothing() throws {
         let tmp = try TempDir()
@@ -275,5 +293,24 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
     @Test func detection() {
         for n in ["a.zip", "B.RAR", "x.tar.gz", "y.tgz", "z.part1.rar", "w.zip.001"] { #expect(ArchiveFS.isArchive(n), "\(n)") }
         for n in ["a.txt", "b.001", "c"] { #expect(!ArchiveFS.isArchive(n), "\(n)") }
+    }
+}
+
+/// Hasło dla 7zz idzie przez rurę na stdin; proces, który zamknął wejście bez czytania, nie może zabić
+/// aplikacji sygnałem SIGPIPE. Zamiast 7zz — skrypt, który od razu zamyka stdin (hasło większe niż bufor
+/// rury, więc zapis na pewno trafia na zamkniętą rurę).
+@Suite struct SevenZipPasswordPipeTests {
+    @Test func passwordWriteToClosedPipeDoesNotKillProcess() throws {
+        let tmp = try TempDir()
+        let script = tmp.url.appending(path: "zamyka-stdin.sh")
+        try Data("#!/bin/sh\nexec 0<&-\nsleep 0.2\nexit 2\n".utf8).write(to: script)
+        #expect(chmod(script.path, 0o755) == 0)
+        let fake = SevenZip(executable: script.path)
+        let password = String(repeating: "h", count: 1 << 20)
+        let out = try fake.run(["l", "x.7z"], password: password)
+        #expect(out.status == 2)
+        let archive = tmp.path.appending("a.7z")
+        try Data("x".utf8).write(to: URL(filePath: archive.path))
+        #expect(throws: (any Error).self) { try fake.read(archive, entry: "x", password: password, range: 0..<10) }
     }
 }
