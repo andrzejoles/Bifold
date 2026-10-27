@@ -93,7 +93,7 @@ private struct FakeDeviceFS: ExtractingProvider {
         let (ws, _) = try await makeWorkspace(tmp)
         try await ws.invoke("archive.create", CommandArguments(["paths": .array([.string(tmp.url.path + "/a.txt")]), "destination": .string(tmp.url.path + "/p.zip")]))
         let result = try await runAsAgent(ws, "archive.list", ["path": .string(tmp.url.path + "/p.zip"), "limit": .int(-5)])
-        #expect(result.value?["entries"]?.arrayValue?.isEmpty == true)
+        #expect(result.value?["content"]?["entries"]?.arrayValue?.isEmpty == true)
     }
 
     // MARK: 3. Karty-terminale a agent
@@ -267,7 +267,9 @@ private struct FakeDeviceFS: ExtractingProvider {
         let index = tab.historyIndex
         try FileManager.default.removeItem(at: tmp.url.appending(path: "a"))
         await #expect(throws: (any Error).self) { try await tab.goBack() }
-        #expect(tab.path == tmp.path.appending("b") && tab.historyIndex == index && !tab.canGoForward)
+        // Martwy wpis znika z historii (Wstecz nie zatrzymuje się na nim na stałe); karta zostaje w b.
+        #expect(tab.path == tmp.path.appending("b") && tab.historyIndex == index - 1 && !tab.canGoForward && !tab.canGoBack)
+        #expect(!tab.history.contains(tmp.path.appending("a")))
         #expect(tab.loadError == nil)
 
         await #expect(throws: (any Error).self) { try await tab.navigate(to: tmp.path.appending("brak")) }

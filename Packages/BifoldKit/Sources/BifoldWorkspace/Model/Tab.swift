@@ -180,6 +180,10 @@ public final class Tab: Identifiable {
         } else if changedDirectory || cursor.map({ visibleIndex[$0] == nil }) ?? true {
             cursor = visibleItems.first(where: { !$0.isParentLink })?.path ?? visibleItems.first?.path
         }
+        // W tym samym synchronicznym fragmencie co ustawienie kursora: odświeżenie, które czekało na to
+        // samo przeliczenie i wznowiło się przed nami, czeka teraz na swoje `volumeInfo` — po nim musi
+        // zobaczyć tę nawigację, inaczej przywróciłoby kursor sprzed niej (np. „..” zamiast nowego katalogu).
+        if !isReload { appliedNavigations += 1 }
         let info = try? await provider.volumeInfo(for: target)
         guard isCurrent() else { return false }
         volume = info
@@ -221,7 +225,7 @@ public final class Tab: Identifiable {
 
     public func goUp() async throws {
         if path.isRoot, let host = hostLocation, let parent = host.parent {
-            customTitle = nil
+            // Tytuł wylicza `setPath` po udanym wczytaniu — przy błędzie karta zostaje z „📦 x.zip”.
             try await navigate(to: parent, focus: host.name)
             return
         }
@@ -234,19 +238,42 @@ public final class Tab: Identifiable {
 
     /// Wstecz/dalej: indeks historii zmienia się razem z katalogiem, dopiero po udanym wczytaniu — przy
     /// błędzie albo wygranej nowszej nawigacji (D47) indeks zgadza się z katalogiem karty.
-    public func goBack() async throws {
-        guard canGoBack else { return }
+    public func goBack() async throws { try await stepHistory(by: -1) }
+
+    public func goForward() async throws { try await stepHistory(by: 1) }
+
+    /// Krok w historii. Martwy wpis (katalog usunięty, dostawca wyrejestrowany — rozłączony serwer,
+    /// zamknięte archiwum) znika z historii i próbowany jest następny w tym kierunku; inaczej Wstecz
+    /// zatrzymywał się na nim na stałe. Inne błędy (np. chwilowy brak połączenia) historii nie zmieniają.
+    /// Gdy żadnego wpisu nie udało się wczytać, rzucany jest błąd ostatniego.
+    private func stepHistory(by step: Int) async throws {
         let from = path
-        let index = historyIndex - 1
-        let target = history[index]
-        let focus = from.isDescendant(of: target) ? from.components.dropFirst(target.components.count).first : nil
-        try await navigate(to: target, focus: focus, recordHistory: false, historyIndex: index)
+        var lastError: (any Error)?
+        while historyIndex >= 0, history.indices.contains(historyIndex + step) {
+            let index = historyIndex + step
+            let target = history[index]
+            let focus = step < 0 && from.isDescendant(of: target) ? from.components.dropFirst(target.components.count).first : nil
+            do {
+                // Wynik pominięty przez nowszą nawigację nie jest błędem — historia zostaje bez zmian.
+                try await navigate(to: target, focus: focus, recordHistory: false, historyIndex: index)
+                return
+            } catch where isDeadHistoryEntry(target, error) {
+                // Błąd rzuca tylko nawigacja, która nie przegrała z nowszą — historia jest ta sama co przed nią.
+                guard history.indices.contains(index), history[index] == target else { throw error }
+                history.remove(at: index)
+                if index < historyIndex { historyIndex -= 1 }
+                lastError = error
+            }
+        }
+        if let lastError { throw lastError }
     }
 
-    public func goForward() async throws {
-        guard canGoForward else { return }
-        let index = historyIndex + 1
-        try await navigate(to: history[index], focus: nil, recordHistory: false, historyIndex: index)
+    private func isDeadHistoryEntry(_ target: VFSPath, _ error: any Error) -> Bool {
+        if (try? providers.provider(for: target)) == nil { return true }
+        switch error as? VFSError {
+        case .notFound?, .notADirectory?: return true
+        default: return false
+        }
     }
 
     /// Dostawcy używani przez kartę (bieżący katalog i historia) — `Workspace` wyrejestrowuje

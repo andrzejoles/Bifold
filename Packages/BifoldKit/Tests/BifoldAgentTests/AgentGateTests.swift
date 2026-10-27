@@ -320,6 +320,10 @@ import Testing
 }
 
 /// Uzgadnianie przed uwierzytelnieniem, pętla `accept`, wycieki połączeń, gniazdo innej kopii.
+/// Ścisłe limity czasu tylko w `make test-release` (BIFOLD_PERF_STRICT=1); w Debug, równolegle z innymi
+/// zestawami, luźniejsze — testy rozróżniają „od razu” od „po terminie 5 s”, nie mierzą dokładnie.
+private let strictTiming = ProcessInfo.processInfo.environment["BIFOLD_PERF_STRICT"] == "1"
+
 @MainActor @Suite(.serialized) struct AgentServerHardeningTests {
     @Test func slowDripHelloIsDisconnectedByAbsoluteDeadline() async throws {
         let env = try await AgentEnv()
@@ -340,7 +344,9 @@ import Testing
             }
             return nil
         }.value
-        #expect(closedAfter != nil && closedAfter! < .seconds(7), "\(String(describing: closedAfter))")
+        // `nil` = połączenie żyło 12 s (limit na każdy `read` zamiast bezwzględnego). Ściśle (≈ 5 s) tylko przy
+        // BIFOLD_PERF_STRICT=1 — w Debug równolegle z innymi zestawami wątki uzgadniania startują z opóźnieniem.
+        #expect(closedAfter != nil && closedAfter! < .seconds(strictTiming ? 7 : 11.5), "\(String(describing: closedAfter))")
     }
 
     @Test func oversizedHelloHeaderIsRejectedImmediately() async throws {
@@ -352,7 +358,8 @@ import Testing
         try Wire.writeAll(Data(bytes: &length, count: 4), to: fd)
         let started = ContinuousClock.now
         let reply = await Task.detached { try? Wire.readFrame(from: fd) }.value
-        #expect(ContinuousClock.now - started < .seconds(2))
+        // Od razu, nie po terminie `hello` (5 s).
+        #expect(ContinuousClock.now - started < .seconds(strictTiming ? 2 : 4.5))
         #expect(reply.flatMap { try? JSONDecoder().decode(Wire.Reply.self, from: $0) }?.type == "error")
     }
 
@@ -362,12 +369,15 @@ import Testing
         var fds: [Int32] = []
         defer { fds.forEach { close($0) } }
         for _ in 0..<8 { fds.append(try Wire.connect(path: env.socket.path)) }
-        try await Task.sleep(for: .milliseconds(200))
+        // Zamiast stałego czasu: aż serwer przyjmie wszystkie osiem uzgodnień (z terminem).
+        let deadline = ContinuousClock.now + .seconds(4)
+        while env.controller.pendingHandshakes < 8, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(env.controller.pendingHandshakes == 8)
         let extra = try Wire.connect(path: env.socket.path)
         fds.append(extra)
         let started = ContinuousClock.now
         let reply = await Task.detached { try? Wire.readFrame(from: extra) }.value
-        #expect(ContinuousClock.now - started < .seconds(2))
+        #expect(ContinuousClock.now - started < .seconds(strictTiming ? 2 : 4.5))
         #expect(reply.flatMap { try? JSONDecoder().decode(Wire.Reply.self, from: $0) }?.message == "busy")
     }
 

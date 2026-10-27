@@ -42,6 +42,7 @@ let hasRclone = FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/
         try tmp.file("R/a.txt", "jeden\nDWA\n")
         let (ws, _) = try await makeWorkspace(tmp, left: "L", right: "R")
         let ctxResult = try await ws.registry.command("file.compare")!.run(CommandContext(workspace: ws, invoker: .agent(sessionID: "x", agentName: "t"), arguments: CommandArguments(["left": .string(tmp.url.path + "/L/a.txt"), "right": .string(tmp.url.path + "/R/a.txt")])))
-        #expect(ctxResult.value?["diff"]?.stringValue?.contains("-dwa\n+DWA") == true)
+        #expect(ctxResult.value?["untrusted"] == true && ctxResult.value?["notice"] != nil)
+        #expect(ctxResult.value?["content"]?["diff"]?.stringValue?.contains("-dwa\n+DWA") == true)
     }
 }

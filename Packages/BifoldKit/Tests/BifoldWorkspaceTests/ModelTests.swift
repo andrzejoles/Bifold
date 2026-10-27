@@ -252,21 +252,29 @@ private struct SlowFS: FileSystemProvider {
         let items = (0..<100_000).map { i in
             FileItem(path: dir.appending("plik-\(i % 977)-\(i).txt"), kind: i % 50 == 0 ? .directory : .file, size: Int64(i), modified: Date(timeIntervalSince1970: Double(i)))
         }.shuffled()
+        // Ściśle tylko w `make test-release` (BIFOLD_PERF_STRICT=1); w Debug, równolegle z innymi zestawami,
+        // limit jest luźny — test ma wykryć złą złożoność, nie mierzyć dokładnie.
+        let strict = ProcessInfo.processInfo.environment["BIFOLD_PERF_STRICT"] == "1"
         let start = ContinuousClock.now
         let sorted = ListingProcessor.process(items, in: dir, options: .init())
         let elapsed = ContinuousClock.now - start
         #expect(sorted.count == 100_001)
-        #expect(elapsed < .milliseconds(700), "sortowanie: \(elapsed)")
+        #expect(elapsed < .milliseconds(strict ? 700 : 5000), "sortowanie: \(elapsed)")
         let t2 = ContinuousClock.now
         _ = ListingProcessor.process(items, in: dir, options: .init(sort: SortSpec(field: .modified, ascending: false), filter: "77"))
-        #expect(ContinuousClock.now - t2 < .milliseconds(500))
+        let filtered = ContinuousClock.now - t2
+        #expect(filtered < .milliseconds(strict ? 500 : 5000), "filtrowanie: \(filtered)")
     }
 
     /// Prawdziwy katalog ze 100 000 plików: listowanie + sortowanie poniżej 1 s.
     /// Tworzenie i usuwanie plików poza MainActor — inaczej przez ~minutę stały wszystkie testy MainActor.
+    /// Pliki w podkatalogu `duzy`: karty startują w (małym) katalogu testu, a duży katalog wczytuje
+    /// i obserwuje tylko jedna karta — do sprzątania już nie (wcześniej dwie karty obserwowały kasowany
+    /// katalog i przeładowania po FSEvents zajmowały wątek główny na minuty).
     @MainActor @Test func listHundredThousandFiles() async throws {
         let tmp = try TempDir()
-        let base = tmp.url.path
+        let big = try tmp.dir("duzy")
+        let base = big.path
         await Task.detached(priority: .userInitiated) {
             for i in 0..<100_000 {
                 let fd = open(base + "/plik-\(i).dat", O_CREAT | O_WRONLY, 0o644)
@@ -276,18 +284,22 @@ private struct SlowFS: FileSystemProvider {
         let (ws, _) = try await makeWorkspace(tmp)
         let tab = ws.activeTab
         let t0 = ContinuousClock.now
-        let listed = try LocalFS().listSync(tmp.path)
+        let listed = try LocalFS().listSync(big)
         let t1 = ContinuousClock.now
-        _ = ListingProcessor.process(listed, in: tmp.path, options: .init())
+        _ = ListingProcessor.process(listed, in: big, options: .init())
         let t2 = ContinuousClock.now
-        try await tab.navigate(to: tmp.path)
+        try await tab.navigate(to: big)
         let elapsed = ContinuousClock.now - t2
         #expect(tab.visibleItems.count == 100_001)
         // Kryterium odbioru (1 s) sprawdzane ściśle w `make test-release` (BIFOLD_PERF_STRICT=1);
-        // w zwykłym przebiegu debug inne zestawy testów działają równolegle i zabierają CPU.
+        // w zwykłym przebiegu debug inne zestawy testów działają równolegle i zabierają CPU — limit luźny
+        // (wykrywa złą złożoność, nie mierzy dokładnie).
         let strict = ProcessInfo.processInfo.environment["BIFOLD_PERF_STRICT"] == "1"
-        #expect(elapsed < .seconds(strict ? 1 : 3), "pierwsze wyświetlenie: \(elapsed)")
+        #expect(elapsed < .seconds(strict ? 1 : 15), "pierwsze wyświetlenie: \(elapsed)")
         print("100k: listowanie \(t1 - t0), sortowanie \(t2 - t1), razem w karcie \(elapsed)")
+        // Karta wychodzi z katalogu i przestaje go obserwować przed sprzątaniem.
+        try await tab.navigate(to: tmp.path)
+        for t in ws.left.tabs + ws.right.tabs { t.stopBackgroundWork() }
         // Sprzątanie też w tle (`TempDir.deinit` usuwałby 100 000 plików na MainActor).
         let url = tmp.url
         await Task.detached(priority: .userInitiated) { try? FileManager.default.removeItem(at: url) }.value
