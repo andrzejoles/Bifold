@@ -128,6 +128,12 @@
 - **Odporność na dane od agenta**: tekst wyszukiwania Spotlight jest oczyszczany przed parserem (wcześniej
   `\` zamykał aplikację bez zgody); podgląd zmiany nazw wielu plików liczony przed oknem zgody ma
   ograniczone zasoby (szerokość licznika ≤ 20, bez pułapek przepełnienia); odczyty odrzucają FIFO i urządzenia.
+- **SCP — tworzenie lokalnych elementów**: przy pobieraniu elementy powstają wyłącznie jako nowe (`mkdir`,
+  `symlink`, plik tymczasowy + `renamex_np(RENAME_EXCL)`) — `scp` nigdy nie zapisuje pod nazwą docelową
+  (poszedłby za dowiązaniem podstawionym przez serwer); błąd `cd`/`ls` na serwerze to błąd, nie pusty katalog.
+  Wysyłanie przez plik tymczasowy w katalogu docelowym i `mv -f`. Gniazdo ControlMaster wspólne dla aliasów
+  tego samego `użytkownik@host:port`, zamykane, gdy nikt go nie używa; agent nie rozłączy aliasu, gdy inny
+  alias tego serwera ma terminal. Pomocnik administratora przyjmuje tylko lokalne ścieżki docelowe.
 - **Pliki sum i synchronizacja**: `checksum_verify` nie sprawdza wpisów spoza katalogu pliku sum
   (ścieżki absolutne, `..`, dowiązania → `invalid`); ścieżki z rclone z niebezpiecznymi składnikami są
   odrzucane, zanim zostaną złożone z lokalnym korzeniem; nazwy wpisów archiwów przechodzą

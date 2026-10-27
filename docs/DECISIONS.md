@@ -367,3 +367,10 @@ zostają „⌨” i telefon. Martwe wpisy historii są usuwane przy Wstecz/Dale
 (agent nie). Okno synchronizacji wykonuje sprawdzony plan bezpośrednio przez kolejkę (wyjątek od zasady
 „czynność = komenda”, bo `sync.run` liczy plan od nowa). Widok kolumn trzyma tylko poziomy bieżącej
 ścieżki i widocznych kolumn, a dopóki w tle wczytuje się nowa lista — pokazuje dotychczasową.
+
+### D56 · 2026-10-27 — SCP: nadpisywanie przez plik tymczasowy, sesje po gnieździe, MTP po USB
+Nadpisywanie na SCP idzie przez plik tymczasowy w katalogu docelowym i `mv -f` (przerwanie nie psuje
+pliku); plik dostaje właściciela wysyłającego i prawa z kopii lokalnej, dowiązania twarde do starego pliku
+się rozłączają; bez prawa zapisu do katalogu — zapis w miejscu (nieatomowy, jak dawniej). Pobieranie tworzy
+elementy wyłącznie jako nowe, wolną nazwę wybiera system plików. Sesje SSH liczone po gnieździe
+ControlMaster, nie po aliasie (rozszerza D50). Dostawca MTP identyfikowany po USB (uzupełnia D51).

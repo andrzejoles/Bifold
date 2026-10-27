@@ -34,6 +34,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 - Miniatury: plik z samymi spacjami pokazuje ikonę typu zamiast białej kartki.
 - Wyszukiwanie: „Przejdź do” na karcie serwera lub terminala otwiera nową kartę; błąd widać w oknie.
 
+### Poprawione — serwery, telefony, pomocnik (część 4)
+- Pobieranie katalogu z serwera SCP nie nadpisze pliku na dysku przez dowiązanie podstawione przez serwer
+  ani pliku o nazwie różniącej się tylko wielkością liter — każdy element dostaje wolną nazwę („nazwa (2)”).
+- Katalog na serwerze SCP, którego nie da się odczytać, daje błąd zamiast pustego katalogu (pobranie
+  podkatalogu bez praw nie kończy się po cichu pustym folderem).
+- Wysyłanie przez SCP: przerwane „Nadpisz” nie psuje ani nie usuwa pliku na serwerze; błąd jednego pliku
+  (np. „€” na serwerze ISO-8859-2) nie przerywa reszty, a raport podaje pełną ścieżkę; zerwane połączenie
+  nie powoduje nadpisania plików bez pytania.
+- „Rozłącz” jednego połączenia nie zamyka terminala innego połączenia do tego samego serwera; „Rozłącz”
+  w trakcie łączenia przerywa łączenie; po zmianie danych połączenia karty nie łączą się ze starym serwerem.
+- SFTP/FTP/WebDAV: zmiana samej wielkości liter nie zastępuje innego pliku; pliki z częściowo nieudanego
+  pobrania przez rclone też dostają kwarantannę.
+- Dwa telefony z Androidem nie mylą się po zmianie kolejności podłączenia.
+- Pomocnik administratora odmawia operacji z celem na serwerze; okna nie zamierają w trakcie pytania o hasło.
+
 ### Zmienione — wydania i testy
 - `scripts/release.sh` uruchamia pełne testy przed wydaniem; CHANGELOG ma sekcje wydanych wersji.
 - Nazwa i autor w skryptach z `Config/Brand.xcconfig`; testy nie dają fałszywych porażek czasowych pod
