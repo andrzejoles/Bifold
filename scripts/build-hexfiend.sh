@@ -14,9 +14,12 @@ fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 # Czyste środowisko: zmienne budowania Xcode z zewnętrznego procesu nie mogą przeciekać.
+# Bez ostrzeżeń: to kod zewnętrzny (konwersje liczb, przestarzałe API AppKit), nie poprawiamy go.
+# GCC_WARN_INHIBIT_ALL_WARNINGS wycisza kompilację, „-- -w” weryfikator modułu (nagłówek HFFunctions.h).
 env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME" DEVELOPER_DIR="${DEVELOPER_DIR:-$(xcode-select -p)}" \
   xcodebuild -project "$ROOT/ThirdParty/HexFiend/HexFiend_2.xcodeproj" -target HexFiend_Framework \
   -configuration Release ARCHS=arm64 ONLY_ACTIVE_ARCH=YES MACOSX_DEPLOYMENT_TARGET=27.0 \
+  GCC_WARN_INHIBIT_ALL_WARNINGS=YES OTHER_MODULE_VERIFIER_FLAGS="-- -w" \
   CODE_SIGNING_ALLOWED=NO SYMROOT="$TMP" OBJROOT="$TMP/obj" build -quiet
 mkdir -p "$OUT"
 rm -rf "$OUT/HexFiend.framework"
