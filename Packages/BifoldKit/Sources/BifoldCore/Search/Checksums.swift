@@ -78,6 +78,7 @@ public enum Checksums {
 
     /// `invalid` — wpis wskazuje poza katalog pliku sum (ścieżka absolutna, `..`, dowiązanie na zewnątrz);
     /// nie jest sprawdzany, żeby plik sum nie służył do badania istnienia i treści dowolnych plików.
+    /// Także wpis, którego nie da się przeczytać jako zwykłego pliku (katalog, FIFO, brak praw).
     public enum VerifyStatus: String, Sendable, Codable { case ok, mismatch, missing, invalid }
 
     public struct VerifyResult: Sendable, Hashable {
@@ -98,7 +99,13 @@ public enum Checksums {
         return try parse(text).map { e in
             guard let p = entryPath(e.path, base: base, baseReal: baseReal), !skip(p) else { return VerifyResult(path: e.path, status: .invalid) }
             guard FileManager.default.fileExists(atPath: p.path) else { return VerifyResult(path: e.path, status: .missing) }
-            let h = try hash(p, algorithm: algorithm, isCancelled: isCancelled)
+            // Jeden nieczytelny wpis nie przerywa sprawdzania pozostałych (anulowanie — tak).
+            let h: String
+            do { h = try hash(p, algorithm: algorithm, isCancelled: isCancelled) } catch VFSError.cancelled {
+                throw VFSError.cancelled
+            } catch {
+                return VerifyResult(path: e.path, status: .invalid)
+            }
             return VerifyResult(path: e.path, status: h == e.hash ? .ok : .mismatch)
         }
     }
@@ -195,7 +202,8 @@ public enum FileSplitter {
     @discardableResult
     public static func split(_ source: VFSPath, partSize: Int64, into directory: VFSPath, isCancelled: () -> Bool = { false }) throws -> [VFSPath] {
         precondition(partSize > 0)
-        guard let input = FileHandle(forReadingAtPath: source.path) else { throw VFSError.notFound(source) }
+        // Tylko zwykły plik — otwarcie FIFO do odczytu czekałoby na piszącego bez końca.
+        let input = FileHandle(fileDescriptor: try LocalFS.openRegularFile(source), closeOnDealloc: true)
         defer { try? input.close() }
         let sum = directory.appending(source.name + ".sha256")
         var st = stat()
