@@ -171,6 +171,45 @@ final class TestServer {
         #expect(applied.withLock { $0 } == ["off", "1000", "1", "500", "1", "off"])
     }
 
+    /// Zmiana samej wielkości liter na serwerze, który ją rozróżnia (backend `memory` rclone): istniejący
+    /// element o nowej nazwie nie jest zastępowany.
+    @Test func caseOnlyRenameDoesNotReplaceOtherFile() async throws {
+        let rc = try rclone()
+        defer { rc.stop() }
+        _ = try await rc.call("config/create", ["name": "pamiec-cs", "type": "memory", "parameters": [String: Any](), "opt": ["nonInteractive": true]])
+        let fs = RemoteFS(connection: RemoteConnection(alias: "pamiec-cs", kind: .webdav), rclone: rc)
+        try await fs.createFile(fs.root.appending("readme"), contents: Data("mały".utf8))
+        try await fs.createFile(fs.root.appending("README"), contents: Data("DUŻY".utf8))
+        await #expect(throws: VFSError.alreadyExists(fs.root.appending("README"))) {
+            _ = try await fs.rename(fs.root.appending("readme"), to: "README")
+        }
+        #expect(String(decoding: try await fs.readContents(fs.root.appending("README"), range: nil), as: UTF8.self) == "DUŻY")
+        #expect(String(decoding: try await fs.readContents(fs.root.appending("readme"), range: nil), as: UTF8.self) == "mały")
+    }
+
+    /// Częściowo nieudane pobranie katalogu (plik bez praw na serwerze): pobrane pliki i tak dostają kwarantannę.
+    @MainActor @Test func partialDownloadIsQuarantined() async throws {
+        let server = try TestServer("sftp")
+        try server.root.file("zdalne/a.txt", "AAA")
+        try server.root.file("zdalne/zly.txt", "X")
+        let bad = server.root.url.path + "/zdalne/zly.txt"
+        chmod(bad, 0)
+        defer { chmod(bad, 0o644) }
+        let rc = try rclone()
+        defer { rc.stop() }
+        let fs = try await RemoteFS.connect(RemoteConnection(alias: "czesc", kind: .sftp, host: "127.0.0.1", port: server.port, user: "u"), secret: "tajne", rclone: rc)
+        let local = try TempDir()
+        let queue = JobQueue(journal: OperationJournal())
+        let download = RcloneTransfer(
+            kind: .copy, items: [.init(srcFs: fs.fs, srcRemote: "zdalne", isDirectory: true, name: "zdalne", size: 4)],
+            dstFs: local.url.path, dstRemote: "", localDestination: local.path, skipExisting: false)
+        let job = queue.enqueue(.rclone(download, rc), title: "pobierz")
+        let state = await queue.wait(for: job)
+        #expect(state != .completed)
+        #expect(try local.read("zdalne/a.txt") == "AAA")
+        #expect(Quarantine.isMarked(local.url.path + "/zdalne/a.txt"), "pobrany plik z kwarantanną mimo błędu")
+    }
+
     @Test func inMemoryConfigOnly() async throws {
         let rc = try rclone()
         defer { rc.stop() }

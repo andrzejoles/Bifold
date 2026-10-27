@@ -33,16 +33,18 @@ public final class RemoteManager {
         if let secret { try keychain.set(secret, for: c.alias) }
         try JSONStore.save(connections, to: url)
         connected.remove(c.alias)
-        // Zmieniony host/użytkownik: stara sesja SSH (także terminali) nie może zostać.
+        // Zmieniony host/użytkownik: stara sesja SSH (także terminali) nie może zostać, a stary dostawca
+        // nie może zostać zarejestrowany — karta łączyłaby się nim ze starym hostem (z nowym hasłem).
         scpSessions.removeValue(forKey: c.alias)
-        sshSessions.removeValue(forKey: c.alias)?.disconnect()
+        workspace.providers.unregister(RemoteFS.providerID(c.alias))
+        if let session = sshSessions.removeValue(forKey: c.alias) { unshared(session)?.disconnect() }
     }
 
     public func remove(_ alias: String) throws {
         connections.removeAll { $0.alias == alias }
         keychain.delete(alias)
         scpSessions.removeValue(forKey: alias)
-        sshSessions.removeValue(forKey: alias)?.disconnect()
+        if let session = sshSessions.removeValue(forKey: alias) { unshared(session)?.disconnect() }
         try JSONStore.save(connections, to: url)
         workspace.providers.unregister(RemoteFS.providerID(alias))
         connected.remove(alias)
@@ -86,7 +88,7 @@ public final class RemoteManager {
     /// Jedna sesja SSH na serwer (gniazdo połączenia głównego) — wspólna dla SCP i terminali.
     @ObservationIgnored private var sshSessions: [String: SSHSession] = [:]
     /// Trwające łączenie (drugie wywołanie `provider` czeka na to samo zamiast rozłączać pierwsze).
-    @ObservationIgnored private var connecting: [String: Task<any RemoteFileProvider, any Error>] = [:]
+    @ObservationIgnored var connecting: [String: Task<any RemoteFileProvider, any Error>] = [:]
     /// Testy: własna konfiguracja SSH zamiast ~/.ssh/config i ~/.ssh/known_hosts.
     @ObservationIgnored public var sshConfigFile: String?
     @ObservationIgnored public var sshKnownHostsFile: String?
@@ -119,11 +121,30 @@ public final class RemoteManager {
     func sshSession(_ c: RemoteConnection) throws -> SSHSession {
         let config = ScpFS.sessionConfig(c, sshConfigFile: sshConfigFile, knownHostsFile: sshKnownHostsFile)
         if let existing = sshSessions[c.alias], existing.config == config { return existing }
-        sshSessions.removeValue(forKey: c.alias)?.disconnect()
+        if let old = sshSessions.removeValue(forKey: c.alias) { unshared(old)?.disconnect() }
         let keychain = keychain, alias = c.alias
         let session = try SSHSession(config: config, runDirectory: try socketDirectory(), secret: { keychain.get(alias) })
         sshSessions[c.alias] = session
         return session
+    }
+
+    /// Sesja, której połączenie główne można zamknąć: żaden alias nie korzysta już z jej gniazda.
+    /// Aliasy tego samego `użytkownik@host:port` dzielą ControlMaster — `ssh -O exit` przy „Rozłącz B”
+    /// zakończyłby terminal i pliki aliasu A. `nil` — gniazdo nadal w użyciu.
+    private func unshared(_ session: SSHSession) -> SSHSession? {
+        let inUse = sshSessions.values.contains { $0.controlPath == session.controlPath }
+            || scpSessions.values.contains { $0.session.controlPath == session.controlPath }
+        return inUse ? nil : session
+    }
+
+    /// Aliasy korzystające z tego samego połączenia głównego SSH co `alias` (łącznie z nim).
+    public func aliasesSharingSession(with alias: String) -> Set<String> {
+        guard let c = connection(alias), c.kind.usesSSH, let dir = try? socketDirectory() else { return [alias] }
+        func path(_ c: RemoteConnection) -> String {
+            SSHSession.controlPath(for: ScpFS.sessionConfig(c, sshConfigFile: sshConfigFile, knownHostsFile: sshKnownHostsFile), in: dir)
+        }
+        let own = path(c)
+        return Set(connections.filter { $0.kind.usesSSH && path($0) == own }.map(\.alias)).union([alias])
     }
 
     private func establish(_ c: RemoteConnection) async throws -> any RemoteFileProvider {
@@ -132,6 +153,12 @@ public final class RemoteManager {
             scpSessions.removeValue(forKey: alias)
             let session = try sshSession(c)
             let fs = try await ScpFS.connect(c, runDirectory: try socketDirectory(), session: session) { nil }
+            // „Rozłącz” w trakcie łączenia: bez rejestracji, połączenie główne zamknięte.
+            if Task.isCancelled {
+                if sshSessions[alias] === session { sshSessions[alias] = nil }
+                if let unused = unshared(session) { _ = try? await runBlocking(qos: .userInitiated) { unused.disconnect() } }
+                throw CancellationError()
+            }
             scpSessions[alias] = fs
             workspace.providers.register(fs)
             connected.insert(alias)
@@ -151,6 +178,10 @@ public final class RemoteManager {
             knownHosts = session.knownHostsPath
         }
         let fs = try await RemoteFS.connect(c, secret: keychain.get(alias), rclone: rc, knownHostsFile: knownHosts, hostKeyAlgorithms: hostKeyAlgorithms)
+        if Task.isCancelled {
+            _ = try? await rc.call("config/delete", ["name": alias])
+            throw CancellationError()
+        }
         workspace.providers.register(fs)
         connected.insert(alias)
         return fs
@@ -177,9 +208,10 @@ public final class RemoteManager {
     public func disconnect(_ alias: String) async {
         connecting.removeValue(forKey: alias)?.cancel()
         let scp = scpSessions.removeValue(forKey: alias)
-        // Zamknięcie połączenia głównego kończy też terminale SSH tego serwera.
-        if let session = sshSessions.removeValue(forKey: alias) ?? scp?.session {
-            _ = try? await runBlocking(qos: .userInitiated) { session.disconnect() }
+        // Zamknięcie połączenia głównego kończy też terminale SSH tego serwera — chyba że z tego samego
+        // gniazda korzysta inny alias (ten sam użytkownik@host:port).
+        if let session = sshSessions.removeValue(forKey: alias) ?? scp?.session, let unused = unshared(session) {
+            _ = try? await runBlocking(qos: .userInitiated) { unused.disconnect() }
         }
         if let rclone, rclone.isRunning, connected.contains(alias) {
             _ = try? await rclone.call("config/delete", ["name": alias])
@@ -259,9 +291,6 @@ public final class RemoteManager {
         session.start()
         return local
     }
-
-    /// Do testów: lokalna kopia edytowanego pliku.
-    func editedCopy(_ path: VFSPath) -> URL? { editSessions[path.description]?.local }
 }
 
 /// Obserwuje lokalną kopię pliku zdalnego i wysyła ją po zapisie.

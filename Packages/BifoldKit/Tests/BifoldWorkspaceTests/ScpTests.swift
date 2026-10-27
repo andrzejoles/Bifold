@@ -87,6 +87,16 @@ final class AllowAllGate: AgentInvocationGate {
     func authorize(_ command: Command, context: CommandContext) async throws {}
 }
 
+/// Czeka, aż warunek będzie spełniony (luźny termin — testy działają też pod obciążeniem).
+@MainActor func eventually(timeout: Duration = .seconds(15), _ condition: () -> Bool) async -> Bool {
+    let deadline = ContinuousClock.now + timeout
+    while ContinuousClock.now < deadline {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+    return condition()
+}
+
 let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd") && FileManager.default.isExecutableFile(atPath: "/usr/bin/scp")
 
 @Suite struct ScpParserTests {
@@ -355,8 +365,8 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         try Data("1".utf8).write(to: first, options: .atomic)  // jak edytory: zapis przez zamianę pliku
         try await Task.sleep(for: .milliseconds(150))
         try Data("2".utf8).write(to: first, options: .atomic)
-        try await Task.sleep(for: .seconds(2))
-        #expect(try sshd.root.read("notatka.txt") == "2", "wysłany ostatni zapis")
+        // Warunek z terminem zamiast stałego opóźnienia (pod obciążeniem wysyłka trwa dłużej).
+        #expect(await eventually { (try? sshd.root.read("notatka.txt")) == "2" }, "wysłany ostatni zapis")
 
         let editGate = AllowAllGate()
         ws.agentGate = editGate
@@ -370,8 +380,7 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         let second = try await ws.remotes.edit(path)
         #expect(!FileManager.default.fileExists(atPath: first.deletingLastPathComponent().path), "stara kopia usunięta")
         await ws.remotes.disconnect("aix")
-        try await Task.sleep(for: .milliseconds(100))
-        #expect(!FileManager.default.fileExists(atPath: second.deletingLastPathComponent().path), "kopia usunięta po rozłączeniu")
+        #expect(await eventually { !FileManager.default.fileExists(atPath: second.deletingLastPathComponent().path) }, "kopia usunięta po rozłączeniu")
     }
 
     /// Dwa równoczesne otwarcia jednego serwera dają to samo połączenie (wcześniej drugie rozłączało

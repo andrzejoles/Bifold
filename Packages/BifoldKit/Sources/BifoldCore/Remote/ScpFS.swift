@@ -73,8 +73,9 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
         if r.timedOut { throw VFSError.io(path: target, code: ETIMEDOUT) }
         guard r.status == 0 else {
             let text = session.config.encoding.decode(r.error).trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.contains("No such file") || text.contains("does not exist") { throw VFSError.notFound(target) }
-            if text.contains("Permission denied") { throw VFSError.permissionDenied(target) }
+            // Bez rozróżniania wielkości liter: zsh pisze „no such file or directory”, ksh i sh — wielką literą.
+            if text.range(of: "No such file", options: .caseInsensitive) != nil || text.contains("does not exist") { throw VFSError.notFound(target) }
+            if text.range(of: "Permission denied", options: .caseInsensitive) != nil { throw VFSError.permissionDenied(target) }
             if text.contains("File exists") { throw VFSError.alreadyExists(target) }
             throw RemoteError.ssh(text.isEmpty ? "status \(r.status)" : text)
         }
@@ -96,8 +97,11 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
     /// Listing z celami dowiązań (pobieranie katalogu odtwarza dowiązania zamiast w nie wchodzić).
     func entriesSync(_ directory: VFSPath) throws -> [ListingEntry] {
         let dir = remotePath(directory)
-        // Dowiązania do katalogów osobno: `ls -la` nie mówi, na co wskazuje dowiązanie.
-        let command = "cd \(SSHSession.shellQuote(dir)) && ls -la && echo '\(Self.linkMarker)' && for f in .* *; do [ -h \"$f\" ] && [ -d \"$f\" ] && echo \"$f\"; done; true"
+        // Dowiązania do katalogów osobno: `ls -la` nie mówi, na co wskazuje dowiązanie. Błąd `cd`/`ls`
+        // (brak katalogu, brak praw) kończy polecenie błędem — nie może wyglądać jak pusty katalog
+        // (pobranie „skopiuj, potem usuń” zgubiłoby dane); `exit 0` tylko po pętli (ostatni test
+        // `[ -h ]` ma kod 1). Składnia zgodna z ksh88 (AIX).
+        let command = "cd \(SSHSession.shellQuote(dir)) || exit 1; ls -la || exit 1; echo '\(Self.linkMarker)'; for f in .* *; do [ -h \"$f\" ] && [ -d \"$f\" ] && echo \"$f\"; done; exit 0"
         let text = try shell(command, path: directory)
         let parts = text.components(separatedBy: Self.linkMarker + "\n")
         let linkDirs = Set((parts.count > 1 ? parts[1] : "").split(separator: "\n").map(String.init))
@@ -253,8 +257,39 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
 
     public func upload(_ local: URL, to path: VFSPath) async throws {
         try validateFileName(path.name)
-        let remote = remotePath(path)
-        try await runBlocking(qos: .userInitiated) { try self.session.scp(upload: local.path, to: remote, isCancelled: { false }, isPaused: { false }) }
+        try await runBlocking(qos: .userInitiated) { try self.putFile(local.path, to: path, inPlaceFallback: true, isCancelled: { false }, isPaused: { false }) }
+    }
+
+    /// Wysyła plik pod `target` przez plik tymczasowy w tym samym katalogu i `mv -f`. `scp -t` pisze
+    /// w miejscu (bez obcinania) — przerwanie zostawiłoby pod `target` mieszankę starych i nowych
+    /// bajtów; zamiana nazwy w obrębie katalogu jest atomowa, a po błędzie lub anulowaniu znika tylko
+    /// plik tymczasowy (istniejący plik zostaje nietknięty). `inPlaceFallback`: bez prawa zapisu do
+    /// katalogu (plik zapisywalny w katalogu tylko do odczytu, np. konfiguracja w /etc) — zapis
+    /// w miejscu jak dotąd.
+    func putFile(_ local: String, to target: VFSPath, inPlaceFallback: Bool,
+                 isCancelled: @escaping @Sendable () -> Bool, isPaused: @escaping @Sendable () -> Bool) throws {
+        guard let parent = target.parent else { throw VFSError.unsupported("upload /") }
+        // Nazwa spoza kodowania serwera: błąd z nazwą pliku (a nie pliku tymczasowego).
+        _ = try session.config.encoding.encode(target.name)
+        let tag = "bifold-" + UUID().uuidString.prefix(8)
+        let tempName = target.name.utf8.count <= 200 ? ".\(target.name).\(tag)" : ".\(tag)"
+        let remote = remotePath(target), temp = remotePath(parent.appending(tempName))
+        do {
+            try session.scp(upload: local, to: temp, isCancelled: isCancelled, isPaused: isPaused)
+        } catch {
+            _ = try? shell("rm -f \(SSHSession.shellQuote(temp))", path: target)
+            if inPlaceFallback, error as? VFSError != .cancelled, error.localizedDescription.range(of: "Permission denied", options: .caseInsensitive) != nil {
+                try session.scp(upload: local, to: remote, isCancelled: isCancelled, isPaused: isPaused)
+                return
+            }
+            throw error
+        }
+        do {
+            _ = try shell("mv -f \(SSHSession.shellQuote(temp)) \(SSHSession.shellQuote(remote))", path: target, idempotent: false)
+        } catch {
+            _ = try? shell("rm -f \(SSHSession.shellQuote(temp))", path: target)
+            throw error
+        }
     }
 
     public func volumeInfo(for path: VFSPath) async throws -> VolumeInfo {
@@ -309,8 +344,8 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
         var items: [VFSPath] = []
         do {
             for p in paths {
-                let local = temp.appending(p.name)
-                try fetch(ListingEntry(item: try itemSync(p), linkTarget: nil), to: local, topLevel: true, isCancelled: isCancelled, isPaused: { false }) { _ in }
+                let local = try fetch(ListingEntry(item: try itemSync(p), linkTarget: nil), to: temp.appending(p.name), topLevel: true,
+                                      isCancelled: isCancelled, isPaused: { false }) { _ in }
                 Quarantine.mark(local.path)
                 items.append(local)
             }
@@ -325,29 +360,63 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
     /// katalogów — dowiązania wewnątrz pobieranego katalogu są odtwarzane jako dowiązania (`link -> ..`
     /// albo `root -> /` pobierałyby w kółko albo cały serwer); dowiązanie wybrane wprost jest pobierane
     /// jak jego cel. Pliki specjalne (urządzenia, potoki) są pomijane.
+    ///
+    /// APFS nie rozróżnia wielkości liter ani postaci Unicode (i składa je szerzej niż `lowercased()`:
+    /// „aſ” = „as”, „bς” = „bσ”), więc o wolnej nazwie decyduje system plików: element jest tworzony
+    /// wyłącznie jako nowy (`mkdir`, `symlink`, plik — przez plik tymczasowy i `renamex_np`
+    /// z `RENAME_EXCL`, który nie idzie za dowiązaniem), a zajęta nazwa daje „nazwa (2)”. `scp`
+    /// zapisujący wprost pod nazwą poszedłby za odtworzonym wcześniej dowiązaniem (wrogi serwer:
+    /// `aſ -> ../../.zshrc`, potem plik `as`). Zwraca ścieżkę, pod którą element zapisano.
+    @discardableResult
     func fetch(_ entry: ListingEntry, to local: VFSPath, topLevel: Bool, isCancelled: @escaping @Sendable () -> Bool,
-               isPaused: @escaping @Sendable () -> Bool, done: (Int64) -> Void) throws {
+               isPaused: @escaping @Sendable () -> Bool, done: (Int64) -> Void) throws -> VFSPath {
         if isCancelled() { throw VFSError.cancelled }
         let info = entry.item
         if info.kind == .directory || (topLevel && info.isNavigable) {
-            try FileManager.default.createDirectory(atPath: local.path, withIntermediateDirectories: false)
-            // APFS nie rozróżnia wielkości liter ani postaci Unicode: „README” i „Readme” z serwera
-            // zapisałyby się w jeden plik — drugi dostaje wolną nazwę („Readme (2)”).
-            var taken = Set<String>()
+            let placed = try Self.createExclusively(local) { mkdir($0, 0o755) == 0 ? 0 : errno }
             for child in try entriesSync(info.path) {
-                var target = local.appending(child.item.name)
-                if !taken.insert(child.item.name.precomposedStringWithCanonicalMapping.lowercased()).inserted {
-                    target = TransferEngine.uniqueName(for: target)
-                }
-                try fetch(child, to: target, topLevel: false, isCancelled: isCancelled, isPaused: isPaused, done: done)
+                try fetch(child, to: placed.appending(child.item.name), topLevel: false, isCancelled: isCancelled, isPaused: isPaused, done: done)
             }
+            return placed
         } else if info.kind == .symlink && !topLevel {
-            guard let link = entry.linkTarget, !link.isEmpty, !link.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else { return }
-            try FileManager.default.createSymbolicLink(atPath: local.path, withDestinationPath: link)
+            guard let link = entry.linkTarget, !link.isEmpty, !link.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else { return local }
+            return try Self.createExclusively(local) { symlink(link, $0) == 0 ? 0 : errno }
         } else if info.kind == .file || info.kind == .symlink {
-            try session.scp(download: remotePath(info.path), to: local.path, isCancelled: isCancelled, isPaused: isPaused)
-            done(max(0, info.size))
+            guard let dir = local.parent else { throw VFSError.notFound(local) }
+            let part = dir.appending(".bifold-part-\(UUID().uuidString)")
+            do {
+                try session.scp(download: remotePath(info.path), to: part.path, isCancelled: isCancelled, isPaused: isPaused)
+                let placed = try Self.storeDownloaded(part, as: local)
+                done(max(0, info.size))
+                return placed
+            } catch {
+                unlink(part.path)
+                throw error
+            }
         }
+        return local
+    }
+
+    /// Pobrany plik tymczasowy `part` pod pierwszą wolną nazwą `target`, „target (2)”…
+    static func storeDownloaded(_ part: VFSPath, as target: VFSPath) throws -> VFSPath {
+        try createExclusively(target) { renamex_np(part.path, $0, UInt32(RENAME_EXCL)) == 0 ? 0 : errno }
+    }
+
+    /// Tworzy element pod pierwszą wolną nazwą: `target`, „target (2)”, „target (3)”… `create` tworzy
+    /// wyłącznie nowy element i zwraca `errno` (0 — sukces, `EEXIST` — nazwa zajęta, także przez
+    /// dowiązanie albo nazwę równą wg APFS). Wcześniej `lstat`, żeby nie próbować nazw zajętych.
+    static func createExclusively(_ target: VFSPath, _ create: (String) -> Int32) throws -> VFSPath {
+        guard let parent = target.parent else { throw VFSError.notFound(target) }
+        let stem = target.name.fileStem, ext = target.name.fileExtension
+        for n in 1...10_000 {
+            let candidate = n == 1 ? target : parent.appending(ext.isEmpty ? "\(stem) (\(n))" : "\(stem) (\(n)).\(ext)")
+            var st = stat()
+            if lstat(candidate.path, &st) == 0 { continue }
+            let rc = create(candidate.path)
+            if rc == 0 { return candidate }
+            guard rc == EEXIST else { throw VFSError.io(path: candidate, code: rc) }
+        }
+        throw VFSError.alreadyExists(target)
     }
 
     public func disconnect() { session.disconnect() }
@@ -360,15 +429,13 @@ public struct ScpUpload: Sendable {
     public var fs: ScpFS
     public var sources: [VFSPath]
     public var destination: VFSPath
-    /// Stała decyzja przy konflikcie (`nil` — pyta `delegate`, bez delegata pomija).
-    public var conflict: ConflictResolution?
+    /// Decyzja przy konflikcie (polityka albo okno pytania); bez delegata — pomijanie.
     public var delegate: (any TransferDelegate)?
 
-    public init(fs: ScpFS, sources: [VFSPath], destination: VFSPath, conflict: ConflictResolution? = nil, delegate: (any TransferDelegate)? = nil) {
+    public init(fs: ScpFS, sources: [VFSPath], destination: VFSPath, delegate: (any TransferDelegate)? = nil) {
         self.fs = fs
         self.sources = sources
         self.destination = destination
-        self.conflict = conflict
         self.delegate = delegate
     }
 
@@ -383,13 +450,15 @@ public struct ScpUpload: Sendable {
         let state = State()
         state.progress.filesTotal = sources.count
         state.progress.bytesTotal = sources.reduce(0) { $0 + ((try? DirectorySizer.sizeSync(of: $1, isCancelled: { false }))?.bytes ?? 0) }
-        let existing = Self.byName((try? fs.listSync(destination)) ?? [])
+        // Błąd listingu (zerwane połączenie, brak praw) nie może wyglądać jak pusty katalog — istniejące
+        // pliki zostałyby nadpisane bez pytania.
+        let existing = Self.byName(try fs.listSync(destination))
         for source in sources {
             guard control.checkpoint() else { throw VFSError.cancelled }
             state.progress.currentItem = source.name
             progress(state.progress)
             do {
-                try put(source, into: destination, existing: existing[source.name], siblings: existing, state: state, control: control, progress: progress)
+                try put(source, into: destination, relative: source.name, existing: existing[source.name], siblings: existing, state: state, control: control, progress: progress)
             } catch VFSError.cancelled {
                 throw VFSError.cancelled
             } catch {
@@ -407,7 +476,6 @@ public struct ScpUpload: Sendable {
     }
 
     private func decide(_ local: FileItem, _ remote: FileItem, state: State) throws -> ConflictResolution {
-        if let conflict { return conflict }
         if let d = state.applyToAll { return d }
         guard let delegate else { return .skip }
         let question = FileConflict(source: local, destination: remote, kind: .copy)
@@ -417,13 +485,14 @@ public struct ScpUpload: Sendable {
         return decision.resolution
     }
 
-    /// Wysyła `local` do katalogu `directory` na serwerze; `existing` — element o tej nazwie na serwerze.
-    private func put(_ local: VFSPath, into directory: VFSPath, existing: FileItem?, siblings: [String: FileItem], state: State,
+    /// Wysyła `local` do katalogu `directory` na serwerze; `existing` — element o tej nazwie na serwerze,
+    /// `relative` — ścieżka względna w wysyłanym drzewie (do raportu).
+    private func put(_ local: VFSPath, into directory: VFSPath, relative: String, existing: FileItem?, siblings: [String: FileItem], state: State,
                      control: JobControl, progress: @Sendable (TransferProgress) -> Void) throws {
         guard control.checkpoint() else { throw VFSError.cancelled }
         let item = try LocalFS().itemSync(at: local)
         guard item.kind == .directory || item.kind == .file else {
-            if item.kind == .symlink { state.errors.append(L10n.tr("\(item.name): dowiązanie symboliczne — pominięto")) }
+            if item.kind == .symlink { state.errors.append(L10n.tr("\(relative): dowiązanie symboliczne — pominięto")) }
             return
         }
         var target = existing?.path ?? ScpFS.newName(directory.appending(item.name))
@@ -432,20 +501,21 @@ public struct ScpUpload: Sendable {
         if let existing, !(item.kind == .directory && existing.isNavigable) {
             switch try decide(item, existing, state: state) {
             case .skip, .cancel:
-                state.errors.append(L10n.tr("\(item.name): istnieje na serwerze — pominięto"))
+                state.errors.append(L10n.tr("\(relative): istnieje na serwerze — pominięto"))
                 return
             case .rename:
                 target = Self.unique(item.name, in: directory, taken: siblings)
             case .overwriteOlder:
                 if let mine = item.modified, let theirs = existing.modified, theirs >= mine {
-                    state.errors.append(L10n.tr("\(item.name): istnieje na serwerze — pominięto"))
+                    state.errors.append(L10n.tr("\(relative): istnieje na serwerze — pominięto"))
                     return
                 }
                 replace = true
             case .overwrite:
                 replace = true
             }
-            // Niezgodny typ (katalog ⇄ plik, dowiązanie): stary element trzeba usunąć; plik na plik scp nadpisuje sam.
+            // Niezgodny typ (katalog ⇄ plik, dowiązanie): stary element trzeba usunąć (`mv -f` pliku na
+            // katalog przeniósłby plik do środka); plik na plik zastępuje `putFile`.
             if replace, item.kind == .directory || existing.kind != .file {
                 _ = try fs.shell("rm -r -f \(SSHSession.shellQuote(fs.remotePath(target)))", path: target)
             }
@@ -453,23 +523,26 @@ public struct ScpUpload: Sendable {
         // Czy na serwerze nie było niczego pod `target` (nowy element).
         let isNew = existing == nil || target != existing?.path || (replace && existing?.kind != .file)
         if item.kind == .directory {
-            let remoteChildren = isNew ? [:] : Self.byName((try? fs.listSync(target)) ?? [])
+            // Błąd listingu katalogu docelowego to błąd tego katalogu (zawartość pominięta), a nie
+            // „pusty katalog”, w którym wszystko byłoby nowe i nadpisywane bez pytania.
+            let remoteChildren = isNew ? [:] : Self.byName(try fs.listSync(target))
             _ = try fs.shell("mkdir -p \(SSHSession.shellQuote(fs.remotePath(target)))", path: target)
             for name in try FileManager.default.contentsOfDirectory(atPath: local.path).sorted() {
-                try put(local.appending(name), into: target, existing: remoteChildren[name], siblings: remoteChildren, state: state, control: control, progress: progress)
+                // Jeden błąd (nazwa spoza kodowania serwera, brak praw) nie przerywa reszty drzewa.
+                let childRelative = relative + "/" + name
+                do {
+                    try put(local.appending(name), into: target, relative: childRelative, existing: remoteChildren[name], siblings: remoteChildren,
+                            state: state, control: control, progress: progress)
+                } catch VFSError.cancelled {
+                    throw VFSError.cancelled
+                } catch {
+                    state.errors.append("\(childRelative): \(error.localizedDescription)")
+                }
             }
             return
         }
-        do {
-            try fs.session.scp(upload: local.path, to: fs.remotePath(target), isCancelled: { control.isCancelled }, isPaused: { control.isPaused })
-        } catch {
-            // Urwany plik nie może zostać na serwerze: po anulowaniu zawsze, po błędzie — tylko nowy
-            // (istniejący, którego nie dało się nadpisać, zostaje nietknięty).
-            if error as? VFSError == .cancelled || isNew {
-                _ = try? fs.shell("rm -f \(SSHSession.shellQuote(fs.remotePath(target)))", path: target)
-            }
-            throw error
-        }
+        // Przez plik tymczasowy i `mv -f`: przerwanie ani anulowanie nie psuje ani nie usuwa istniejącego pliku.
+        try fs.putFile(local.path, to: target, inPlaceFallback: !isNew, isCancelled: { control.isCancelled }, isPaused: { control.isPaused })
         state.progress.bytesDone += max(0, item.size)
         progress(state.progress)
     }
