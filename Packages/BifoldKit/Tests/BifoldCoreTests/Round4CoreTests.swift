@@ -9,7 +9,7 @@ import Testing
 
     /// Ukośnik wsteczny w tekście przerywał proces (NSException w parserze zapytania Spotlight).
     @MainActor @Test func spotlightPredicateSurvivesSpecialCharacters() throws {
-        for text in ["a\\", "x\"y\\", "\\", "\\\"", "\"", "a\u{0}b", "*", "?", "\\*", "$time.today", "ąę\\", "a\u{7F}\u{85}"] {
+        for text in ["a\\", "x\"y\\", "\\", "\\\"", "\"", "a\u{0}b", "*", "?", "\\*", "$time.today", "ąę\\", "a\u{7F}\u{85}"] + Self.noncharacterTexts {
             let predicate = try #require(SpotlightSearch.predicate(for: text), "\(text.debugDescription)")
             // `start()` tłumaczy predykat z powrotem na zapytanie Spotlight — tu też nie może się wyłożyć.
             let query = NSMetadataQuery()
@@ -20,7 +20,20 @@ import Testing
         }
         #expect(SpotlightSearch.predicate(for: "\u{0}\n") == nil)
         #expect(SpotlightSearch.predicate(for: "\u{7F}\u{85}") == nil)
+        // Niecharaktery Unicode (U+FFFE, U+FFFF przerywały parser; pomijane są wszystkie).
+        #expect(SpotlightSearch.predicate(for: Self.scalars(0xFFFE)) == nil)
+        #expect(SpotlightSearch.predicate(for: Self.scalars(0xFDD0, 0xFFFF, 0x10FFFF)) == nil)
     }
+
+    /// Kompilator Swift nie przyjmuje niecharakterów w literałach (`\u{FFFF}`), więc budujemy je z liczb.
+    static func scalars(_ values: UInt32...) -> String {
+        String(String.UnicodeScalarView(values.compactMap(Unicode.Scalar.init)))
+    }
+
+    static let noncharacterTexts = [
+        "a" + scalars(0xFFFF) + "b", scalars(0xFFFE) + "x", scalars(0xFDD0) + "y", scalars(0xFDEF) + "z",
+        "a" + scalars(0x10FFFF, 0x1FFFE),
+    ]
 
     // MARK: 2. Częściowe cofnięcie z brakującym elementem
 

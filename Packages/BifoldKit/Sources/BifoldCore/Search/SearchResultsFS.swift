@@ -79,7 +79,8 @@ public final class SpotlightSearch {
     /// rzuca NSException (przerwanie procesu) przy błędzie składni, a `NSMetadataQuery` nie umie
     /// przetłumaczyć ukośnika wstecznego nawet z predykatu zbudowanego ręcznie (`start()` zwraca
     /// `false`). Dlatego: `"` jest poprzedzany ukośnikiem, `\` zastępuje symbol wieloznaczny `?`
-    /// (dowolny znak — wynik obejmuje nazwy z ukośnikiem), znaki sterujące (w tym NUL) są pomijane.
+    /// (dowolny znak — wynik obejmuje nazwy z ukośnikiem), znaki sterujące (w tym NUL) i niecharaktery
+    /// Unicode (U+FDD0…U+FDEF, U+xxFFFE/U+xxFFFF — parser wykłada się na U+FFFE i U+FFFF) są pomijane.
     nonisolated static func predicate(for text: String) -> NSPredicate? {
         var escaped = ""
         for scalar in text.unicodeScalars {
@@ -87,6 +88,7 @@ public final class SpotlightSearch {
             case "\\": escaped += "?"
             case "\"": escaped += "\\\""
             case _ where scalar.value < 0x20 || (0x7F...0x9F).contains(scalar.value): continue
+            case _ where (0xFDD0...0xFDEF).contains(scalar.value) || scalar.value & 0xFFFE == 0xFFFE: continue
             default: escaped.unicodeScalars.append(scalar)
             }
         }
