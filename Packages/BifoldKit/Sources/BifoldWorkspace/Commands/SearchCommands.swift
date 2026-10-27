@@ -154,6 +154,12 @@ extension RenameRule {
     }
 }
 
+/// Plan zmiany nazw poza głównym wątkiem: wyrażenie regularne od agenta (liczone przed oknem zgody)
+/// albo odczyt EXIF/metadanych wielu plików nie mogą zawiesić interfejsu.
+func renamePlan(_ items: [FileItem], rule: RenameRule) async throws -> [RenamePlanEntry] {
+    try await runBlocking(qos: .userInitiated) { MultiRename.plan(items, rule: rule) }
+}
+
 let renameParams: [CommandParameter] = [
     pathsParam,
     CommandParameter("nameMask", .string, L10n.tr("Maska nazwy: [N] nazwa, [N2-5] fragment, [C] licznik, [P] katalog, [Y][M][D][h][m][s] data, [Exif:DateTimeOriginal:yyyy-MM-dd], [Exif:Model], [Media:artist|title|album|year]")),
@@ -266,7 +272,7 @@ var searchCommands: [Command] { [
             summary: L10n.tr("Zmienia nazwy wielu elementów według masek, licznika, dat, metadanych EXIF/multimediów, znajdź-zamień (regex) i wielkości liter; z podglądem.")),
         preview: { @MainActor ctx in
             let items = try ctx.targets()
-            let plan = MultiRename.plan(items, rule: try RenameRule(arguments: ctx.arguments))
+            let plan = try await renamePlan(items, rule: try RenameRule(arguments: ctx.arguments))
             let problems = plan.filter { $0.problem != nil }
             return EffectPreview(
                 summary: L10n.tr("Zmiana nazw: \(plan.filter(\.changes).count) z \(plan.count)"),
@@ -280,7 +286,7 @@ var searchCommands: [Command] { [
             try ctx.requireUI().showMultiRename(items: items)
             return .ok
         }
-        let plan = MultiRename.plan(items, rule: try RenameRule(arguments: ctx.arguments))
+        let plan = try await renamePlan(items, rule: try RenameRule(arguments: ctx.arguments))
         let problems = plan.filter { $0.problem != nil }
         let journal = ctx.workspace.journal, invoker = ctx.invoker
         let count = try await runBlocking(qos: .userInitiated) {
