@@ -13,6 +13,10 @@ if [ ! -f "$PREFIX/include/libmtp.h" ]; then
     exit 0
 fi
 mkdir -p "$(dirname "$OUT")"
-if [ ! -x "$OUT" ] || [ "$SRC" -nt "$OUT" ] || [ "${BASH_SOURCE[0]}" -nt "$OUT" ]; then
+# libmtp.dylib to dowiązanie (Cellar/libmtp/<wersja>) — porównujemy datę pliku docelowego, żeby
+# `brew upgrade libmtp` przebudował pomocnika.
+LIB="$(realpath "$PREFIX/lib/libmtp.dylib" 2>/dev/null || true)"
+if [ ! -x "$OUT" ] || [ "$SRC" -nt "$OUT" ] || [ "${BASH_SOURCE[0]}" -nt "$OUT" ] \
+    || { [ -n "$LIB" ] && [ "$LIB" -nt "$OUT" ]; }; then
     clang -O2 -Wall -arch arm64 -mmacosx-version-min=27.0 -I"$PREFIX/include" -L"$PREFIX/lib" -lmtp "$SRC" -o "$OUT"
 fi
