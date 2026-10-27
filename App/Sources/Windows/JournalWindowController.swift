@@ -3,12 +3,17 @@ import BifoldCore
 import BifoldWorkspace
 
 /// Dziennik operacji na plikach: lista partii (od najnowszej) z możliwością cofnięcia wybranej.
-final class JournalWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
+/// Lista jest migawką dziennika — odświeżana, gdy okno staje się kluczowe (Cmd+Z w oknie głównym)
+/// i gdy zmienia się stan zadań w kolejce („w toku” → zakończona).
+final class JournalWindowController: NSWindowController, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate {
     private let workspace: Workspace
     private let table = NSTableView()
     private let details = NSTextView()
     private var batches: [JournalBatch] = []
     private var undoButton: NSButton!
+    /// Cofanie z tego okna trwa — przycisk wyłączony do końca (dwa kliknięcia cofałyby partię dwa razy).
+    private var undoing = false
+    private let observations = ObservationBag()
 
     init(workspace: Workspace) {
         self.workspace = workspace
@@ -16,7 +21,18 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
         window.title = L10n.tr("Dziennik operacji")
         window.setFrameAutosaveName("JournalWindow")
         super.init(window: window)
+        window.delegate = self
         build()
+        observations.add { [weak self] in
+            guard let self else { return }
+            // Zakończenie, anulowanie albo nowe zadanie zmienia stan partii w dzienniku.
+            _ = self.workspace.jobs.jobs.map(\.state)
+            if self.window?.isVisible == true { self.reload() }
+        }
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        reload()
     }
 
     @available(*, unavailable)
@@ -71,8 +87,15 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
     }
 
     private func reload() {
+        // Zaznaczenie idzie za partią (nowa partia na górze przesuwa wiersze).
+        let selected = table.selectedRow >= 0 && table.selectedRow < batches.count ? batches[table.selectedRow].id : nil
         batches = workspace.journal.batches.reversed()
         table.reloadData()
+        if let selected, let row = batches.firstIndex(where: { $0.id == selected }) {
+            table.selectRowIndexes([row], byExtendingSelection: false)
+        } else {
+            table.deselectAll(nil)
+        }
         updateSelection()
     }
 
@@ -118,7 +141,7 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
             return
         }
         let b = batches[table.selectedRow]
-        undoButton.isEnabled = b.isUndoable
+        undoButton.isEnabled = b.isUndoable && !undoing
         let undoneMark = "  " + L10n.tr("(cofnięto)")
         details.string = b.entries.map { entry in
             let line = switch entry.action {
@@ -136,24 +159,30 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
     }
 
     @objc private func undoSelected() {
-        guard table.selectedRow >= 0 else { return }
-        let batch = batches[table.selectedRow]
-        guard batch.isUndoable else { return }
-        Task {
-            // Plan poza wątkiem głównym (duże operacje nie zamrażają okna).
-            guard let plan = try? await runBlocking(qos: .userInitiated, { UndoPlanner.plan(for: [batch]) }) else { return }
-            var force = false
-            if !plan.conflicts.isEmpty, let ui = workspace.ui {
-                let answer = await ui.confirmUndo(plan, title: batch.title)
-                guard answer.proceed else { return }
-                force = answer.force
-            }
-            let result = await workspace.fileOps.execute(plan, force: force)
-            workspace.setStatus(L10n.tr("Cofnięto: \(result.performed), pominięto: \(result.skipped.count), błędy: \(result.errors.count)"))
-            // Jak komenda „Cofnij operację” — panele pokazują stan po cofnięciu.
-            await workspace.left.activeTab.reload()
-            await workspace.right.activeTab.reload()
+        guard !undoing, table.selectedRow >= 0, table.selectedRow < batches.count else { return }
+        // Partia świeżo z dziennika, nie z migawki listy (mogła zostać cofnięta Cmd+Z w oknie głównym).
+        let id = batches[table.selectedRow].id
+        guard workspace.journal.batch(id)?.isUndoable == true else {
             reload()
+            return
+        }
+        undoing = true
+        undoButton.isEnabled = false
+        Task {
+            defer {
+                undoing = false
+                reload()
+            }
+            // Przez komendę „Cofnij operację” z identyfikatorem partii — plan, pytanie o konflikty i odświeżenie
+            // paneli jak przy Cmd+Z (komenda sama sprawdza, czy partia jest nadal cofalna).
+            do {
+                let result = try await workspace.invoke("edit.undo", CommandArguments(["batch": .string(id.uuidString)]))
+                if let message = result.message { workspace.setStatus(message) }
+            } catch CommandError.cancelledByUser {
+            } catch VFSError.cancelled {
+            } catch {
+                workspace.ui?.showError(error.localizedDescription)
+            }
         }
     }
 }

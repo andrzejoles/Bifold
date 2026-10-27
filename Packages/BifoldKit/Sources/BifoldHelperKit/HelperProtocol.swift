@@ -117,18 +117,25 @@ public enum HelperOperations {
         }
         let path = (realParent == "/" ? "" : realParent) + "/" + comps.last!
         // Bez rozróżniania wielkości liter: APFS domyślnie jej nie rozróżnia, a realpath poprawia tylko
-        // rodzica — „/private/etc/SUDOERS” to ten sam plik co „/private/etc/sudoers”.
-        let folded = path.lowercased()
+        // rodzica — „/private/etc/SUDOERS” to ten sam plik co „/private/etc/sudoers”. Składanie wielkości
+        // liter Unicode jak w APFS, a nie `lowercased()`: „LaunchDaemonſ” (długie s) i „\u{212A}eychains”
+        // (znak kelwina) to w APFS te same nazwy co „LaunchDaemons” i „Keychains”.
+        let folded = fold(path)
         // Katalog zabroniony, jego wnętrze albo jego przodek (`remove /Library` usunąłby też
         // /Library/Keychains, `move /private/etc` — sudoers).
-        for f in forbiddenPrefixes.map({ $0.lowercased() }) where folded == f || folded.hasPrefix(f + "/") || f.hasPrefix(folded + "/") {
+        for f in forbiddenPrefixes.map(fold) where folded == f || folded.hasPrefix(f + "/") || f.hasPrefix(folded + "/") {
             throw HelperError.forbiddenPath(path)
         }
-        for d in protectedDirectories.map({ $0.lowercased() }) where folded == d {
+        for d in protectedDirectories.map(fold) where folded == d {
             throw HelperError.forbiddenPath(path)
         }
         guard path != "/" else { throw HelperError.forbiddenPath(path) }
         return path
+    }
+
+    /// Postać do porównań: składanie wielkości liter Unicode (ſ → s, K → k, ß → ss) i NFC.
+    static func fold(_ path: String) -> String {
+        path.folding(options: [.caseInsensitive], locale: nil).precomposedStringWithCanonicalMapping
     }
 
     public static func check(_ r: HelperRequest) throws -> [String] {

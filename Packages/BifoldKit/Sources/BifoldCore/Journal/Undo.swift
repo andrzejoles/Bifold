@@ -88,6 +88,8 @@ public enum UndoPlanner {
     struct Simulation {
         var freed: Set<VFSPath> = []
         var occupied: Set<VFSPath> = []
+        /// Skąd plan przywraca element zajmujący ścieżkę (przeniesienie z powrotem, przywrócenie z Kosza).
+        var sources: [VFSPath: VFSPath] = [:]
 
         func exists(_ p: VFSPath) -> Bool {
             if occupied.contains(p) { return true }
@@ -101,8 +103,48 @@ public enum UndoPlanner {
             return lstat(p.path, &st) == 0
         }
 
-        mutating func free(_ p: VFSPath) { freed.insert(p); occupied.remove(p) }
-        mutating func occupy(_ p: VFSPath) { occupied.insert(p); freed.remove(p) }
+        mutating func free(_ p: VFSPath) { freed.insert(p); occupied.remove(p); sources[p] = nil }
+        mutating func occupy(_ p: VFSPath, from source: VFSPath? = nil) { occupied.insert(p); freed.remove(p); sources[p] = source }
+
+        /// Liczba elementów poddrzewa `root` (bez `.DS_Store`) po wcześniejszych krokach planu:
+        /// bez ścieżek zwolnionych (i ich poddrzew), z elementami, które plan przywraca do środka
+        /// (wraz z poddrzewem ich obecnego miejsca). Bez zmian planu w środku — zwykłe liczenie z dysku.
+        func subtreeItemCount(_ root: VFSPath) -> Int? {
+            let prefix = root.path == "/" ? "/" : root.path + "/"
+            let occupiedInside = occupied.filter { $0.path.hasPrefix(prefix) }
+            guard !occupiedInside.isEmpty || freed.contains(where: { $0.path.hasPrefix(prefix) }) else {
+                return TransferEngine.subtreeItemCount(root)
+            }
+            guard let enumerator = FileManager.default.enumerator(atPath: root.path) else { return nil }
+            var count = 0
+            for case let relative as String in enumerator {
+                let p = root.appending(relative)
+                // Zwolnione nie istnieją; zajęte liczy pętla niżej (z poddrzewem źródła).
+                if freed.contains(p) || occupied.contains(p) {
+                    enumerator.skipDescendants()
+                    continue
+                }
+                if p.name != ".DS_Store" { count += 1 }
+            }
+            for p in occupiedInside where p.name != ".DS_Store" {
+                // Przodek wewnątrz `root` zwolniony — element trafia w miejsce, którego plan już nie ma.
+                var ancestor = p.parent
+                var orphaned = false
+                while let a = ancestor, a.path.hasPrefix(prefix) {
+                    if freed.contains(a) { orphaned = true; break }
+                    ancestor = a.parent
+                }
+                if orphaned { continue }
+                count += 1
+                if let source = sources[p] {
+                    var isDir: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: source.path, isDirectory: &isDir), isDir.boolValue {
+                        count += TransferEngine.subtreeItemCount(source) ?? 0
+                    }
+                }
+            }
+            return count
+        }
     }
 
     static func step(for entry: JournalEntry, batchID: UUID, sim: inout Simulation) -> UndoStep {
@@ -120,10 +162,12 @@ public enum UndoPlanner {
             guard let children = try? fs.listSync(p) else { return false }
             return children.contains { sim.exists($0.path) }
         }
-        /// Kopia katalogu: ktoś dopisał (lub usunął) elementy poddrzewa od czasu operacji.
+        /// Kopia katalogu: ktoś dopisał (lub usunął) elementy poddrzewa od czasu operacji. Liczone po
+        /// wcześniejszych krokach planu (np. plik przeniesiony do kopii późniejszą partią tej sesji wraca
+        /// na miejsce, zanim kopia trafi do Kosza).
         func contentsChanged(_ p: VFSPath) -> Bool {
             guard let expected = entry.itemCount, current(p)?.isDirectory == true else { return false }
-            return TransferEngine.subtreeItemCount(p) != expected
+            return sim.subtreeItemCount(p) != expected
         }
 
         var action: UndoStepAction = .none
@@ -143,12 +187,12 @@ public enum UndoPlanner {
             if !sim.exists(to) { conflict = .missing(to) }
             else if changed(to) { conflict = .modified(to) }
             else if sim.exists(from) { conflict = .occupied(from) }
-            if conflict == nil { sim.free(to); sim.occupy(from) }
+            if conflict == nil { sim.free(to); sim.occupy(from, from: to) }
         case let .trashed(original, trashPath):
             action = .move(from: trashPath, to: original)
             if !sim.exists(trashPath) { conflict = .missing(trashPath) }
             else if sim.exists(original) { conflict = .occupied(original) }
-            if conflict == nil { sim.free(trashPath); sim.occupy(original) }
+            if conflict == nil { sim.free(trashPath); sim.occupy(original, from: trashPath) }
         case let .removedEmptyDirectory(path):
             action = .createDirectory(path)
             if sim.exists(path) { conflict = .occupied(path) } else { sim.occupy(path) }
@@ -172,7 +216,9 @@ public enum UndoPlanner {
         // Partie z pominiętym lub nieudanym krokiem nie są oznaczane jako cofnięte w całości —
         // tylko ich wykonane wpisy (reszta zostaje do ponownego cofnięcia). Krok bez elementu
         // (`.missing`, np. Kosz opróżniony) liczy się jak wykonany: nie ma czego przywracać, a bez
-        // oznaczenia każde Cmd+Z pokazywałoby ten sam konflikt i blokowało starsze partie.
+        // oznaczenia każde Cmd+Z pokazywałoby ten sam konflikt i blokowało starsze partie (D55) —
+        // ale tylko, gdy istnieje katalog nadrzędny brakującej ścieżki. Bez niego (odłączony wolumin
+        // `/Volumes/USB/…`, jego `.Trashes`) element może wrócić: wpis zostaje do cofnięcia.
         var incomplete: Set<UUID> = []
         var doneEntries: [UUID: Set<UUID>] = [:]
         func markDone(_ step: UndoStep) {
@@ -185,7 +231,9 @@ public enum UndoPlanner {
                     result.skipped.append(conflict)
                     // Trwałego usunięcia nie da się cofnąć nigdy — nie blokuje oznaczenia partii.
                     switch conflict {
-                    case .irreversible, .missing: markDone(step)
+                    case .irreversible: markDone(step)
+                    case .missing(let p):
+                        if Self.parentExists(p) { markDone(step) } else { incomplete.insert(step.batchID) }
                     case .modified, .occupied: incomplete.insert(step.batchID)
                     }
                     continue
@@ -216,6 +264,15 @@ public enum UndoPlanner {
             }
         }
         return result
+    }
+}
+
+extension UndoPlanner {
+    /// Czy istnieje katalog nadrzędny (brak elementu w istniejącym katalogu = element naprawdę zniknął).
+    static func parentExists(_ p: VFSPath) -> Bool {
+        guard let parent = p.parent else { return true }
+        var st = stat()
+        return stat(parent.path, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR
     }
 }
 

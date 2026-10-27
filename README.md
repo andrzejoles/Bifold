@@ -53,7 +53,7 @@ git clone --recursive https://github.com/andrzejoles/Bifold.git
 cd Bifold
 make bootstrap   # buduje HexFiend.framework, generuje Bifold.xcodeproj
 make test        # testy pakietu BifoldKit
-make test-release  # test wydajności 100 000 plików w Release (kryterium < 1 s)
+make test-release  # ścisłe limity w Release: 100 000 plików (< 1 s), terminy serwera agenta
 make run         # buduje i uruchamia Bifold.app
 make installer   # dist/Bifold-X.Y.Z.dmg i .pkg (podpis: scripts/signing.sh)
 ```

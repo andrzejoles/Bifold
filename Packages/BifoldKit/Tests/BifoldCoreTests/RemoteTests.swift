@@ -96,6 +96,23 @@ final class TestServer {
         await #expect(throws: (any Error).self) { _ = try await fs.list(fs.root, options: ListOptions()) }
     }
 
+    /// Usunięty katalog to „nie znaleziono” (a nie ogólny błąd rclone) — Wstecz pomija go w historii.
+    @Test(arguments: ["sftp", "ftp", "webdav"])
+    func missingDirectoryIsNotFound(proto: String) async throws {
+        let server = try TestServer(proto)
+        try server.root.file("jest/a.txt", "a")
+        let rc = try rclone()
+        defer { rc.stop() }
+        let kind: RemoteKind = proto == "sftp" ? .sftp : (proto == "ftp" ? .ftp : .webdav)
+        let host = proto == "webdav" ? "http://127.0.0.1:\(server.port)" : "127.0.0.1"
+        let conn = RemoteConnection(alias: "brak-\(proto)", kind: kind, host: host, port: proto == "webdav" ? nil : server.port, user: "u")
+        let fs = try await RemoteFS.connect(conn, secret: "tajne", rclone: rc)
+        #expect(try await fs.list(fs.root.appending("jest"), options: ListOptions()).map(\.name) == ["a.txt"])
+        await #expect(throws: VFSError.notFound(fs.root.appending("usunięty"))) {
+            _ = try await fs.list(fs.root.appending("usunięty"), options: ListOptions())
+        }
+    }
+
     @MainActor @Test func transfersWithProgressAndUndo() async throws {
         let server = try TestServer("sftp")
         try server.root.file("zdalne/a.txt", "AAA")

@@ -11,6 +11,10 @@ struct MultiRenameView: View {
     var close: () -> Void
     @State private var rule = RenameRule()
     @State private var plan: [RenamePlanEntry] = []
+    /// Reguła, dla której policzono pokazany podgląd — „Zmień nazwy” tylko, gdy to bieżąca reguła
+    /// (Enter tuż po pisaniu wykonałby regułę, której podglądu jeszcze nie było).
+    @State private var planRule: RenameRule?
+    @State private var running = false
     @State private var error: String?
     @State private var planTask: Task<Void, Never>?
     /// Trwające obliczenie planu (poza wątkiem głównym) — kolejne startuje dopiero po jego zakończeniu.
@@ -59,7 +63,7 @@ struct MultiRenameView: View {
                 Spacer()
                 Button(L10n.tr("Anuluj"), action: close).keyboardShortcut(.cancelAction)
                 Button(L10n.tr("Zmień nazwy")) { run() }.keyboardShortcut(.defaultAction)
-                    .disabled(!plan.contains { $0.changes && $0.problem == nil })
+                    .disabled(running || planRule != rule || !plan.contains { $0.changes && $0.problem == nil })
             }
         }
         .padding(16)
@@ -69,7 +73,7 @@ struct MultiRenameView: View {
     }
 
     /// Podgląd liczony w tle po krótkiej przerwie w pisaniu (~150 ms); nowsza reguła anuluje czekające
-    /// obliczenie, a naraz liczy się najwyżej jeden plan (`MultiRename.plan` nie da się przerwać w trakcie).
+    /// obliczenie, a naraz liczy się najwyżej jeden plan (`MultiRename.plan` ma limit czasu dopasowań wyrażeń).
     /// Spóźniony wynik starszej reguły (numer generacji) nie nadpisuje nowszego podglądu.
     private func refresh(debounce: Bool = true) {
         let items = items, rule = rule
@@ -86,10 +90,12 @@ struct MultiRenameView: View {
             let p = await compute.value
             guard !Task.isCancelled, current == generation else { return }
             plan = p
+            planRule = rule
         }
     }
 
     private func run() {
+        guard !running, planRule == rule else { return }
         let args: [String: JSONValue] = [
             "paths": .array(items.map { .string($0.path.path) }),
             "nameMask": .string(rule.nameMask), "extensionMask": .string(rule.extensionMask),
@@ -98,7 +104,9 @@ struct MultiRenameView: View {
             "extensionCase": .string(rule.extensionCase.rawValue), "counterStart": .int(Int64(rule.counterStart)),
             "counterStep": .int(Int64(rule.counterStep)), "counterDigits": .int(Int64(rule.counterDigits)),
         ]
+        running = true
         Task {
+            defer { running = false }
             do {
                 try await workspace.invoke("file.multiRename", CommandArguments(args))
                 close()

@@ -9,7 +9,7 @@ import Testing
 
     /// Ukośnik wsteczny w tekście przerywał proces (NSException w parserze zapytania Spotlight).
     @MainActor @Test func spotlightPredicateSurvivesSpecialCharacters() throws {
-        for text in ["a\\", "x\"y\\", "\\", "\\\"", "\"", "a\u{0}b", "*", "?", "\\*", "$time.today", "ąę\\", "a\u{7F}\u{85}"] {
+        for text in ["a\\", "x\"y\\", "\\", "\\\"", "\"", "a\u{0}b", "*", "?", "\\*", "$time.today", "ąę\\", "a\u{7F}\u{85}"] + Self.noncharacterTexts {
             let predicate = try #require(SpotlightSearch.predicate(for: text), "\(text.debugDescription)")
             // `start()` tłumaczy predykat z powrotem na zapytanie Spotlight — tu też nie może się wyłożyć.
             let query = NSMetadataQuery()
@@ -20,7 +20,20 @@ import Testing
         }
         #expect(SpotlightSearch.predicate(for: "\u{0}\n") == nil)
         #expect(SpotlightSearch.predicate(for: "\u{7F}\u{85}") == nil)
+        // Niecharaktery Unicode (U+FFFE, U+FFFF przerywały parser; pomijane są wszystkie).
+        #expect(SpotlightSearch.predicate(for: Self.scalars(0xFFFE)) == nil)
+        #expect(SpotlightSearch.predicate(for: Self.scalars(0xFDD0, 0xFFFF, 0x10FFFF)) == nil)
     }
+
+    /// Kompilator Swift nie przyjmuje niecharakterów w literałach (`\u{FFFF}`), więc budujemy je z liczb.
+    static func scalars(_ values: UInt32...) -> String {
+        String(String.UnicodeScalarView(values.compactMap(Unicode.Scalar.init)))
+    }
+
+    static let noncharacterTexts = [
+        "a" + scalars(0xFFFF) + "b", scalars(0xFFFE) + "x", scalars(0xFDD0) + "y", scalars(0xFDEF) + "z",
+        "a" + scalars(0x10FFFF, 0x1FFFE),
+    ]
 
     // MARK: 2. Częściowe cofnięcie z brakującym elementem
 
@@ -181,14 +194,15 @@ import Testing
         #expect(newSize <= size / 2)
     }
 
-    /// W pamięci (długa sesja) też obowiązuje limit wpisów — sprawdzany przy rozpoczęciu nowej partii.
+    /// W pamięci (długa sesja) też obowiązuje limit wpisów — z zapasem 2× limit, sprawdzany przy
+    /// rozpoczęciu nowej partii (najnowsza zakończona partia zostaje).
     @Test func journalTrimsEntriesInMemory() {
         let journal = OperationJournal(maxEntries: 50)
         for b in 0..<4 {
             let batch = journal.beginBatch(title: "p\(b)", invoker: .user)
-            for i in 0..<20 { journal.record(.created(path: .local("/x/\(b)-\(i)"), isDirectory: false), in: batch) }
+            for i in 0..<40 { journal.record(.created(path: .local("/x/\(b)-\(i)"), isDirectory: false), in: batch) }
         }
-        // Przy starcie p3: 60 wpisów > 50 → bez p0; p3 dopisało potem swoje 20.
+        // Przy starcie p3: 120 wpisów > 2×50 → bez p0; p3 dopisało potem swoje 40.
         #expect(journal.batches.map(\.title) == ["p1", "p2", "p3"])
         journal.beginBatch(title: "p4", invoker: .user)
         #expect(journal.batches.map(\.title) == ["p2", "p3", "p4"])
@@ -343,24 +357,4 @@ import Testing
         #expect(try FileCompare.binary(tmp.path.appending("zwykly.txt"), tmp.path.appending("zwykly.txt")).identical)
         #expect(try Checksums.hash(tmp.path.appending("zwykly.txt"), algorithm: .md5) == "900150983cd24fb0d6963f7d28e17f72")
     }
-}
-
-/// Uruchamia `body` na osobnym wątku i czeka najwyżej `limit`. Jeśli się nie skończy (blokada na FIFO),
-/// otwiera FIFO do zapisu i zamyka je — czytelnik dostaje koniec pliku, więc wątek i procesy nie zostają.
-func finishes(within limit: Duration, unblocking fifo: String, _ body: @escaping @Sendable () -> Void) -> Bool {
-    let done = DispatchSemaphore(value: 0)
-    Thread.detachNewThread { body(); done.signal() }
-    let seconds = Double(limit.components.seconds) + Double(limit.components.attoseconds) / 1e18
-    if done.wait(timeout: .now() + seconds) == .success { return true }
-    while done.wait(timeout: .now() + 0.05) == .timedOut {
-        let fd = open(fifo, O_WRONLY | O_NONBLOCK)
-        if fd >= 0 { close(fd) }
-    }
-    return false
-}
-
-final class Flag: Sendable {
-    private let state = Atomic<Bool>(false)
-    var value: Bool { state.load(ordering: .relaxed) }
-    func set() { state.store(true, ordering: .relaxed) }
 }

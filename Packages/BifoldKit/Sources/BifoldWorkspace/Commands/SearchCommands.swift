@@ -51,6 +51,11 @@ extension CommandContext {
             guard let d = iso.date(from: s) else { throw CommandError.invalidArgument(key, "ISO 8601") }
             return d
         }
+        // Wzorzec odrzucony (zbyt złożony, zbyt długi) albo niepoprawny to błąd, nie „0 wyników”.
+        if let pattern = a.string("nameRegex"), !pattern.isEmpty {
+            let regex = NameRegex(pattern)
+            guard regex.isValid else { throw CommandError.invalidArgument("nameRegex", regex.problem ?? pattern) }
+        }
         return SearchCriteria(
             roots: searchRoots(),
             nameMask: a.string("nameMask") ?? "",
@@ -75,6 +80,14 @@ extension CommandContext {
     func searchRoots() -> [VFSPath] {
         let base = tab.path.isLocal ? tab.path : workspace.homePath
         return arguments.strings("paths")?.map { workspace.parsePath($0, relativeTo: base) } ?? [base]
+    }
+
+    /// Dla agenta silnik wyszukiwania nie czyta, nie pokazuje i nie liczy zablokowanych ścieżek — inaczej
+    /// `truncated` przy `maxResults: 1` zdradzałby treść i nazwy zablokowanych plików.
+    var searchExclusion: SearchExclusion {
+        guard isAgent else { return .none }
+        let blocked = BlockedPaths(for: workspace)
+        return SearchExclusion(isExcluded: { blocked.isBlocked($0) }, containsExcluded: { blocked.containsBlocked($0) })
     }
 
     /// Dla agenta: bez ścieżek zablokowanych (SECURITY.md §4.5) — ani ścieżki, ani dopasowanej treści.
@@ -110,8 +123,8 @@ extension CommandContext {
     }
 }
 
-/// Rozmiar w zapisie „100M”, „1,5G”, „700k” albo w bajtach.
-func parseSize(_ text: String) -> Int64? {
+/// Rozmiar w zapisie „100M”, „1,5G”, „700k” albo w bajtach (także okno wyszukiwania).
+public func parseSize(_ text: String) -> Int64? {
     let t = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".").uppercased()
     let kb = 1024.0, mb = kb * 1024, gb = mb * 1024, tb = gb * 1024
     let units: [(String, Double)] = [("TB", tb), ("GB", gb), ("MB", mb), ("KB", kb), ("T", tb), ("G", gb), ("M", mb), ("K", kb), ("B", 1)]
@@ -146,6 +159,12 @@ extension RenameRule {
     }
 }
 
+/// Plan zmiany nazw poza głównym wątkiem: wyrażenie regularne od agenta (liczone przed oknem zgody)
+/// albo odczyt EXIF/metadanych wielu plików nie mogą zawiesić interfejsu.
+func renamePlan(_ items: [FileItem], rule: RenameRule) async throws -> [RenamePlanEntry] {
+    try await runBlocking(qos: .userInitiated) { MultiRename.plan(items, rule: rule) }
+}
+
 let renameParams: [CommandParameter] = [
     pathsParam,
     CommandParameter("nameMask", .string, L10n.tr("Maska nazwy: [N] nazwa, [N2-5] fragment, [C] licznik, [P] katalog, [Y][M][D][h][m][s] data, [Exif:DateTimeOriginal:yyyy-MM-dd], [Exif:Model], [Media:artist|title|album|year]")),
@@ -173,7 +192,7 @@ var searchCommands: [Command] { [
             return .ok
         }
         let criteria = try ctx.searchCriteria()
-        let (hits, truncated) = try await SearchEngine.collect(criteria, ripgrep: ctx.workspace.settings.toolPath("rg"))
+        let (hits, truncated) = try await SearchEngine.collect(criteria, ripgrep: ctx.workspace.settings.toolPath("rg"), exclusion: ctx.searchExclusion)
         let title = !criteria.contentText.isEmpty ? "„\(criteria.contentText)”" : (criteria.nameMask.isEmpty ? criteria.nameRegex : criteria.nameMask)
         return try await ctx.deliver(hits, truncated: truncated, title: title.isEmpty ? L10n.tr("wyniki") : title)
     },
@@ -216,7 +235,7 @@ var searchCommands: [Command] { [
         }
         let name = try await ctx.text("name", title: L10n.tr("Zapisane wyszukiwanie"), message: saved.map(\.name).joined(separator: ", "), default: saved.first?.name ?? "")
         guard let s = saved.first(where: { $0.name == name }) else { throw CommandError.invalidArgument("name", name) }
-        let (hits, truncated) = try await SearchEngine.collect(s.criteria, ripgrep: ctx.workspace.settings.toolPath("rg"))
+        let (hits, truncated) = try await SearchEngine.collect(s.criteria, ripgrep: ctx.workspace.settings.toolPath("rg"), exclusion: ctx.searchExclusion)
         return try await ctx.deliver(hits, truncated: truncated, title: s.name)
     },
 
@@ -258,7 +277,7 @@ var searchCommands: [Command] { [
             summary: L10n.tr("Zmienia nazwy wielu elementów według masek, licznika, dat, metadanych EXIF/multimediów, znajdź-zamień (regex) i wielkości liter; z podglądem.")),
         preview: { @MainActor ctx in
             let items = try ctx.targets()
-            let plan = MultiRename.plan(items, rule: try RenameRule(arguments: ctx.arguments))
+            let plan = try await renamePlan(items, rule: try RenameRule(arguments: ctx.arguments))
             let problems = plan.filter { $0.problem != nil }
             return EffectPreview(
                 summary: L10n.tr("Zmiana nazw: \(plan.filter(\.changes).count) z \(plan.count)"),
@@ -272,16 +291,15 @@ var searchCommands: [Command] { [
             try ctx.requireUI().showMultiRename(items: items)
             return .ok
         }
-        let plan = MultiRename.plan(items, rule: try RenameRule(arguments: ctx.arguments))
+        let plan = try await renamePlan(items, rule: try RenameRule(arguments: ctx.arguments))
         let problems = plan.filter { $0.problem != nil }
         let journal = ctx.workspace.journal, invoker = ctx.invoker
         let count = try await runBlocking(qos: .userInitiated) {
             try MultiRename.execute(plan, journal: journal, invoker: invoker, title: L10n.tr("Zmiana nazw (\(plan.count))"))
         }
         await ctx.tab.reload()
-        return CommandResult(
-            message: L10n.tr("Zmieniono nazwy: \(count), pominięto: \(problems.count)"),
-            value: ["renamed": .int(Int64(count)), "skipped": .array(problems.map { .string("\($0.source.name): \($0.problem!)") })])
+        let value: JSONValue = ["renamed": .int(Int64(count)), "skipped": .array(problems.map { .string("\($0.source.name): \($0.problem!)") })]
+        return CommandResult(message: L10n.tr("Zmieniono nazwy: \(count), pominięto: \(problems.count)"), value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(

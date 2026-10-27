@@ -106,8 +106,11 @@ public enum JSONStore {
 /// Zablokowane ścieżki i normalizacja ścieżek od agenta (SECURITY.md §4.5).
 public struct BlockedPaths: Sendable {
     private let prefixes: [[String]]
+    /// Plik, w którym żyje wirtualny system plików (archiwum) — z rejestru dostawców.
+    private let hostOf: @Sendable (ProviderID) -> VFSPath?
 
-    public init(_ patterns: [String], home: String = NSHomeDirectory()) {
+    public init(_ patterns: [String], home: String = NSHomeDirectory(), hostOf: @escaping @Sendable (ProviderID) -> VFSPath? = { _ in nil }) {
+        self.hostOf = hostOf
         var all: [[String]] = []
         for p in patterns {
             let expanded = VFSPath.normalize(expandTilde(p, home: home))
@@ -123,7 +126,9 @@ public struct BlockedPaths: Sendable {
     /// i gniazdo nigdy nie są dostępne dla agenta).
     @MainActor
     public init(for workspace: Workspace) {
-        self.init(workspace.settings.agent.blockedPaths + [workspace.paths.root.path(percentEncoded: false)])
+        let providers = workspace.providers
+        self.init(workspace.settings.agent.blockedPaths + [workspace.paths.root.path(percentEncoded: false)],
+                  hostOf: { (try? providers.provider(for: $0))?.hostLocation })
     }
 
     static func components(_ path: String) -> [String] {
@@ -154,16 +159,34 @@ public struct BlockedPaths: Sendable {
         }
     }
 
+    /// Ścieżka lokalna, którą sprawdza blokada: sama ścieżka lokalna; dla wpisu archiwum — plik archiwum
+    /// (także archiwum w archiwum), dla elementu karty wyników wyszukiwania — jego prawdziwa ścieżka.
+    /// Karta wewnątrz `~/.ssh/x.zip` (otwarta przez użytkownika albo z historii) nie może dać agentowi wpisów.
+    func localEquivalent(_ path: VFSPath) -> VFSPath? {
+        var p = path
+        for _ in 0..<8 {
+            if p.isLocal { return p }
+            // `SearchResultsFS`: elementy mają ścieżki lokalne zapisane pod identyfikatorem dostawcy wyników.
+            if p.provider.rawValue.hasPrefix("search:") { return p.path == "/" ? nil : .local(p.path) }
+            guard let host = hostOf(p.provider) else { return nil }
+            p = host
+        }
+        return nil
+    }
+
     public func isBlocked(_ path: VFSPath) -> Bool {
-        path.isLocal && isBlocked(path.path)
+        guard let local = localEquivalent(path) else { return false }
+        return isBlocked(local.path)
     }
 
     /// Czy w poddrzewie `path` leży zablokowana ścieżka (`path` jest nią albo jej przodkiem).
     /// Operacja rekurencyjna agenta na takim katalogu (kopiowanie, przenoszenie, Kosz, archiwum,
     /// synchronizacja) ominęłaby blokadę.
     public func containsBlocked(_ path: VFSPath) -> Bool {
-        guard path.isLocal else { return false }
         if isBlocked(path) { return true }
+        // Poddrzewo wpisu archiwum nie zawiera ścieżek lokalnych (zablokowane archiwum łapie `isBlocked`).
+        guard let local = localEquivalent(path), path.isLocal || path.provider.rawValue.hasPrefix("search:") else { return false }
+        if local != path { return containsBlocked(local) }
         return candidates(path.path).contains { comps in
             prefixes.contains { prefix in prefix.count > comps.count && Array(prefix.prefix(comps.count)) == comps }
         }

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 @testable import BifoldCore
 
 /// Katalog tymczasowy usuwany po teście.
@@ -56,4 +57,35 @@ final class TempDir {
     func names(_ dir: String = "") throws -> Set<String> {
         Set(try FileManager.default.contentsOfDirectory(atPath: dir.isEmpty ? url.path : url.appending(path: dir).path))
     }
+}
+
+/// Uruchamia `body` na osobnym wątku i czeka najwyżej `limit`. Jeśli się nie skończy (blokada na FIFO),
+/// otwiera FIFO do zapisu i zamyka je — czytelnik dostaje koniec pliku, więc wątek i procesy nie zostają.
+/// Gdy `body` blokuje się na czymś innym niż FIFO, odblokowywanie trwa najwyżej `unblockLimit`
+/// (test kończy się porażką zamiast wisieć; wątek zostaje do końca procesu testów).
+func finishes(within limit: Duration, unblocking fifo: String, unblockLimit: Duration = .seconds(5), _ body: @escaping @Sendable () -> Void) -> Bool {
+    let done = DispatchSemaphore(value: 0)
+    Thread.detachNewThread { body(); done.signal() }
+    func seconds(_ d: Duration) -> Double { Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18 }
+    if done.wait(timeout: .now() + seconds(limit)) == .success { return true }
+    let giveUp = ContinuousClock.now + unblockLimit
+    while done.wait(timeout: .now() + 0.05) == .timedOut, ContinuousClock.now < giveUp {
+        let fd = open(fifo, O_WRONLY | O_NONBLOCK)
+        if fd >= 0 { close(fd) }
+    }
+    return false
+}
+
+extension FileOperations {
+    /// Plan cofnięcia ostatniej partii — tak jak `edit.undo` (`journal.lastUndoable` + `UndoPlanner.plan`),
+    /// synchronicznie dla testów.
+    func undoPlanForLast(where predicate: (JournalBatch) -> Bool = { _ in true }) -> UndoPlan? {
+        journal.lastUndoable(where: predicate).map { UndoPlanner.plan(for: [$0]) }
+    }
+}
+
+final class Flag: Sendable {
+    private let state = Atomic<Bool>(false)
+    var value: Bool { state.load(ordering: .relaxed) }
+    func set() { state.store(true, ordering: .relaxed) }
 }

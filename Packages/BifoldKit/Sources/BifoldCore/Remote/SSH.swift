@@ -287,8 +287,24 @@ public final class SSHSession: Sendable {
         return (try? Spawn.run(Self.ssh, args, environment: environment, timeout: 10).status) == 0
     }
 
+    /// Sesja zamknięta przez „Rozłącz”, zmianę albo usunięcie połączenia: nie łączy się ponownie
+    /// i nie uruchamia poleceń. Zadanie w tle trzymające starą sesję kończy się wtedy anulowaniem,
+    /// zamiast po cichu zestawić nowe połączenie główne (z ControlPersist), którego nikt nie zamknie.
+    private let closedFlag = Mutex(false)
+    public var isClosed: Bool { closedFlag.withLock { $0 } }
+
+    /// Zamyka sesję bez kończenia połączenia głównego (gniazdo może być wspólne z innym aliasem).
+    public func invalidate() {
+        closedFlag.withLock { $0 = true }
+    }
+
+    private func requireOpen() throws {
+        if isClosed { throw VFSError.cancelled }
+    }
+
     /// Nawiązuje połączenie główne (pierwsze logowanie, także po wygaśnięciu ControlPersist).
     public func connect() throws {
+        try requireOpen()
         try startLock.withLock {
             if isConnected { return }
             try startMaster()
@@ -299,6 +315,7 @@ public final class SSHSession: Sendable {
     /// znika, gdy połączenie główne się kończy (ControlPersist), więc wystarczy sprawdzić plik.
     /// Martwe gniazdo po awarii wykrywa błąd 255 polecenia.
     func ensureConnected() throws {
+        try requireOpen()
         if !FileManager.default.fileExists(atPath: controlPath) { try connect() }
     }
 
@@ -419,7 +436,9 @@ public final class SSHSession: Sendable {
         return "cd \(shellQuote(directory)) && exec \(shellQuote(shell)) -l"
     }
 
+    /// Zamyka sesję i połączenie główne (także dla innych sesji z tym samym gniazdem).
     public func disconnect() {
+        invalidate()
         let args = (commonOptions(master: false) + ["-O", "exit", destination]).map { Array($0.utf8) }
         _ = try? Spawn.run(Self.ssh, args, environment: environment, timeout: 10)
     }
@@ -433,10 +452,11 @@ public final class SSHSession: Sendable {
         var args = commonOptions(master: false).map { Array($0.utf8) }
         if let port = config.port { args += [Array("-p".utf8), Array(String(port).utf8)] }
         args += [Array(destination.utf8), try config.encoding.encode(command)]
-        let r = try Spawn.run(Self.ssh, args, environment: environment, timeout: timeout)
+        let closed: @Sendable () -> Bool = { self.isClosed }
+        let r = try Spawn.run(Self.ssh, args, environment: environment, timeout: timeout, isCancelled: closed)
         if r.status == 255, !isConnected {
             try connect()
-            if idempotent { return try Spawn.run(Self.ssh, args, environment: environment, timeout: timeout) }
+            if idempotent { return try Spawn.run(Self.ssh, args, environment: environment, timeout: timeout, isCancelled: closed) }
         }
         return r
     }
@@ -471,10 +491,12 @@ public final class SSHSession: Sendable {
         var args = (["-O", "-p", "-q"] + commonOptions(master: false)).map { Array($0.utf8) }
         if let port = config.port { args += [Array("-P".utf8), Array(String(port).utf8)] }
         args += paths
-        var r = try Spawn.run(Self.scp, args, environment: environment, timeout: 24 * 3600, isCancelled: isCancelled, isPaused: isPaused)
+        // Zamknięcie sesji przerywa trwające kopiowanie (gniazdo wspólne z innym aliasem by je utrzymało).
+        let stop: @Sendable () -> Bool = { isCancelled() || self.isClosed }
+        var r = try Spawn.run(Self.scp, args, environment: environment, timeout: 24 * 3600, isCancelled: stop, isPaused: isPaused)
         if r.status != 0, !isConnected {
             try connect()
-            r = try Spawn.run(Self.scp, args, environment: environment, timeout: 24 * 3600, isCancelled: isCancelled, isPaused: isPaused)
+            r = try Spawn.run(Self.scp, args, environment: environment, timeout: 24 * 3600, isCancelled: stop, isPaused: isPaused)
         }
         guard r.status == 0 else {
             // Błąd pliku na serwerze („scp: /ścieżka: Permission denied”) to nie błąd logowania.

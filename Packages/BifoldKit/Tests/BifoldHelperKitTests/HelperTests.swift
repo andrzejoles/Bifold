@@ -66,8 +66,8 @@ import Testing
     /// wpisany tylko w Config/Brand.xcconfig.
     @Test func machServiceFromBundle() {
         #expect(HelperConstants.machService(info: "a.b.helper", bundleIdentifier: "x") == "a.b.helper")
-        #expect(HelperConstants.machService(info: nil, bundleIdentifier: "local.aoles.bifold") == "local.aoles.bifold.helper")
-        #expect(HelperConstants.machService(info: nil, bundleIdentifier: "local.aoles.bifold.helper") == "local.aoles.bifold.helper")
+        #expect(HelperConstants.machService(info: nil, bundleIdentifier: "com.example.app") == "com.example.app.helper")
+        #expect(HelperConstants.machService(info: nil, bundleIdentifier: "com.example.app.helper") == "com.example.app.helper")
         #expect(HelperConstants.machService(info: "$(BIFOLD_BUNDLE_ID).helper", bundleIdentifier: "a.b") == "a.b.helper")
         #expect(HelperConstants.plistName == HelperConstants.machService + ".plist")
     }

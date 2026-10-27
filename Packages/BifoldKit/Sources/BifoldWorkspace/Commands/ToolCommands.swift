@@ -35,26 +35,33 @@ var editCommands: [Command] { [
     Command(
         CommandDescriptor(
             id: "edit.undo", title: L10n.tr("Cofnij operację"), category: .edit, tc: ["cmd+z"],
+            parameters: [CommandParameter("batch", .string, L10n.tr("Identyfikator partii z dziennika (domyślnie ostatnia cofalna)"))],
             agent: .approval, effect: .modifiesFiles,
             summary: L10n.tr("Cofa ostatnią operację na plikach (przeniesienie, zmianę nazwy, Kosz, utworzenie, kopię, atrybuty, tagi). Agent cofa tylko własne operacje.")),
         preview: { @MainActor ctx in
-            guard let plan = await undoPlan(ctx) else { return EffectPreview(summary: L10n.tr("Nie ma czego cofać")) }
+            guard let plan = try await undoPlan(ctx) else { return EffectPreview(summary: L10n.tr("Nie ma czego cofać")) }
             return EffectPreview(summary: L10n.tr("Cofnięcie: \(undoTitle(ctx) ?? "")"), operations: plan.steps.map(\.preview),
                                  fileCount: plan.steps.count, conflicts: plan.conflicts.map(\.message))
         }
     ) { ctx in
-        guard let plan = await undoPlan(ctx), !plan.isEmpty else { return CommandResult(message: L10n.tr("Nie ma czego cofać")) }
+        guard let plan = try await undoPlan(ctx), !plan.isEmpty else { return CommandResult(message: L10n.tr("Nie ma czego cofać")) }
         var force = false
         if !ctx.isAgent, !plan.conflicts.isEmpty {
             let answer = try await ctx.requireUI().confirmUndo(plan, title: undoTitle(ctx) ?? "")
             guard answer.proceed else { throw CommandError.cancelledByUser }
             force = answer.force
         }
+        // W czasie planowania i pytania partię mógł cofnąć ktoś inny (Cmd+Z, okno dziennika).
+        guard plan.batches.allSatisfy({ ctx.workspace.journal.batch($0)?.isUndoable == true }) else {
+            return CommandResult(message: L10n.tr("Nie ma czego cofać"))
+        }
         let result = await ctx.workspace.fileOps.execute(plan, force: force)
         await ctx.workspace.left.activeTab.reload()
         await ctx.workspace.right.activeTab.reload()
         let message = L10n.tr("Cofnięto: \(result.performed), pominięto: \(result.skipped.count), błędy: \(result.errors.count)")
-        return CommandResult(message: message, value: ["performed": .int(Int64(result.performed)), "skipped": .array(result.skipped.map { .string($0.message) })])
+        let value: JSONValue = ["performed": .int(Int64(result.performed)), "skipped": .array(result.skipped.map { .string($0.message) })]
+        // Pominięte kroki zawierają nazwy plików — dla agenta niezaufane (SECURITY.md §4.6).
+        return CommandResult(message: message, value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(
@@ -66,24 +73,38 @@ var editCommands: [Command] { [
     },
 ] }
 
+/// Partia do cofnięcia: podana argumentem `batch` (okno dziennika) albo ostatnia cofalna. Agent tylko
+/// własne partie; podana, a nieistniejąca lub już niecofalna partia to brak czego cofać.
+@MainActor
+private func undoBatch(_ ctx: CommandContext) throws -> JournalBatch? {
+    let session = ctx.invoker.agentSessionID
+    let own: (JournalBatch) -> Bool = { session == nil || $0.invoker.agentSessionID == session }
+    guard let raw = ctx.arguments.string("batch") else { return ctx.workspace.journal.lastUndoable(where: own) }
+    guard let id = UUID(uuidString: raw) else { throw CommandError.invalidArgument("batch", raw) }
+    guard let batch = ctx.workspace.journal.batch(id), batch.isUndoable, own(batch) else { return nil }
+    return batch
+}
+
 /// Plan cofnięcia (sprawdzanie dysku poza wątkiem głównym — duże operacje nie zamrażają okna).
 @MainActor
-private func undoPlan(_ ctx: CommandContext) async -> UndoPlan? {
-    let session = ctx.invoker.agentSessionID
-    guard let batch = ctx.workspace.journal.lastUndoable(where: { session == nil || $0.invoker.agentSessionID == session }) else { return nil }
+private func undoPlan(_ ctx: CommandContext) async throws -> UndoPlan? {
+    guard let batch = try undoBatch(ctx) else { return nil }
     return try? await runBlocking(qos: .userInitiated) { UndoPlanner.plan(for: [batch]) }
 }
 
 @MainActor
 private func undoTitle(_ ctx: CommandContext) -> String? {
-    let session = ctx.invoker.agentSessionID
-    return ctx.workspace.journal.lastUndoable { session == nil || $0.invoker.agentSessionID == session }?.title
+    (try? undoBatch(ctx))?.title
 }
 
+/// Zadania z argumentu `job`; bez argumentu — wszystkie aktywne. Podany, a nieznaleziony identyfikator
+/// (np. zadanie zakończone i usunięte z paska) to błąd — inaczej `queue.cancel` jednego zadania,
+/// pokazanego w oknie zgody, anulowałoby wszystkie zadania użytkownika.
 @MainActor
-private func jobArgument(_ ctx: CommandContext) -> [Job] {
-    if let raw = ctx.arguments.string("job"), let id = UUID(uuidString: raw), let job = ctx.workspace.jobs.job(id) { return [job] }
-    return ctx.workspace.jobs.activeJobs
+private func jobArgument(_ ctx: CommandContext) throws -> [Job] {
+    guard let raw = ctx.arguments.string("job") else { return ctx.workspace.jobs.activeJobs }
+    guard let id = UUID(uuidString: raw), let job = ctx.workspace.jobs.job(id) else { throw CommandError.invalidArgument("job", raw) }
+    return [job]
 }
 
 private let jobParam = CommandParameter("job", .string, L10n.tr("Identyfikator zadania (domyślnie wszystkie aktywne)"))
@@ -94,7 +115,7 @@ var queueCommands: [Command] { [
         id: "queue.pause", title: L10n.tr("Wstrzymaj operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Wstrzymuje zadania w tle."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.pause)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.pause)
         return .ok
     },
 
@@ -102,7 +123,7 @@ var queueCommands: [Command] { [
         id: "queue.resume", title: L10n.tr("Wznów operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Wznawia wstrzymane zadania."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.resume)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.resume)
         return .ok
     },
 
@@ -110,7 +131,7 @@ var queueCommands: [Command] { [
         id: "queue.cancel", title: L10n.tr("Anuluj operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Anuluje zadania w tle (bez pozostawiania częściowych plików)."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.cancel)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.cancel)
         return .ok
     },
 
@@ -119,6 +140,7 @@ var queueCommands: [Command] { [
         parameters: [jobParam, CommandParameter("bytesPerSecond", .integer, required: true, L10n.tr("Bajty na sekundę (0 = bez limitu)"))],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Ogranicza prędkość zadań w tle."))
     ) { ctx in
+        let targets = try jobArgument(ctx)
         let limit: Int64
         if let v = ctx.arguments.int("bytesPerSecond") {
             guard v >= 0 else { throw CommandError.invalidArgument("bytesPerSecond", String(v)) }
@@ -130,7 +152,7 @@ var queueCommands: [Command] { [
                   let bytes = Int64(exactly: (mb * 1024 * 1024).rounded()) else { throw CommandError.invalidArgument("bytesPerSecond", text) }
             limit = bytes
         }
-        for job in jobArgument(ctx) { ctx.workspace.jobs.setSpeedLimit(job, limit) }
+        for job in targets { ctx.workspace.jobs.setSpeedLimit(job, limit) }
         return .ok
     },
 
@@ -143,7 +165,8 @@ var queueCommands: [Command] { [
              "bytesDone": .int(job.progress.bytesDone), "bytesTotal": .int(job.progress.bytesTotal),
              "filesDone": .int(Int64(job.progress.filesDone)), "filesTotal": .int(Int64(job.progress.filesTotal))]
         }
-        return CommandResult(value: .array(jobs))
+        // Tytuły zadań zawierają nazwy plików.
+        return CommandResult(value: ctx.isAgent ? untrusted(.array(jobs)) : .array(jobs))
     },
 
     Command(CommandDescriptor(
@@ -220,9 +243,10 @@ var toolCommands: [Command] { [
     ) { ctx in
         ctx.workspace.refreshVolumes()
         if ctx.isAgent {
-            return CommandResult(value: try JSONValue.encode(ctx.workspace.volumes.map {
+            // Nazwy woluminów nadaje ten, kto sformatował nośnik — dane, nie polecenia.
+            return CommandResult(value: untrusted(try JSONValue.encode(ctx.workspace.volumes.map {
                 ["name": $0.name, "path": $0.path.path, "total": String($0.totalCapacity), "available": String($0.availableCapacity), "ejectable": String($0.isEjectable)]
-            }))
+            })))
         }
         try ctx.requireUI().showVolumes()
         return .ok

@@ -216,7 +216,7 @@ extension AgentPane: NSTableViewDataSource, NSTableViewDelegate {
         case "time":
             text = Self.time.string(from: a.started)
         case "tool":
-            text = a.tool
+            text = a.toolText
         case "status":
             switch a.status {
             case .running: text = L10n.tr("w toku")
@@ -226,16 +226,16 @@ extension AgentPane: NSTableViewDataSource, NSTableViewDelegate {
             case .failed: text = L10n.tr("błąd"); color = .systemRed
             }
         default:
-            switch a.status {
-            case .failed(let m): text = a.arguments + "  ⟶  " + m
-            default: text = a.arguments + (a.result.map { "  ⟶  " + $0 } ?? "")
-            }
+            text = a.detailText
         }
-        let field = NSTextField(labelWithString: text)
+        // Nazwa narzędzia, argumenty i wynik pochodzą od agenta i z plików: znaki sterujące, bidi (U+202E)
+        // i separatory wierszy jako `\u{…}`, jak w oknie zgody (także powód odmowy).
+        let safe = ApprovalText.sanitize(text)
+        let field = NSTextField(labelWithString: safe)
         field.font = .systemFont(ofSize: 11)
         field.textColor = color
         field.lineBreakMode = .byTruncatingTail
-        field.toolTip = text
+        field.toolTip = safe
         return field
     }
 

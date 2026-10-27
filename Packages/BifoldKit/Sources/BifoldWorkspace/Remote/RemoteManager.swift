@@ -25,6 +25,10 @@ public final class RemoteManager {
 
     public func connection(_ alias: String) -> RemoteConnection? { connections.first { $0.alias == alias } }
 
+    /// Czy alias jest zdefiniowany (także gdy nie jest połączony) — ścieżka `remote:<alias>` bez
+    /// zarejestrowanego dostawcy nie jest wtedy martwa: `provider(alias)` połączy się ponownie.
+    public func isKnown(alias: String) -> Bool { connection(alias) != nil }
+
     public func save(_ c: RemoteConnection, secret: String?) throws {
         try RemoteFS.validateAlias(c.alias)
         connections.removeAll { $0.alias == c.alias }
@@ -32,22 +36,46 @@ public final class RemoteManager {
         connections.sort { $0.alias < $1.alias }
         if let secret { try keychain.set(secret, for: c.alias) }
         try JSONStore.save(connections, to: url)
-        connected.remove(c.alias)
         // Zmieniony host/użytkownik: stara sesja SSH (także terminali) nie może zostać, a stary dostawca
         // nie może zostać zarejestrowany — karta łączyłaby się nim ze starym hostem (z nowym hasłem).
-        scpSessions.removeValue(forKey: c.alias)
-        workspace.providers.unregister(RemoteFS.providerID(c.alias))
-        if let session = sshSessions.removeValue(forKey: c.alias) { unshared(session)?.disconnect() }
+        // Trwające łączenie (ze starymi danymi) jest przerywane, zanim zarejestruje dostawcę.
+        let interrupted = drop(c.alias)
+        // Karty tego połączenia nie zostają bez dostawcy (Ctrl+R „nieobsługiwany dostawca”, Wstecz gubiłby
+        // historię): połączenie z nowymi danymi zestawiane od razu w tle — po zakończeniu przerwanego
+        // łączenia (jego sprzątanie nie trafi w nowe). Błąd (np. złe hasło) zobaczy karta.
+        let id = RemoteFS.providerID(c.alias)
+        if (workspace.left.tabs + workspace.right.tabs).contains(where: { $0.usedProviders.contains(id) }) {
+            let alias = c.alias
+            Task { [weak self] in
+                _ = try? await interrupted?.value
+                _ = try? await self?.provider(alias)
+            }
+        }
     }
 
     public func remove(_ alias: String) throws {
+        // Najpierw sekret: gdy Pęk kluczy odmówi, połączenie zostaje (można ponowić), a błąd widać w oknie.
+        try keychain.delete(alias)
         connections.removeAll { $0.alias == alias }
-        keychain.delete(alias)
-        scpSessions.removeValue(forKey: alias)
-        if let session = sshSessions.removeValue(forKey: alias) { unshared(session)?.disconnect() }
+        drop(alias)
         try JSONStore.save(connections, to: url)
-        workspace.providers.unregister(RemoteFS.providerID(alias))
+    }
+
+    /// Zapomina połączenie aliasu: przerywa łączenie, zamyka sesję SSH (zadania w tle z nią kończą się
+    /// anulowaniem zamiast zestawiać nowe połączenie główne) i wyrejestrowuje dostawcę. Połączenie główne
+    /// jest kończone tylko, gdy nie korzysta z niego inny alias. Zwraca przerwane łączenie.
+    @discardableResult
+    private func drop(_ alias: String) -> Task<any RemoteFileProvider, any Error>? {
+        let interrupted = connecting.removeValue(forKey: alias)
+        interrupted?.cancel()
+        defer { workspace.providers.unregister(RemoteFS.providerID(alias)) }
+        let scp = scpSessions.removeValue(forKey: alias)
+        let session = sshSessions.removeValue(forKey: alias)
+        scp?.session.invalidate()
+        session?.invalidate()
+        if let session = session ?? scp?.session { unshared(session)?.disconnect() }
         connected.remove(alias)
+        return interrupted
     }
 
     /// Katalog na gniazda (rclone, połączenia główne SSH). Limit sun_path to 104 B, a `ssh` dokleja
@@ -179,7 +207,8 @@ public final class RemoteManager {
         }
         let fs = try await RemoteFS.connect(c, secret: keychain.get(alias), rclone: rc, knownHostsFile: knownHosts, hostKeyAlgorithms: hostKeyAlgorithms)
         if Task.isCancelled {
-            _ = try? await rc.call("config/delete", ["name": alias])
+            // Bez usuwania zasobu nowszego łączenia tego aliasu (np. po zapisie zmian połączenia).
+            if connecting[alias] == nil, !connected.contains(alias) { _ = try? await rc.call("config/delete", ["name": alias]) }
             throw CancellationError()
         }
         workspace.providers.register(fs)
@@ -208,9 +237,14 @@ public final class RemoteManager {
     public func disconnect(_ alias: String) async {
         connecting.removeValue(forKey: alias)?.cancel()
         let scp = scpSessions.removeValue(forKey: alias)
+        let ssh = sshSessions.removeValue(forKey: alias)
+        // Zadania w tle (wysyłanie, pobieranie) trzymające tę sesję kończą się anulowaniem — nie zestawią
+        // po cichu nowego połączenia głównego.
+        scp?.session.invalidate()
+        ssh?.invalidate()
         // Zamknięcie połączenia głównego kończy też terminale SSH tego serwera — chyba że z tego samego
         // gniazda korzysta inny alias (ten sam użytkownik@host:port).
-        if let session = sshSessions.removeValue(forKey: alias) ?? scp?.session, let unused = unshared(session) {
+        if let session = ssh ?? scp?.session, let unused = unshared(session) {
             _ = try? await runBlocking(qos: .userInitiated) { unused.disconnect() }
         }
         if let rclone, rclone.isRunning, connected.contains(alias) {
@@ -303,6 +337,11 @@ final class RemoteEditSession {
     private var source: (any DispatchSourceFileSystemObject)?
     /// Wysyłka zaplanowana po ostatnim zdarzeniu (każdy kolejny zapis ją przesuwa).
     private var pending: Task<Void, Never>?
+    /// Trwająca wysyłka. Wysyłki jednej edycji idą po kolei — dwie naraz mogłyby skończyć się w odwrotnej
+    /// kolejności i starsza treść wygrałaby na serwerze.
+    private var uploading: Task<Void, Never>?
+    /// Zapis w trakcie wysyłki: po jej końcu jeszcze jedna (wszystkie takie zapisy razem).
+    private var dirty = false
     /// Opóźnienie wysyłki od ostatniego zdarzenia (edytory zapisują w kilku krokach).
     var delay: Duration = .milliseconds(500)
 
@@ -327,34 +366,60 @@ final class RemoteEditSession {
     }
 
     /// Koniec edycji: obserwacja i lokalna kopia (katalog `bifold-remote-…` / `.bifold-scp-…` z
-    /// pobrania) znikają. Zaplanowana wysyłka ostatniego zapisu jeszcze się wykona.
+    /// pobrania) znikają. Zaplanowana i trwająca wysyłka ostatniego zapisu jeszcze się wykonają.
     func stop() {
         source?.cancel()
         source = nil
         let dir = local.deletingLastPathComponent()
         let name = dir.lastPathComponent
         guard name.hasPrefix("bifold-remote-") || name.hasPrefix(".bifold-scp-") else { return }
-        if let pending {
-            Task { _ = await pending.value; try? FileManager.default.removeItem(at: dir) }
+        if pending != nil || uploading != nil {
+            Task {
+                await finished()
+                try? FileManager.default.removeItem(at: dir)
+            }
         } else {
             try? FileManager.default.removeItem(at: dir)
         }
     }
 
-    private func changed() {
+    /// Czeka, aż zaplanowane i trwające wysyłki się skończą.
+    func finished() async {
+        while pending != nil || uploading != nil {
+            if let pending { await pending.value } else if let uploading { await uploading.value }
+        }
+    }
+
+    /// Zdarzenie w katalogu kopii: wysyłka po `delay` od ostatniego.
+    func changed() {
         pending?.cancel()
-        let local = local, remote = remote, fs = fs, delay = delay
+        let delay = delay
         pending = Task { [weak self] in
             try? await Task.sleep(for: delay)
-            guard !Task.isCancelled else { return }
-            do {
-                try await fs.upload(local, to: remote)
-                self?.report(L10n.tr("Wysłano \(remote.name) na \(fs.connection.alias)"))
-            } catch {
-                self?.report(L10n.tr("Nie udało się wysłać \(remote.name): \(error.localizedDescription)"))
-            }
-            // Ostatnia zaplanowana wysyłka zakończona (nowsze zdarzenie anulowałoby to zadanie wcześniej).
-            if !Task.isCancelled { self?.pending = nil }
+            guard !Task.isCancelled, let self else { return }
+            self.pending = nil
+            self.flush()
+        }
+    }
+
+    /// Wysyła bieżącą treść — albo, gdy wysyłka już trwa, zaznacza, że po niej trzeba wysłać jeszcze raz.
+    private func flush() {
+        guard uploading == nil else {
+            dirty = true
+            return
+        }
+        let local = local, remote = remote, fs = fs
+        uploading = Task { [weak self] in
+            repeat {
+                self?.dirty = false
+                do {
+                    try await fs.upload(local, to: remote)
+                    self?.report(L10n.tr("Wysłano \(remote.name) na \(fs.connection.alias)"))
+                } catch {
+                    self?.report(L10n.tr("Nie udało się wysłać \(remote.name): \(error.localizedDescription)"))
+                }
+            } while self?.dirty == true
+            self?.uploading = nil
         }
     }
 }

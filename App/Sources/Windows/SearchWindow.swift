@@ -35,8 +35,9 @@ final class SearchModel {
         c.roots = rootsText.split(separator: ";").map { resolvePath($0.trimmingCharacters(in: .whitespaces), relativeTo: nil) }
         c.modifiedAfter = useDates ? after : nil
         c.modifiedBefore = useDates ? before : nil
-        c.minSize = minSizeText.isEmpty ? nil : parseSizeText(minSizeText)
-        c.maxSize = maxSizeText.isEmpty ? nil : parseSizeText(maxSizeText)
+        // Wspólny parser z komendami (`1e30G`, `infM`, `nanK` → brak limitu zamiast awarii).
+        c.minSize = minSizeText.isEmpty ? nil : parseSize(minSizeText)
+        c.maxSize = maxSizeText.isEmpty ? nil : parseSize(maxSizeText)
         criteria = c
         hits = []
         running = true
@@ -107,14 +108,6 @@ final class SearchModel {
         minSizeText = s.criteria.minSize.map(String.init) ?? ""
         maxSizeText = s.criteria.maxSize.map(String.init) ?? ""
         saveName = s.name
-    }
-
-    private func parseSizeText(_ s: String) -> Int64? {
-        let t = s.uppercased().replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
-        for (suffix, mult) in [("G", 1073741824.0), ("M", 1048576.0), ("K", 1024.0)] where t.hasSuffix(suffix) {
-            return Double(t.dropLast()).map { Int64($0 * mult) }
-        }
-        return Int64(t)
     }
 }
 

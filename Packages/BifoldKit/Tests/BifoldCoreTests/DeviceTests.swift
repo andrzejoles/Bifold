@@ -196,6 +196,58 @@ import Testing
         #expect(!(try tmp.read("log")).contains("get 99"))
     }
 
+    /// Protokół pomocnika MTP jest wierszowy: lokalna ścieżka docelowa ze znakiem nowej linii dopisałaby
+    /// polecenie `get` z dowolną ścieżką — polecenie ze znakami sterującymi jest odrzucane przed wysłaniem.
+    @Test func mtpRequestRejectsControlCharacters() async throws {
+        #expect(throws: VFSError.self) { try MTPHelper.validate("get 21 /tmp/a\nget 99 /tmp/zle") }
+        #expect(throws: VFSError.self) { try MTPHelper.validate("get 21 /tmp/a\r") }
+        try MTPHelper.validate("get 21 /tmp/zażółć gęślą.jpg")
+
+        let tmp = try TempDir()
+        let helper = try fakeHelper(tmp)
+        FileManager.default.createFile(atPath: tmp.url.path + "/allowed", contents: Data())
+        let fs = try MTPDeviceFS(device: DeviceInfo(id: "0", kind: .android, name: "Samsung"), helperPath: helper)
+        defer { fs.close() }
+        let dcim = fs.root.appending("Pamięć wewnętrzna").appending("DCIM")
+        _ = try await fs.list(dcim, options: ListOptions())
+        let target = try tmp.dir("cel\nget 99 \(tmp.url.path)/zle")
+        #expect(throws: VFSError.self) { _ = try fs.extract([dcim.appending("IMG_1.jpg")], toTemporaryIn: target, isCancelled: { false }) }
+        #expect(!(try tmp.read("log")).contains("get 99") && !tmp.exists("zle"))
+        // Sesja nadal działa.
+        #expect(try await fs.list(dcim, options: ListOptions()).map(\.name) == ["Camera", "IMG_1.jpg"])
+    }
+
+    /// iPhone: podgląd folderu nie uruchamia `afcclient get -rf` (całe drzewo do katalogu tymczasowego).
+    @Test func afcReadContentsRefusesFolders() async throws {
+        let tmp = try TempDir()
+        let tool = tmp.url.path + "/afcclient"
+        let script = """
+        #!/bin/sh
+        echo "$*" >> "\(tmp.url.path)/args"
+        echo 'drwxr-xr-x    1 mobile mobile        160 05 Mar 2026 10:11:12 100APPLE'
+        """
+        try Data(script.utf8).write(to: URL(filePath: tool))
+        chmod(tool, 0o755)
+        let fs = AFCDeviceFS(device: DeviceInfo(id: "U", kind: .iPhone, name: "i"), afcclient: tool)
+        await #expect(throws: VFSError.self) { _ = try await fs.readContents(fs.root.appending("DCIM/100APPLE"), range: nil) }
+        #expect(!(try tmp.read("args")).contains("get"))
+    }
+
+    /// Podgląd (treść pojedynczego pliku) nie pobiera całego folderu z telefonu.
+    @Test func mtpReadContentsRefusesFolders() async throws {
+        let tmp = try TempDir()
+        let helper = try fakeHelper(tmp)
+        FileManager.default.createFile(atPath: tmp.url.path + "/allowed", contents: Data())
+        let fs = try MTPDeviceFS(device: DeviceInfo(id: "0", kind: .android, name: "Samsung"), helperPath: helper)
+        defer { fs.close() }
+        let storage = fs.root.appending("Pamięć wewnętrzna")
+        await #expect(throws: VFSError.self) { _ = try await fs.readContents(storage.appending("DCIM"), range: nil) }
+        await #expect(throws: VFSError.self) { _ = try await fs.readContents(storage, range: nil) }
+        #expect(!(try tmp.read("log")).contains("get "), "nic nie pobrano")
+        let data = try await fs.readContents(storage.appending("notatka ąę.txt"), range: nil)
+        #expect(String(decoding: data, as: UTF8.self) == "plik-11")
+    }
+
     @Test func toolRunnerTimeout() throws {
         let start = ContinuousClock.now
         #expect(throws: VFSError.self) { _ = try ToolRunner.run("/bin/sleep", ["30"], timeout: 0.5) }

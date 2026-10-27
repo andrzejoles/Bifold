@@ -270,6 +270,35 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "%@ — na serwerze został plik tymczasowy %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — a temporary file was left on the server: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — auf dem Server ist eine temporäre Datei zurückgeblieben: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — quedó un archivo temporal en el servidor: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — на сервері залишився тимчасовий файл %@"
+          }
+        }
+      }
+    },
     "%@/s": {
       "extractionState": "manual",
       "shouldTranslate": false,
@@ -1012,6 +1041,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Псевдонім з’єднання (типово сервер в активній панелі)"
+          }
+        }
+      }
+    },
+    "Aliasu zapisanego połączenia nie można zmienić — utwórz nowe połączenie i usuń stare.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The alias of a saved connection can’t be changed — create a new connection and delete the old one."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Alias einer gespeicherten Verbindung kann nicht geändert werden – erstelle eine neue Verbindung und lösche die alte."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El alias de una conexión guardada no se puede cambiar: crea una conexión nueva y elimina la antigua."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Псевдонім збереженого з’єднання змінити не можна — створіть нове з’єднання і видаліть старе."
           }
         }
       }
@@ -2143,6 +2201,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ціль"
+          }
+        }
+      }
+    },
+    "Celem lustra nie może być cały wolumin — usunęłoby to z niego wszystko spoza źródła": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A mirror can’t target a whole volume — it would delete everything on it that isn’t in the source"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziel einer Spiegelung kann kein ganzes Volume sein — alles, was nicht in der Quelle ist, würde gelöscht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El destino de un espejo no puede ser un volumen entero: se borraría todo lo que no esté en el origen"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Метою дзеркала не може бути весь том — з нього було б видалено все, чого немає в джерелі"
           }
         }
       }
@@ -4409,6 +4496,35 @@
         }
       }
     },
+    "Identyfikator partii z dziennika (domyślnie ostatnia cofalna)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Journal batch identifier (default: last undoable)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kennung des Journal-Stapels (Standard: der letzte rückgängig machbare)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identificador del lote del registro (predeterminado: el último que se puede deshacer)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ідентифікатор партії з журналу (типово остання, яку можна скасувати)"
+          }
+        }
+      }
+    },
     "Identyfikator urządzenia (domyślnie pierwsze)": {
       "extractionState": "manual",
       "localizations": {
@@ -5163,6 +5279,35 @@
         }
       }
     },
+    "Katalog główny dysku (/) nie może być końcem synchronizacji": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The disk root (/) can’t be a synchronization endpoint"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Stammverzeichnis des Laufwerks (/) kann kein Synchronisationsende sein"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La raíz del disco (/) no puede ser un extremo de la sincronización"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кореневий каталог диска (/) не може бути кінцем синхронізації"
+          }
+        }
+      }
+    },
     "Katalog na serwerze": {
       "extractionState": "manual",
       "localizations": {
@@ -5420,6 +5565,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Тек: %lld · %@"
+          }
+        }
+      }
+    },
+    "Katalogu spoza dysku lokalnego nie można otworzyć jak pliku": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A folder outside the local disk can’t be opened as a file"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Ordner außerhalb des lokalen Laufwerks kann nicht wie eine Datei geöffnet werden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una carpeta fuera del disco local no se puede abrir como un archivo"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Теку поза локальним диском не можна відкрити як файл"
           }
         }
       }
@@ -11800,6 +11974,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Початок назви"
+          }
+        }
+      }
+    },
+    "Podaj katalog źródłowy i docelowy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the source and destination folders"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quell- und Zielordner angeben"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indica las carpetas de origen y destino"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вкажіть вихідний і цільовий каталоги"
           }
         }
       }
@@ -19373,6 +19576,35 @@
         }
       }
     },
+    "Usunąć połączenie „%@”?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete connection “%@”?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung „%@“ löschen?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Eliminar la conexión «%@»?"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видалити з’єднання «%@»?"
+          }
+        }
+      }
+    },
     "Usunąć trwale jako administrator?": {
       "extractionState": "manual",
       "localizations": {
@@ -19978,6 +20210,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Завантажує перекладений файл JSON і додає мову до Параметрів."
+          }
+        }
+      }
+    },
+    "Wczytywanie pliku…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading file…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei wird geladen …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando archivo…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завантаження файлу…"
           }
         }
       }
@@ -21167,6 +21428,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вмикає алгоритми diffie-hellman-group1/14-sha1, ssh-rsa і шифри CBC — лише для серверів, які не знають новіших."
+          }
+        }
+      }
+    },
+    "Z Pęku kluczy zostaną też usunięte zapisane dane logowania (hasło lub token).": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The saved credentials (password or token) will also be removed from the Keychain."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die gespeicherten Anmeldedaten (Passwort oder Token) werden auch aus dem Schlüsselbund entfernt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las credenciales guardadas (contraseña o token) también se eliminarán del Llavero."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Збережені облікові дані (пароль або токен) також буде видалено зі Зв’язки ключів."
           }
         }
       }
@@ -23342,6 +23632,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вибрано: %lld"
+          }
+        }
+      }
+    },
+    "Zbyt wiele różnych wierszy do porównania tekstowego": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many differing lines for a text comparison"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu viele unterschiedliche Zeilen für einen Textvergleich"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demasiadas líneas distintas para una comparación de texto"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Забагато різних рядків для текстового порівняння"
           }
         }
       }
@@ -26788,6 +27107,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "результати"
+          }
+        }
+      }
+    },
+    "wyrażenie regularne zbyt złożone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "regular expression too complex"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "regulärer Ausdruck zu komplex"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "expresión regular demasiado compleja"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "регулярний вираз надто складний"
           }
         }
       }

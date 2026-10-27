@@ -167,8 +167,9 @@ var fileCommands: [Command] { [
         agent: .read, effect: .uiState, summary: L10n.tr("Otwiera podgląd pliku (tekst w wybranym kodowaniu, hex, obrazy)."))
     ) { ctx in
         guard let item = ctx.tab.cursorItem, !item.isParentLink else { return .ok }
-        if item.isDirectory {
-            if item.path.isLocal { ctx.tab.calculateSize(of: item) }
+        // Katalog albo dowiązanie do katalogu: rozmiar (tylko dysk lokalny), nigdy kopia całego drzewa.
+        if item.isNavigable {
+            if item.isDirectory, item.path.isLocal { ctx.tab.calculateSize(of: item) }
         } else {
             try ctx.requireUI().showViewer(try await ctx.workspace.materialize(item))
         }
@@ -181,7 +182,8 @@ var fileCommands: [Command] { [
     ) { ctx in
         var files: [URL] = []
         for item in try ctx.targets(allowNonLocal: true) where !item.isNavigable {
-            if let url = try await ctx.workspace.materialize(item).path.url { files.append(url) }
+            // Kopia do edycji nie znika przy zamknięciu Bifolda (edytor może ją jeszcze trzymać).
+            if let url = try await ctx.workspace.materialize(item, removeOnExit: false).path.url { files.append(url) }
         }
         guard !files.isEmpty else { throw CommandError.nothingSelected }
         try ctx.requireUI().openInEditor(files)

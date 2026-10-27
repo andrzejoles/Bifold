@@ -93,7 +93,9 @@ public func agentCommands() -> [Command] {
             let value: JSONValue = [
                 "directory": .string(blocked.isBlocked(tab.path) ? "«zablokowana»" : tab.path.path),
                 "fromCursor": .bool(tab.selection.isEmpty),
-                "items": .array(items.map { $0.agentJSON(directorySize: tab.directorySizes[$0.path]) }),
+                // Rozmiar i liczba plików katalogu z zablokowaną ścieżką w poddrzewie zdradzałyby (po odjęciu
+                // jawnych podkatalogów) rozmiar zablokowanego katalogu.
+                "items": .array(items.map { $0.agentJSON(directorySize: blocked.containsBlocked($0.path) ? nil : tab.directorySizes[$0.path]) }),
             ]
             return CommandResult(value: untrusted(value))
         },

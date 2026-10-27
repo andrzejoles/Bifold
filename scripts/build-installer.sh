@@ -10,7 +10,8 @@ cd "$ROOT"
 
 VERSION="$(scripts/version.sh)"
 BUILD="$(scripts/version.sh --build)"
-DIST="$ROOT/dist"
+# BIFOLD_DIST: inny katalog wyjściowy (tylko do prób — scripts/release.sh zakłada dist/).
+DIST="${BIFOLD_DIST:-$ROOT/dist}"
 APP_NAME="$(awk -F' = ' '/^BIFOLD_APP_NAME/{print $2}' Config/Brand.xcconfig)"
 # Autor z BIFOLD_COPYRIGHT bez „© rok”.
 AUTHOR="$(awk -F' = ' '/^BIFOLD_COPYRIGHT/{print $2}' Config/Brand.xcconfig | sed 's/^© [0-9]* //')"
@@ -30,7 +31,9 @@ echo "[2/4] Podpis…"
 mkdir -p "$DIST"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 APP="$DIST/staging.noindex/$APP_NAME-$VERSION.app"
-rm -rf "$DIST/staging.noindex"
+# Tylko własne kopie robocze — w staging.noindex są też katalogi release-X.Y.Z/ ze scripts/release.sh
+# (ZIP, appcast.xml, notes.md).
+rm -rf "$DIST/staging.noindex/$APP_NAME-"*.app
 mkdir -p "$DIST/staging.noindex"
 ditto "$SRC" "$APP"
 # Dane dewelopera nie mogą trafić do instalatora.

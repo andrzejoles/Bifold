@@ -115,7 +115,7 @@ Workspace
 ├── panels: [PanelSide.left: Panel, .right: Panel]
 ├── activeSide: PanelSide
 ├── settings: Settings (skróty, reguły kolorów, edytor, ścieżki narzędzi, motyw, limity agenta)
-├── operations: OperationQueue (zadania w tle)
+├── jobs: JobQueue (zadania w tle)
 ├── journal: OperationJournal
 └── commandRegistry: CommandRegistry
 
@@ -136,8 +136,8 @@ Tab (zapisywana między uruchomieniami: path, viewMode, sort)
 ```
 
 Interfejs tylko czyta model (`withObservationTracking`) i wywołuje komendy. Sortowanie i
-filtrowanie 100 000 elementów wykonuje `ListingProcessor` (actor) poza wątkiem głównym; wynik
-podmienia `visibleItems` jednym przypisaniem. Stan kart serializuje `SessionStore`
+filtrowanie 100 000 elementów wykonuje `ListingProcessor.process` w `Task.detached` poza wątkiem
+głównym; wynik (tylko z najnowszego przeliczenia) podmienia `visibleItems` jednym przypisaniem. Stan kart serializuje `SessionStore`
 (`~/Library/Application Support/Bifold/session.json`).
 
 ## 4. Rejestr komend
@@ -176,8 +176,8 @@ public protocol Command: Sendable {
 
 ## 5. Kolejka operacji
 
-`OperationQueue` (actor) przechowuje `FileJob` (kopiowanie, przenoszenie, Kosz, trwałe usuwanie,
-później pakowanie i synchronizacja). Każde zadanie:
+`JobQueue` (klasa `@Observable` na MainActor; praca zadań w tle) przechowuje `Job` (kopiowanie,
+przenoszenie, Kosz, trwałe usuwanie, pakowanie, rozpakowanie, synchronizacja). Każde zadanie:
 
 1. **Planowanie** — rozwinięcie drzewa źródeł (`JobPlan`: lista elementów, łączny rozmiar,
    konflikty). Ten sam kod liczy podgląd „na sucho” (`preview`).
@@ -193,17 +193,27 @@ woluminami — konfigurowalne.
 
 ## 6. Dziennik operacji i cofanie
 
-`OperationJournal` zapisuje JSONL w `~/Library/Application Support/Bifold/journal/`:
+`OperationJournal` dopisuje wiersze JSONL do `~/Library/Application Support/Bifold/journal/operations.jsonl`
+(trwały uchwyt `O_APPEND`, zapis w kolejce szeregowej). Każdy wiersz to jedno zdarzenie:
 
 ```json
-{"id":"…","batch":"…","time":"…","invoker":{"user":{}},"kind":"move",
- "from":"/a/x.txt","to":"/b/x.txt","fingerprint":{"size":12,"mtime":…,"inode":…},
- "inverse":{"kind":"move","from":"/b/x.txt","to":"/a/x.txt"}}
+{"batch":{"id":"…","title":"Kopiowanie","date":…,"invoker":{"user":{}}}}
+{"entry":{"batch":"…","entry":{"id":"…","date":…,"action":{"moved":{"from":…,"to":…}},
+ "fingerprint":{"size":12,"modified":…,"inode":…},"itemCount":null}}}
+{"itemCount":{"batch":"…","entry":"…","count":1234}}
+{"entriesUndone":{"batch":"…","entries":["…"]}}
+{"undone":{"batch":"…"}}
 ```
 
-- Rodzaje: `move`, `rename`, `trash` (z nową ścieżką w Koszu), `create` (plik/katalog),
-  `copy` (odwrotność: usuń kopię do Kosza), `setAttributes` / `setTags` (poprzednie wartości).
-- Wpisy jednej komendy mają wspólny `batch`; „Cofnij” (Cmd+Z, `NSUndoManager`) cofa ostatni batch.
+- Akcje (`JournalAction`): `created`, `copied` (cofnięcie: kopia do Kosza; dla katalogu z liczbą
+  elementów poddrzewa — inna liczba to konflikt „zmieniony”), `moved` (także zmiana nazwy), `trashed`
+  (z nową ścieżką w Koszu), `removedEmptyDirectory`, `attributesChanged` / `tagsChanged` (poprzednie
+  wartości), `deletedPermanently` (nieodwracalne, tylko do wglądu).
+- Nieznane wiersze są pomijane (zgodność w obie strony), urwany ostatni wiersz jest ignorowany.
+  Przy starcie dziennik jest przycinany do 1000 partii / 100 000 wpisów / 32 MB (D55).
+- Wpisy jednej komendy mają wspólną partię; partia zadania w tle jest „w toku”, dopóki zadanie się nie
+  skończy. „Cofnij” (Cmd+Z, komenda `edit.undo`) cofa ostatnią cofalną partię; pominięte kroki
+  zostają w partii (częściowe cofnięcie, `entriesUndone`).
 - Przed cofnięciem `UndoPlanner` sprawdza konflikty: plik docelowy zmieniony od czasu operacji
   (inny rozmiar/mtime/inode), ścieżka powrotna zajęta, element zniknął z Kosza. Konflikty trafiają
   do podglądu do zatwierdzenia.

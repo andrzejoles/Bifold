@@ -130,14 +130,20 @@ public enum FileMetadata {
 }
 
 public enum MultiRename {
+    /// Łączny czas procesora na dopasowania wyrażenia regularnego w jednym planie. Zwykły wzorzec
+    /// na tysiącach nazw zużywa milisekundy; po wyczerpaniu pozostałe pozycje dostają problem.
+    static let regexBudget: Duration = .seconds(1)
+
     /// Nowa nazwa dla elementu (bez sprawdzania konfliktów).
     public static func newName(for item: FileItem, index: Int, rule: RenameRule) -> String {
         var problem: String?
-        return newName(for: item, index: index, rule: rule, problem: &problem)
+        var budget = regexBudget
+        return newName(for: item, index: index, rule: rule, problem: &problem, regexBudget: &budget)
     }
 
-    /// Nowa nazwa i problem z jej wyliczeniem (np. nieczytelne metadane multimediów).
-    static func newName(for item: FileItem, index: Int, rule: RenameRule, problem: inout String?) -> String {
+    /// Nowa nazwa i problem z jej wyliczeniem (np. nieczytelne metadane multimediów, zbyt złożone
+    /// wyrażenie regularne). `regexBudget` — pozostały czas na dopasowania wyrażenia w całym planie.
+    static func newName(for item: FileItem, index: Int, rule: RenameRule, problem: inout String?, regexBudget: inout Duration) -> String {
         let isDir = item.isNavigable
         let stem = isDir ? item.name : item.name.fileStem
         let ext = isDir ? "" : item.name.fileExtension
@@ -154,8 +160,18 @@ public enum MultiRename {
         var full = newExt.isEmpty ? name : name + "." + newExt
         if !rule.search.isEmpty {
             if rule.regex {
-                if let re = try? NSRegularExpression(pattern: rule.search, options: rule.caseSensitive ? [] : [.caseInsensitive]) {
-                    full = re.stringByReplacingMatches(in: full, range: NSRange(full.startIndex..., in: full), withTemplate: rule.replace)
+                // Wzorzec od agenta liczy się przed oknem zgody: ryzykowny jest odrzucany z góry,
+                // a każde dopasowanie ma limit czasu (RegexSafety) — podgląd nie może zawisnąć.
+                if RegexSafety.issue(in: rule.search) != nil || regexBudget <= .zero {
+                    problem = problem ?? RegexSafety.message
+                } else if let re = try? NSRegularExpression(pattern: rule.search, options: rule.caseSensitive ? [] : [.caseInsensitive]) {
+                    let start = ThreadCPUClock.now()
+                    let replaced = re.replacingMatches(in: full, template: rule.replace, limit: regexBudget)
+                    regexBudget -= ThreadCPUClock.now() - start
+                    if let replaced { full = replaced } else {
+                        regexBudget = .zero
+                        problem = problem ?? RegexSafety.message
+                    }
                 }
             } else {
                 full = full.replacingOccurrences(of: rule.search, with: rule.replace, options: rule.caseSensitive ? [] : [.caseInsensitive])
@@ -287,9 +303,10 @@ public enum MultiRename {
 
     /// Podgląd: nowe nazwy i problemy (niepoprawna nazwa, powtórzona nowa nazwa, zajęte miejsce).
     public static func plan(_ items: [FileItem], rule: RenameRule) -> [RenamePlanEntry] {
+        var budget = regexBudget
         var entries = items.enumerated().map { i, item in
             var problem: String?
-            let name = newName(for: item, index: i, rule: rule, problem: &problem)
+            let name = newName(for: item, index: i, rule: rule, problem: &problem, regexBudget: &budget)
             return RenamePlanEntry(source: item.path, newName: name, problem: problem)
         }
         let sources = Set(items.map { $0.path.path.lowercased() })

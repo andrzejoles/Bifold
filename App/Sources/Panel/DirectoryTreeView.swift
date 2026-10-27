@@ -8,7 +8,7 @@ import BifoldWorkspace
 final class DirectoryTreeView: NSView {
     var onNavigate: ((VFSPath) -> Void)?
     private let workspace: Workspace
-    private let outline = TreeOutlineView()
+    private let outline = NSOutlineView()
     private let scroll = NSScrollView()
     private var roots: [TreeNode] = []
     private var revealing = false
@@ -30,7 +30,6 @@ final class DirectoryTreeView: NSView {
         outline.dataSource = self
         outline.delegate = self
         outline.autoresizesOutlineColumn = true
-        outline.owner = self
         scroll.documentView = outline
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
@@ -176,10 +175,6 @@ extension DirectoryTreeView: NSOutlineViewDataSource, NSOutlineViewDelegate {
         guard !revealing, let node = outline.item(atRow: outline.selectedRow) as? TreeNode else { return }
         onNavigate?(node.path)
     }
-}
-
-final class TreeOutlineView: NSOutlineView {
-    weak var owner: DirectoryTreeView?
 }
 
 final class TreeNode: NSObject {

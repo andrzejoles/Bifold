@@ -7,6 +7,19 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
 @Suite(.enabled(if: sevenZipPath != nil)) struct ArchiveTests {
     let tool = SevenZip(executable: sevenZipPath ?? "")
 
+    /// Ścieżki wszystkich wpisów archiwum (jak w archiwum) przez listowanie katalogów — tak jak przegląda je panel.
+    func allEntryPaths(_ fs: ArchiveFS) async throws -> [String] {
+        var out: [String] = []
+        var stack = [fs.root]
+        while let dir = stack.popLast() {
+            for item in try await fs.list(dir, options: ListOptions(includeHidden: true)) {
+                out.append(fs.entryPath(item.path))
+                if item.isDirectory { stack.append(item.path) }
+            }
+        }
+        return out
+    }
+
     func fixture() throws -> TempDir {
         let tmp = try TempDir()
         try tmp.file("src/zażółć.txt", "gęślą jaźń")
@@ -16,14 +29,14 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
     }
 
     @Test(arguments: [ArchiveFormat.zip, .sevenZ, .tar, .tarGz, .tarBz2, .tarXz])
-    func createListExtract(format: ArchiveFormat) throws {
+    func createListExtract(format: ArchiveFormat) async throws {
         let tmp = try fixture()
         let archive = tmp.path.appending("a." + format.fileExtension)
         try tool.create(archive, format: format, base: tmp.path.appending("src"), names: ["zażółć.txt", "katalog"])
         let fs = try ArchiveFS(archive: archive, tool: tool)
         // tar.* — w środku jest jeden plik .tar (jak w TC); 7zz widzi go jako zawartość.
         if format.isTarCompound { return }
-        let names = Set(fs.descendants(of: fs.root).map(\.path))
+        let names = Set(try await allEntryPaths(fs))
         #expect(names.contains("zażółć.txt") || names.contains("zażółć.txt".decomposedStringWithCanonicalMapping))
         #expect(names.contains("katalog/głęboko/c.txt") || names.contains("katalog/głęboko/c.txt".decomposedStringWithCanonicalMapping))
         let out = try tmp.dir("out")
@@ -59,7 +72,7 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
 
         let bad = try ArchiveFS(archive: tmp.path.appending("zly.tar"), tool: tool)
         #expect(try await bad.list(bad.root, options: ListOptions()).map(\.name) == ["kat"])
-        #expect(!bad.descendants(of: bad.root).contains { $0.path.contains("..") })
+        #expect(!(try await allEntryPaths(bad)).contains { $0.contains("..") })
     }
 
     @Test func browseAsDirectoryAndRead() async throws {
@@ -169,6 +182,46 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
         #expect(try tmp.names("dest/kat") == ["inny.txt"])
     }
 
+    /// „Rozpakuj do podkatalogów”: wpis kopii ma liczbę elementów, więc plik dopisany później do
+    /// podkatalogu jest konfliktem, a nie trafia do Kosza razem z rozpakowaną zawartością.
+    @Test func extractArchivesToSubfoldersRecordsItemCount() async throws {
+        let tmp = try TempDir()
+        try tmp.file("src/x.txt", "x")
+        try tmp.file("src/kat/y.txt", "Y")
+        let archive = tmp.path.appending("pak.zip")
+        try tool.create(archive, format: .zip, base: tmp.path.appending("src"), names: ["x.txt", "kat"])
+        try tmp.dir("dest")
+        let journal = OperationJournal()
+        let queue = await JobQueue(journal: journal)
+        let job = await queue.enqueue(.extractArchives([archive], destination: tmp.path.appending("dest"), tool: tool, overwrite: .overwrite, subfolders: true), title: "x")
+        #expect(await queue.wait(for: job) == .completed)
+        let target = tmp.path.appending("dest/pak")
+        let entry = try #require(journal.batches.first?.entries.first)
+        #expect(entry.action == .copied(from: archive, to: target))
+        #expect(entry.itemCount == 3)
+        #expect(UndoPlanner.plan(for: journal.batches).conflicts.isEmpty)
+        try tmp.file("dest/pak/pozniej.txt", "później")
+        #expect(UndoPlanner.plan(for: journal.batches).conflicts == [.modified(target)])
+    }
+
+    /// Odczyt całego pliku z archiwum (`range: nil`) też reaguje na anulowanie.
+    @Test func wholeEntryReadIsCancelledWhileBlocked() throws {
+        let tmp = try TempDir()
+        // FIFO bez piszącego: 7zz blokuje się na otwarciu archiwum.
+        let fifo = tmp.url.appending(path: "a.7z").path
+        #expect(mkfifo(fifo, 0o600) == 0)
+        let cancelled = Flag()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { cancelled.set() }
+        let threw = Flag()
+        let tool = tool
+        #expect(finishes(within: .seconds(3), unblocking: fifo) {
+            do { _ = try tool.read(.local(fifo), entry: "x", password: nil, range: nil, isCancelled: { cancelled.value }) } catch VFSError.cancelled {
+                threw.set()
+            } catch {}
+        }, "odczyt nie zareagował na anulowanie")
+        #expect(threw.value)
+    }
+
     /// Anulowane tworzenie archiwum (także wieloczęściowego) nie zostawia archiwum, części ani plików tymczasowych.
     @Test func cancelledCreateLeavesNothing() throws {
         let tmp = try TempDir()
@@ -242,7 +295,7 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
         FileManager.default.createFile(atPath: archive.path, contents: tar)
         let fs = try ArchiveFS(archive: archive, tool: tool)
         // 7zz sam zamienia część znaków sterujących (np. nowa linia → „_”); reszta musi odpaść u nas.
-        let paths = fs.descendants(of: fs.root).map(\.path)
+        let paths = try await allEntryPaths(fs)
         #expect(paths.allSatisfy { ArchiveFS.isUsable($0) }, "\(paths)")
         #expect(Set(try await fs.list(fs.root, options: ListOptions()).map(\.name)).isSuperset(of: ["ok.txt", "dobry"]))
         #expect(!paths.contains { $0.hasPrefix("   ") || $0.unicodeScalars.contains { $0.properties.generalCategory == .control } })
@@ -253,5 +306,24 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
     @Test func detection() {
         for n in ["a.zip", "B.RAR", "x.tar.gz", "y.tgz", "z.part1.rar", "w.zip.001"] { #expect(ArchiveFS.isArchive(n), "\(n)") }
         for n in ["a.txt", "b.001", "c"] { #expect(!ArchiveFS.isArchive(n), "\(n)") }
+    }
+}
+
+/// Hasło dla 7zz idzie przez rurę na stdin; proces, który zamknął wejście bez czytania, nie może zabić
+/// aplikacji sygnałem SIGPIPE. Zamiast 7zz — skrypt, który od razu zamyka stdin (hasło większe niż bufor
+/// rury, więc zapis na pewno trafia na zamkniętą rurę).
+@Suite struct SevenZipPasswordPipeTests {
+    @Test func passwordWriteToClosedPipeDoesNotKillProcess() throws {
+        let tmp = try TempDir()
+        let script = tmp.url.appending(path: "zamyka-stdin.sh")
+        try Data("#!/bin/sh\nexec 0<&-\nsleep 0.2\nexit 2\n".utf8).write(to: script)
+        #expect(chmod(script.path, 0o755) == 0)
+        let fake = SevenZip(executable: script.path)
+        let password = String(repeating: "h", count: 1 << 20)
+        let out = try fake.run(["l", "x.7z"], password: password)
+        #expect(out.status == 2)
+        let archive = tmp.path.appending("a.7z")
+        try Data("x".utf8).write(to: URL(filePath: archive.path))
+        #expect(throws: (any Error).self) { try fake.read(archive, entry: "x", password: password, range: 0..<10) }
     }
 }

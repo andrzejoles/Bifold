@@ -52,6 +52,14 @@ gh release edit vX.Y.Z --draft=false     # publikacja po sprawdzeniu szkicu
 Zainstalowane kopie sprawdzają kanał raz dziennie, pobierają aktualizację w tle i instalują ją przy
 zamknięciu aplikacji (menu „Sprawdź uaktualnienia…” — od razu).
 
+`make installer` usuwa z `dist/staging.noindex` tylko robocze kopie `Bifold-*.app`; katalogi `release-X.Y.Z/`
+(ZIP, appcast, notatki) zostają. Próby instalatora poza `dist/`: `BIFOLD_DIST=/ścieżka scripts/build-installer.sh`
+(nie z `release.sh`).
+
+Wersje pakietów są przypięte w dwóch plikach: `Bifold.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
+(aplikacja) i `Packages/BifoldKit/Package.resolved` (`swift test`). Przy aktualizacji zależności zmieniaj oba na te
+same wersje (bez wydań młodszych niż dwa tygodnie).
+
 ## Próba aktualizacji lokalnie
 
 ```sh

@@ -295,7 +295,7 @@ import Testing
         let (sum, sumErr) = await call(env, session, "checksum", ["paths": [.string(env.tmp.url.path + "/dane.txt")]])
         #expect(!sumErr, "\(sum)")
         #expect(env.tmp.exists("dane.txt.sha256"))
-        let plan = env.workspace.fileOps.undoPlan(forAgentSession: session.id)
+        let plan = await env.workspace.fileOps.planUndo(forAgentSession: session.id)
         #expect(plan.conflicts.isEmpty, "\(plan.conflicts)")
         _ = await env.workspace.fileOps.execute(plan)
         #expect(!env.tmp.exists("dane.txt.sha256"))

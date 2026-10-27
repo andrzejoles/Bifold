@@ -55,6 +55,50 @@ extension Workspace {
         return path.path
     }
 
+    /// Sprawdza końce synchronizacji — wspólne dla komend (`sync.*`, zapisane zadania) i okna synchronizacji.
+    /// Odrzuca: ten sam katalog; ścieżki wewnętrzne karty archiwum, wyników wyszukiwania albo telefonu
+    /// (`/`, `/docs` — zapisane tekstem wskazywałyby katalog na dysku); katalog główny dysku `/` (także
+    /// w zadaniach zapisanych przed 2.4.0 z karty archiwum); cały wolumin jako cel lustra (usunąłby z niego
+    /// wszystko spoza źródła).
+    public func validateSyncEndpoints(source: VFSPath, destination: VFSPath, mode: SyncMode) throws {
+        guard source != destination else { throw CommandError.notAvailable(L10n.tr("Źródło i cel są tym samym katalogiem")) }
+        for end in [source, destination] where !end.isLocal && RemoteFS.alias(of: end) == nil {
+            throw CommandError.notAvailable(L10n.tr("Synchronizacja działa dla katalogów lokalnych i serwerów"))
+        }
+        for end in [source, destination] where end.isLocal && Self.resolvedLocalPath(end.path) == "/" {
+            throw CommandError.notAvailable(L10n.tr("Katalog główny dysku (/) nie może być końcem synchronizacji"))
+        }
+        if mode == .mirror, destination.isLocal, Self.isVolumeRoot(destination.path) {
+            throw CommandError.notAvailable(L10n.tr("Celem lustra nie może być cały wolumin — usunęłoby to z niego wszystko spoza źródła"))
+        }
+    }
+
+    /// Ścieżka po rozwinięciu dowiązań (istniejąca) albo bez zmian.
+    nonisolated static func resolvedLocalPath(_ path: String) -> String {
+        guard let resolved = realpath(path, nil) else { return path }
+        defer { free(resolved) }
+        return String(cString: resolved)
+    }
+
+    /// Katalog główny dysku albo punkt montowania woluminu (`/Volumes/X`, `/System/Volumes/Data`).
+    nonisolated static func isVolumeRoot(_ path: String) -> Bool {
+        let resolved = resolvedLocalPath(path)
+        if resolved == "/" { return true }
+        var st = statfs()
+        guard statfs(resolved, &st) == 0 else { return false }
+        let mountPoint = withUnsafeBytes(of: st.f_mntonname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        return mountPoint.compare(resolved, options: .caseInsensitive) == .orderedSame
+    }
+
+    /// Tekst pola okna synchronizacji dla katalogu karty: katalog lokalny albo serwer — jego ścieżka;
+    /// archiwum — katalog lokalnego pliku archiwum; wyniki wyszukiwania, telefon — puste (wewnętrzne `/`
+    /// wskazywałoby katalog główny dysku).
+    public func syncFieldText(for path: VFSPath) -> String {
+        if path.isLocal || RemoteFS.alias(of: path) != nil { return path.displayPath }
+        if let host = (try? providers.provider(for: path))?.hostLocation, let dir = host.parent, dir.isLocal { return dir.displayPath }
+        return ""
+    }
+
     public func syncPlan(source: VFSPath, destination: VFSPath, mode: SyncMode, byContent: Bool = false) async throws -> SyncPlan {
         let rc = try remotes.runningRclone()
         return try await SyncPlanner.plan(
@@ -78,12 +122,7 @@ extension CommandContext {
         guard let raw = arguments.string("mode") ?? Optional("update"), let mode = SyncMode(rawValue: raw) else {
             throw CommandError.invalidArgument("mode", SyncMode.allCases.map(\.rawValue).joined(separator: " | "))
         }
-        guard source != destination else { throw CommandError.notAvailable(L10n.tr("Źródło i cel są tym samym katalogiem")) }
-        // Karta archiwum, wyników wyszukiwania albo telefonu ma ścieżkę wewnętrzną (`/`, `/docs`), która
-        // zapisana tekstem wskazywałaby katalog na dysku (lustro z `/` = cały dysk).
-        for end in [source, destination] where !end.isLocal && RemoteFS.alias(of: end) == nil {
-            throw CommandError.notAvailable(L10n.tr("Synchronizacja działa dla katalogów lokalnych i serwerów"))
-        }
+        try workspace.validateSyncEndpoints(source: source, destination: destination, mode: mode)
         return (source, destination, mode)
     }
 
@@ -146,18 +185,42 @@ var syncCommands: [Command] { [
             return .ok
         }
         let limit = ctx.workspace.settings.agent.maxReadBytes
-        let da = try LocalFS().readSync(left, range: 0..<limit), db = try LocalFS().readSync(right, range: 0..<limit)
-        if TextDecoding.looksBinary(da) || TextDecoding.looksBinary(db) || a.size > limit || b.size > limit {
-            let r = try await runBlocking(qos: .userInitiated) { try FileCompare.binary(left, right) }
+        // Czytanie i porównanie poza MainActorem, z anulowaniem; diff tekstowy ograniczony liczbą wierszy
+        // (`FileCompare.maxDiffLines`) — inaczej dwa pliki po kilka MB różnych wierszy zawieszały aplikację.
+        let flag = CancellationFlag()
+        let outcome: CompareOutcome = try await withTaskCancellationHandler {
+            try await runBlocking(qos: .userInitiated) { () throws -> CompareOutcome in
+                let da = try LocalFS().readSync(left, range: 0..<limit), db = try LocalFS().readSync(right, range: 0..<limit)
+                if TextDecoding.looksBinary(da) || TextDecoding.looksBinary(db) || a.size > limit || b.size > limit {
+                    return .binary(try FileCompare.binary(left, right, isCancelled: { flag.isCancelled }))
+                }
+                let ta = TextDecoding.decode(da, as: TextDecoding.detect(da)), tb = TextDecoding.decode(db, as: TextDecoding.detect(db))
+                guard let r = try FileCompare.text(ta, tb, maxLines: FileCompare.maxDiffLines, isCancelled: { flag.isCancelled }) else {
+                    return .tooLarge(identical: da == db, linesLeft: ta.split(separator: "\n", omittingEmptySubsequences: false).count,
+                                     linesRight: tb.split(separator: "\n", omittingEmptySubsequences: false).count)
+                }
+                return .text(r, unified: FileCompare.unified(r, leftName: a.name, rightName: b.name))
+            }
+        } onCancel: {
+            flag.cancel()
+        }
+        switch outcome {
+        case .binary(let r):
             return CommandResult(value: ["binary": true, "identical": .bool(r.identical), "sizeLeft": .int(r.sizeA), "sizeRight": .int(r.sizeB),
                                          "firstDifference": r.firstDifference.map { .int($0) } ?? .null, "differingBytes": .int(r.differingBytes)])
+        case let .tooLarge(identical, linesLeft, linesRight):
+            return CommandResult(value: [
+                "identical": .bool(identical), "tooLarge": true, "sizeLeft": .int(a.size), "sizeRight": .int(b.size),
+                "linesLeft": .int(Int64(linesLeft)), "linesRight": .int(Int64(linesRight)),
+                "note": .string(L10n.tr("Zbyt wiele różnych wierszy do porównania tekstowego")),
+            ])
+        case let .text(r, unified):
+            // Różnice to treść plików (SECURITY.md §4.6).
+            return CommandResult(value: untrusted([
+                "identical": .bool(r.identical), "removed": .int(Int64(r.removed)), "added": .int(Int64(r.added)),
+                "diff": .string(unified),
+            ]))
         }
-        let r = FileCompare.text(TextDecoding.decode(da, as: TextDecoding.detect(da)), TextDecoding.decode(db, as: TextDecoding.detect(db)))
-        // Różnice to treść plików (SECURITY.md §4.6).
-        return CommandResult(value: untrusted([
-            "identical": .bool(r.identical), "removed": .int(Int64(r.removed)), "added": .int(Int64(r.added)),
-            "diff": .string(FileCompare.unified(r, leftName: a.name, rightName: b.name)),
-        ]))
     },
 
     Command(CommandDescriptor(
@@ -190,7 +253,8 @@ var syncCommands: [Command] { [
         summary: L10n.tr("Lista operacji synchronizacji „na sucho” (nic nie zmienia)."), inMenu: false)
     ) { ctx in
         let plan = try await ctx.filteredPlan()
-        return CommandResult(message: plan.preview.summary, value: plan.json())
+        // Ścieżki operacji to nazwy z dysku i serwera (SECURITY.md §4.6).
+        return CommandResult(message: plan.preview.summary, value: ctx.isAgent ? untrusted(plan.json()) : plan.json())
     },
 
     Command(
@@ -212,7 +276,9 @@ var syncCommands: [Command] { [
         let state = await ctx.workspace.jobs.wait(for: job)
         await ctx.workspace.left.activeTab.reload()
         await ctx.workspace.right.activeTab.reload()
-        return CommandResult(message: "\(state)", value: ["state": .string("\(state)"), "errors": .array(job.errors.map { .string($0) })])
+        // Błędy zawierają nazwy plików z dysku i serwera.
+        let value: JSONValue = ["state": .string("\(state)"), "errors": .array(job.errors.map { .string($0) })]
+        return CommandResult(message: "\(state)", value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(
@@ -260,7 +326,8 @@ var syncCommands: [Command] { [
         let rc = try ctx.workspace.remotes.runningRclone()
         let queued = ctx.workspace.jobs.enqueue(.sync(plan, rc), title: L10n.tr("Synchronizacja „\(job.name)”"), invoker: ctx.invoker)
         let state = await ctx.workspace.jobs.wait(for: queued)
-        return CommandResult(message: "\(state)", value: ["state": .string("\(state)")])
+        // Stan nieudanego zadania zawiera komunikat z nazwami plików.
+        return CommandResult(message: "\(state)", value: untrusted(["state": .string("\(state)")]))
     },
 ] }
 
@@ -270,4 +337,12 @@ private func savedSyncJob(_ ctx: CommandContext) throws -> SyncJob {
     let name = ctx.arguments.string("name") ?? jobs.first?.name
     guard let name, let job = jobs.first(where: { $0.name == name }) else { throw CommandError.invalidArgument("name", name ?? "") }
     return job
+}
+
+/// Wynik `file.compare` dla agenta liczony poza MainActorem.
+private enum CompareOutcome: Sendable {
+    case binary(FileCompare.BinaryResult)
+    /// Różniący się fragment przekracza `FileCompare.maxDiffLines` — bez diffu.
+    case tooLarge(identical: Bool, linesLeft: Int, linesRight: Int)
+    case text(FileCompare.TextResult, unified: String)
 }

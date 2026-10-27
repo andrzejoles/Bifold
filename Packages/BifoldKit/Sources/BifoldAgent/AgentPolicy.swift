@@ -12,10 +12,12 @@ public enum AgentDenial: Error, LocalizedError, Sendable, Equatable {
     case sessionClosed
     /// Stan paneli, z którego komenda czyta na żywo, zmienił się w trakcie zatwierdzania.
     case stateChanged
+    /// Ścieżka ze znakami sterującymi albo separatorami wierszy.
+    case controlCharacters
 
     public var code: String {
         switch self {
-        case .permissionDenied: "permission_denied"
+        case .permissionDenied, .controlCharacters: "permission_denied"
         case .blockedPath, .blockedSubtree: "blocked_path"
         case .rejectedByUser: "rejected_by_user"
         case .rateLimited: "rate_limited"
@@ -33,6 +35,7 @@ public enum AgentDenial: Error, LocalizedError, Sendable, Equatable {
         case .rateLimited: "rate_limited: przekroczono limit wywołań na minutę"
         case .sessionClosed: "session_closed"
         case .stateChanged: "state_changed: stan paneli zmienił się w trakcie zatwierdzania — ponów wywołanie z jawnymi ścieżkami"
+        case .controlCharacters: "permission_denied: ścieżka zawiera znaki sterujące albo separatory wierszy"
         }
     }
 }

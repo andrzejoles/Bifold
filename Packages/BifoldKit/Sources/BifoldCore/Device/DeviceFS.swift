@@ -121,8 +121,15 @@ public final class AFCDeviceFS: ExtractingProvider {
         return item
     }
 
+    /// Treść pojedynczego pliku (podgląd) — `get -rf` folderu pobrałby całe drzewo, więc folder jest odrzucany.
     public func readContents(_ path: VFSPath, range: Range<Int64>?) async throws -> Data {
-        let (temp, items) = try await runBlocking(qos: .userInitiated) { try self.extract([path], toTemporaryIn: .local(NSTemporaryDirectory()), isCancelled: { false }) }
+        guard try await !item(at: path).isNavigable else { throw VFSError.unsupported("\(path.name): " + L10n.tr("to katalog")) }
+        let flag = CancellationFlag()
+        let (temp, items) = try await withTaskCancellationHandler {
+            try await runBlocking(qos: .userInitiated) { try self.extract([path], toTemporaryIn: .local(NSTemporaryDirectory()), isCancelled: { flag.isCancelled }) }
+        } onCancel: {
+            flag.cancel()
+        }
         defer { try? FileManager.default.removeItem(atPath: temp.path) }
         return try LocalFS().readSync(items[0], range: range)
     }
@@ -337,8 +344,17 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
         return FileItem(path: path, kind: e.isFolder ? .directory : .file, size: e.isFolder ? -1 : e.size, modified: e.modified)
     }
 
+    /// Treść pojedynczego pliku (podgląd) — folder byłby pobierany w całości, więc jest odrzucany.
     public func readContents(_ path: VFSPath, range: Range<Int64>?) async throws -> Data {
-        let (temp, items) = try await runBlocking(qos: .userInitiated) { try self.extract([path], toTemporaryIn: .local(NSTemporaryDirectory()), isCancelled: { false }) }
+        let flag = CancellationFlag()
+        let (temp, items) = try await withTaskCancellationHandler {
+            try await runBlocking(qos: .userInitiated) {
+                guard !path.isRoot, !(try self.resolve(path.path).isFolder) else { throw VFSError.unsupported("\(path.name): " + L10n.tr("to katalog")) }
+                return try self.extract([path], toTemporaryIn: .local(NSTemporaryDirectory()), isCancelled: { flag.isCancelled })
+            }
+        } onCancel: {
+            flag.cancel()
+        }
         defer { try? FileManager.default.removeItem(atPath: temp.path) }
         return try LocalFS().readSync(items[0], range: range)
     }
@@ -417,7 +433,16 @@ final class MTPHelper: @unchecked Sendable {
         return (helper, hello)
     }
 
+    /// Protokół jest wierszowy: znak nowej linii w argumencie (np. w lokalnej ścieżce docelowej `get`)
+    /// dopisałby kolejne polecenie z dowolną ścieżką — polecenia ze znakami sterującymi są odrzucane.
+    static func validate(_ command: String) throws {
+        guard !command.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else {
+            throw VFSError.invalidName(command.unicodeScalars.map { $0.properties.generalCategory == .control ? "?" : String($0) }.joined())
+        }
+    }
+
     func request(_ command: String, timeout: TimeInterval) throws -> [String: Any] {
+        try Self.validate(command)
         lock.lock()
         defer { lock.unlock() }
         guard process.isRunning else { throw MTPDeviceFS.MTPError.helper(L10n.tr("Połączenie z telefonem zostało przerwane (odłączony kabel?)")) }
@@ -507,8 +532,13 @@ public enum DeviceDetector {
         return r.status == 0
     }
 
-    /// Pomocnik MTP: obok programu w pakiecie aplikacji albo `BIFOLD_MTP_HELPER` (testy).
+    /// Testy: pomocnik MTP dla bieżącego zadania (i zadań potomnych) — bez `setenv`, które nie jest
+    /// bezpieczne przy zestawach działających równolegle.
+    @TaskLocal public static var mtpHelperOverride: String?
+
+    /// Pomocnik MTP: obok programu w pakiecie aplikacji albo `BIFOLD_MTP_HELPER` (próby ręczne).
     public static var mtpHelperPath: String? {
+        if let override = mtpHelperOverride { return override }
         if let env = ProcessInfo.processInfo.environment["BIFOLD_MTP_HELPER"] { return env }
         let bundled = Bundle.main.executableURL?.deletingLastPathComponent().appending(path: "bifold-mtp").path
         return bundled.flatMap { FileManager.default.isExecutableFile(atPath: $0) ? $0 : nil }

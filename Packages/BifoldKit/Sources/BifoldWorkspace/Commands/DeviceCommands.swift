@@ -45,7 +45,9 @@ var deviceCommands: [Command] { [
         agent: .read, effect: .none, summary: L10n.tr("Telefony z Androidem (MTP) i iPhone’y (AFC) podłączone kablem."), inMenu: false)
     ) { ctx in
         let devices = await ctx.workspace.connectedDevices()
-        return CommandResult(value: .array(devices.map { ["id": .string($0.id), "kind": .string($0.kind.rawValue), "name": .string($0.name)] }))
+        // Nazwy podaje urządzenie (albo udające telefon urządzenie USB) — dla agenta to niezaufane dane.
+        let value: JSONValue = .array(devices.map { ["id": .string($0.id), "kind": .string($0.kind.rawValue), "name": .string($0.name)] })
+        return CommandResult(value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(
@@ -69,7 +71,7 @@ var deviceCommands: [Command] { [
         ctx.workspace.providers.register(provider)
         let target = VFSPath(provider: provider.id, path: "/")
         // Telefon w nowej karcie (chyba że aktywna karta już go pokazuje).
-        let tab = try await ctx.workspace.open(target, in: try ctx.panel(forSide: "side")) { tab in
+        _ = try await ctx.workspace.open(target, in: try ctx.panel(forSide: "side")) { tab in
             do {
                 try await tab.navigate(to: target)
             } catch let error as MTPDeviceFS.MTPError {
@@ -78,8 +80,15 @@ var deviceCommands: [Command] { [
                 if !ctx.isAgent { ctx.ui?.showMessage(error.localizedDescription) }
             }
         }
-        tab.customTitle = (device.kind == .iPhone ? "📱 " : "🤖 ") + ((provider as? MTPDeviceFS)?.model ?? device.name)
+        // Tytuł karty („📱/🤖 nazwa”) wylicza `setPath` z dostawcy.
+        let name = (provider as? MTPDeviceFS)?.model ?? device.name
         if device.kind == .iPhone, !ctx.isAgent { ctx.ui?.showMessage(AFCDeviceFS.limitation) }
+        // Model i nazwa pochodzą z telefonu — agent dostaje je jako niezaufane dane, nie w komunikacie.
+        if ctx.isAgent {
+            var value: [String: JSONValue] = ["id": .string(device.id), "kind": .string(device.kind.rawValue), "name": .string(name)]
+            if device.kind == .iPhone { value["limitation"] = .string(AFCDeviceFS.limitation) }
+            return CommandResult(value: untrusted(.object(value)))
+        }
         return CommandResult(message: device.kind == .iPhone ? AFCDeviceFS.limitation : device.name)
     },
 ] }

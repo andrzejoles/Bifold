@@ -50,11 +50,6 @@ public struct SearchCriteria: Codable, Sendable, Hashable {
     }
 
     var hasContentSearch: Bool { !contentText.isEmpty }
-
-    /// Warunki niezależne od treści (pojedyncze sprawdzenie; przy przeglądaniu — `MetadataMatcher`).
-    func matchesMetadata(_ item: FileItem) -> Bool {
-        MetadataMatcher(self).matches(item)
-    }
 }
 
 /// Warunki niezależne od treści z maską/wyrażeniem skompilowanym raz na całe wyszukiwanie
@@ -86,6 +81,23 @@ struct MetadataMatcher {
         if let max = c.maxSize, item.isNavigable || item.size > max { return false }
         return true
     }
+}
+
+/// Ścieżki, których wyszukiwanie nie czyta, nie pokazuje i nie liczy (zablokowane dla agenta) — jak `skip`
+/// w `Checksums.verify`. Filtrowanie dopiero listy wyników zostawiało wyrocznię: zablokowane trafienia
+/// zwiększały licznik, więc `truncated` przy `maxResults: 1` zdradzał treść i nazwy zablokowanych plików.
+public struct SearchExclusion: Sendable {
+    /// Ścieżka wykluczona razem z całym poddrzewem.
+    public let isExcluded: @Sendable (VFSPath) -> Bool
+    /// Katalog, w którego poddrzewie leży ścieżka wykluczona (albo który sam nią jest).
+    public let containsExcluded: @Sendable (VFSPath) -> Bool
+
+    public init(isExcluded: @escaping @Sendable (VFSPath) -> Bool, containsExcluded: @escaping @Sendable (VFSPath) -> Bool) {
+        self.isExcluded = isExcluded
+        self.containsExcluded = containsExcluded
+    }
+
+    public static let none = SearchExclusion(isExcluded: { _ in false }, containsExcluded: { _ in false })
 }
 
 /// Proces `rg` bieżącego wyszukiwania — anulowanie kończy go od razu, a nie dopiero przy
@@ -139,7 +151,7 @@ public enum SearchEvent: Sendable {
 
 /// Wyszukiwanie po nazwie i atrybutach (własny przegląd katalogów) oraz w treści (ripgrep).
 public enum SearchEngine {
-    public static func search(_ criteria: SearchCriteria, ripgrep: String?) -> AsyncStream<SearchEvent> {
+    public static func search(_ criteria: SearchCriteria, ripgrep: String?, exclusion: SearchExclusion = .none) -> AsyncStream<SearchEvent> {
         AsyncStream(bufferingPolicy: .unbounded) { continuation in
             let flag = CancellationFlag()
             let slot = ProcessSlot()
@@ -150,9 +162,9 @@ public enum SearchEngine {
                         continuation.finish()
                         return
                     }
-                    runRipgrep(criteria, executable: ripgrep, flag: flag, slot: slot, continuation: continuation)
+                    runRipgrep(criteria, executable: ripgrep, exclusion: exclusion, flag: flag, slot: slot, continuation: continuation)
                 } else {
-                    walk(criteria, flag: flag, continuation: continuation)
+                    walk(criteria, exclusion: exclusion, flag: flag, continuation: continuation)
                 }
                 continuation.finish()
             }
@@ -166,10 +178,10 @@ public enum SearchEngine {
     }
 
     /// Zbiera wszystkie wyniki (testy, agent).
-    public static func collect(_ criteria: SearchCriteria, ripgrep: String?) async throws -> (hits: [SearchHit], truncated: Bool) {
+    public static func collect(_ criteria: SearchCriteria, ripgrep: String?, exclusion: SearchExclusion = .none) async throws -> (hits: [SearchHit], truncated: Bool) {
         var hits: [SearchHit] = []
         var truncated = false
-        for await event in search(criteria, ripgrep: ripgrep) {
+        for await event in search(criteria, ripgrep: ripgrep, exclusion: exclusion) {
             switch event {
             case .hit(let h): hits.append(h)
             case .finished(_, let t): truncated = t
@@ -185,7 +197,7 @@ public enum SearchEngine {
         public var errorDescription: String? { if case .failed(let m) = self { m } else { nil } }
     }
 
-    static func walk(_ c: SearchCriteria, flag: CancellationFlag, continuation: AsyncStream<SearchEvent>.Continuation) {
+    static func walk(_ c: SearchCriteria, exclusion: SearchExclusion = .none, flag: CancellationFlag, continuation: AsyncStream<SearchEvent>.Continuation) {
         let fs = LocalFS()
         let matcher = MetadataMatcher(c)
         var count = 0
@@ -193,11 +205,16 @@ public enum SearchEngine {
         var stack = c.roots.reversed().map { $0 }
         while let dir = stack.popLast() {
             if flag.isCancelled { break }
+            if exclusion.isExcluded(dir) { continue }
             guard let items = try? fs.listSync(dir) else { continue }
             scanned += 1
             if scanned % 50 == 0 { continuation.yield(.progress(scannedDirectories: scanned, current: dir.path)) }
+            // Dziecko katalogu bez wykluczeń w poddrzewie może być wykluczone tylko jako dowiązanie.
+            let guarded = exclusion.containsExcluded(dir)
             for item in items {
                 if flag.isCancelled { break }
+                // Wykluczony element nie jest liczony, czytany (archiwum) ani przeglądany w głąb.
+                if guarded || item.kind == .symlink, exclusion.isExcluded(item.path) { continue }
                 if let tool = c.archiveTool, item.kind == .file, ArchiveFS.isArchive(item.name),
                    let entries = try? SevenZip(executable: tool).list(item.path, password: nil, isCancelled: { flag.isCancelled }) {
                     let matching = entries.filter { e in
@@ -255,8 +272,43 @@ public enum SearchEngine {
         return args
     }
 
-    static func runRipgrep(_ c: SearchCriteria, executable: String, flag: CancellationFlag, slot: ProcessSlot = ProcessSlot(),
-                           continuation: AsyncStream<SearchEvent>.Continuation) {
+    /// Ścieżki dla `rg`: korzeń z wykluczeniem w poddrzewie jest rozpisywany na rodzeństwo wykluczonych
+    /// elementów (wzdłuż ścieżki do nich), więc `rg` nigdy nie otwiera wykluczonego pliku — bez polegania
+    /// na semantyce globów względem korzenia, wielkości liter i dowiązań. Tak jak `rg` przy przeglądaniu:
+    /// bez dowiązań i (bez `includeHidden`) bez ukrytych; pliki podane wprost `rg` czyta mimo `--iglob`,
+    /// więc przechodzą przez warunki nazwy i atrybutów.
+    static func ripgrepRoots(_ c: SearchCriteria, exclusion: SearchExclusion) -> [String] {
+        let fs = LocalFS()
+        let matcher = MetadataMatcher(c)
+        var out: [String] = []
+        func expand(_ dir: VFSPath) {
+            guard let items = try? fs.listSync(dir) else { return }
+            for item in items {
+                if exclusion.isExcluded(item.path) || item.kind == .symlink { continue }
+                if !c.includeHidden && item.isHidden { continue }
+                if item.kind == .directory {
+                    guard c.recursive else { continue }
+                    if exclusion.containsExcluded(item.path) { expand(item.path) } else { out.append(item.path.path) }
+                } else if item.kind == .file, matcher.matches(item) {
+                    out.append(item.path.path)
+                }
+            }
+        }
+        for root in c.roots where !exclusion.isExcluded(root) {
+            if exclusion.containsExcluded(root) { expand(root) } else { out.append(root.path) }
+        }
+        return out
+    }
+
+    static func runRipgrep(_ c: SearchCriteria, executable: String, exclusion: SearchExclusion = .none, flag: CancellationFlag,
+                           slot: ProcessSlot = ProcessSlot(), continuation: AsyncStream<SearchEvent>.Continuation) {
+        var c = c
+        c.roots = ripgrepRoots(c, exclusion: exclusion).map { VFSPath.local($0) }
+        // Bez ścieżek `rg` przeszukałby bieżący katalog procesu.
+        guard !c.roots.isEmpty else {
+            continuation.yield(.finished(total: 0, truncated: false))
+            return
+        }
         let patternURL = FileManager.default.temporaryDirectory.appending(path: "bifold-rg-\(UUID().uuidString)")
         FileManager.default.createFile(atPath: patternURL.path, contents: Data(c.contentText.utf8), attributes: [.posixPermissions: 0o600])
         defer { try? FileManager.default.removeItem(at: patternURL) }
@@ -283,7 +335,7 @@ public enum SearchEngine {
         func flush() {
             guard let cur = current else { return }
             current = nil
-            guard let item = try? fs.itemSync(at: .local(cur.path)), matcher.matches(item) else { return }
+            guard !exclusion.isExcluded(.local(cur.path)), let item = try? fs.itemSync(at: .local(cur.path)), matcher.matches(item) else { return }
             continuation.yield(.hit(SearchHit(item: item, matches: cur.matches)))
             count += 1
         }

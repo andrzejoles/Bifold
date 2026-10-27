@@ -10,6 +10,8 @@ struct CompareView: View {
     let right: FileItem
     @State private var text: FileCompare.TextResult?
     @State private var binary: FileCompare.BinaryResult?
+    /// Zbyt wiele różnych wierszy do porównania tekstowego — pokazywane jest porównanie bajtów.
+    @State private var textTooLarge = false
     @State private var onlyChanges = false
     @State private var error: String?
 
@@ -22,6 +24,7 @@ struct CompareView: View {
             if let error { Text(error).foregroundStyle(.red) }
             if let binary {
                 VStack(alignment: .leading, spacing: 6) {
+                    if textTooLarge { Text(L10n.tr("Zbyt wiele różnych wierszy do porównania tekstowego")).foregroundStyle(.secondary) }
                     Text(binary.identical ? L10n.tr("Pliki są identyczne") : L10n.tr("Pliki różnią się")).font(.headline)
                     Text(L10n.tr("Rozmiary: \(Format.bytes(binary.sizeA)) / \(Format.bytes(binary.sizeB))"))
                     if let first = binary.firstDifference {
@@ -78,7 +81,13 @@ struct CompareView: View {
                 binary = try await runBlocking(qos: .userInitiated) { try FileCompare.binary(a, b) }
             } else {
                 let ta = TextDecoding.decode(da, as: TextDecoding.detect(da)), tb = TextDecoding.decode(db, as: TextDecoding.detect(db))
-                text = await Task.detached { FileCompare.text(ta, tb) }.value
+                // Diff z limitem wierszy (`difference(from:)` jest kwadratowe); powyżej — porównanie bajtów.
+                if let result = try await Task.detached(operation: { try FileCompare.text(ta, tb, maxLines: FileCompare.maxDiffLines) }).value {
+                    text = result
+                } else {
+                    textTooLarge = true
+                    binary = try await runBlocking(qos: .userInitiated) { try FileCompare.binary(a, b) }
+                }
             }
         } catch {
             self.error = error.localizedDescription
@@ -114,18 +123,38 @@ final class SyncModel {
 
     init(workspace: Workspace, source: VFSPath, destination: VFSPath, job: SyncJob?) {
         self.workspace = workspace
-        self.source = job?.source ?? source.displayPath
-        self.destination = job?.destination ?? destination.displayPath
+        // Karta archiwum, wyników albo telefonu ma ścieżkę wewnętrzną (`/`) — pole puste albo katalog archiwum.
+        self.source = job?.source ?? workspace.syncFieldText(for: source)
+        self.destination = job?.destination ?? workspace.syncFieldText(for: destination)
         mode = job?.mode ?? .update
         jobName = job?.name ?? ""
     }
 
+    /// Końce z pól okna po tej samej walidacji co komendy `sync.*` (`Workspace.validateSyncEndpoints`).
+    private func endpoints() throws -> (VFSPath, VFSPath) {
+        let rawSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawDestination = destination.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawSource.isEmpty, !rawDestination.isEmpty else {
+            throw CommandError.notAvailable(L10n.tr("Podaj katalog źródłowy i docelowy"))
+        }
+        let s = workspace.parsePath(rawSource, relativeTo: .root), d = workspace.parsePath(rawDestination, relativeTo: .root)
+        try workspace.validateSyncEndpoints(source: s, destination: d, mode: mode)
+        return (s, d)
+    }
+
     func compare() {
-        busy = true
-        status = L10n.tr("Porównywanie…")
         comparison += 1
         let current = comparison
-        let s = workspace.parsePath(source, relativeTo: .root), d = workspace.parsePath(destination, relativeTo: .root)
+        let s: VFSPath, d: VFSPath
+        do {
+            (s, d) = try endpoints()
+        } catch {
+            plan = nil
+            status = "✕ " + error.localizedDescription
+            return
+        }
+        busy = true
+        status = L10n.tr("Porównywanie…")
         Task {
             defer { busy = false }
             do {
@@ -165,6 +194,12 @@ final class SyncModel {
 
     func save() {
         guard !jobName.isEmpty else { return }
+        do {
+            _ = try endpoints()
+        } catch {
+            status = "✕ " + error.localizedDescription
+            return
+        }
         var jobs = workspace.syncJobs.filter { $0.name != jobName }
         jobs.append(SyncJob(name: jobName, source: source, destination: destination, mode: mode))
         workspace.syncJobs = jobs
@@ -177,6 +212,18 @@ final class SyncModel {
         mode = job.mode
         jobName = job.name
         plan = nil
+    }
+
+    /// Przełącznik operacji planu po identyfikatorze. Bez `Binding($model.plan)`: wiązanie wyłuskane
+    /// z opcjonalnego planu wywracało aplikację, gdy wpisanie znaku w polu unieważniało plan (`plan = nil`),
+    /// a wiersze tabeli jeszcze z niego czytały.
+    func enabledBinding(_ id: SyncAction.ID) -> Binding<Bool> {
+        Binding(
+            get: { [weak self] in self?.plan?.actions.first { $0.id == id }?.enabled ?? false },
+            set: { [weak self] value in
+                guard let self, let i = self.plan?.actions.firstIndex(where: { $0.id == id }) else { return }
+                self.plan?.actions[i].enabled = value
+            })
     }
 }
 
@@ -220,15 +267,15 @@ struct SyncView: View {
                 Button(L10n.tr("Zapisz zadanie")) { model.save() }.disabled(model.jobName.isEmpty)
             }
             Text(model.status).font(.caption).foregroundStyle(.secondary)
-            if let plan = Binding($model.plan) {
+            if let plan = model.plan {
                 Table(plan.actions) {
-                    TableColumn("") { $a in Toggle(L10n.tr("Wykonaj: \(a.path)"), isOn: $a.enabled).labelsHidden() }.width(24)
-                    TableColumn(L10n.tr("Operacja")) { $a in
+                    TableColumn("") { a in Toggle(L10n.tr("Wykonaj: \(a.path)"), isOn: model.enabledBinding(a.id)).labelsHidden() }.width(24)
+                    TableColumn(L10n.tr("Operacja")) { a in
                         Text(Self.label(a.kind)).foregroundStyle(a.kind == .deleteFromDestination ? Color.red : .primary)
                     }
                     .width(130)
-                    TableColumn(L10n.tr("Ścieżka")) { $a in Text(a.path) }
-                    TableColumn(L10n.tr("Powód")) { $a in Text(a.reason).foregroundStyle(.secondary) }.width(140)
+                    TableColumn(L10n.tr("Ścieżka")) { a in Text(a.path) }
+                    TableColumn(L10n.tr("Powód")) { a in Text(a.reason).foregroundStyle(.secondary) }.width(140)
                 }
             } else {
                 Spacer()
