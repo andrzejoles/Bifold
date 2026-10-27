@@ -94,6 +94,9 @@ public final class AgentController: AgentInvocationGate {
     /// sprawdzone (i zatwierdzone) — agent nie zmieni stanu paneli w trakcie otwartego okna zgody.
     @ObservationIgnored private var gateBusy: Set<String> = []
     @ObservationIgnored private var gateWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    /// Seria odmów `rate_limited` sesji: w dzienniku i panelu aktywności jeden wpis z licznikiem
+    /// (zapisywanym przy pierwszym wywołaniu po serii albo przy końcu sesji), nie wiersz na wywołanie.
+    @ObservationIgnored private var rateLimitedRuns: [String: (count: Int, since: Date, activity: UUID)] = [:]
 
     /// Największa odpowiedź narzędzia (z zapasem na kopertę JSON-RPC w ramce 4 MB).
     static let maxResponseBytes = Wire.maxFrame - 64 * 1024
@@ -157,6 +160,7 @@ public final class AgentController: AgentInvocationGate {
 
     public func closeSession(_ id: String) {
         guard let session = registry.session(id) else { return }
+        endRateLimitedRun(id)
         registry.close(id)
         for s in mcpServers[id] ?? [] { Task { await s.stop() } }
         mcpServers[id] = nil
@@ -266,6 +270,12 @@ public final class AgentController: AgentInvocationGate {
     /// Wywołanie narzędzia MCP (także z testów bez gniazda).
     public func callTool(_ name: String, arguments raw: [String: Value], sessionID: String) async -> CallTool.Result {
         let started = Date()
+        // Limit przed czymkolwiek innym — także nieznane narzędzia i brakujące argumenty (każde wywołanie
+        // to wiersz dziennika i wpis aktywności odświeżany na głównym wątku).
+        guard limiter.allow(session: sessionID, limit: workspace.settings.agent.callsPerMinute) else {
+            return rateLimited(name, sessionID: sessionID, started: started)
+        }
+        endRateLimitedRun(sessionID)
         var args = CommandArguments(raw.mapValues(JSONValue.init(mcp:)))
         // Klucze wewnętrzne („__…”) może ustawić tylko aplikacja.
         for key in args.values.keys where key.hasPrefix("__") { args[key] = nil }
@@ -359,6 +369,41 @@ public final class AgentController: AgentInvocationGate {
         if let denied { throw AgentDenial.blockedPath(denied.path) }
     }
 
+    /// Odmowa `rate_limited`: pierwsza w serii — wiersz dziennika i wpis aktywności, kolejne tylko licznik.
+    private func rateLimited(_ name: String, sessionID: String, started: Date) -> CallTool.Result {
+        if rateLimitedRuns[sessionID] != nil {
+            rateLimitedRuns[sessionID]!.count += 1
+        } else {
+            var activity = AgentActivity(sessionID: sessionID, tool: name, arguments: "", started: started, status: .denied("rate_limited"))
+            activity.duration = 0
+            activities.append(activity)
+            if activities.count > 500 { activities.removeFirst(activities.count - 500) }
+            rateLimitedRuns[sessionID] = (1, started, activity.id)
+            let fields: [String: JSONValue] = ["tool": .string(name), "decision": "rate_limited", "note": "kolejne odmowy serii tylko liczone (rateLimitedCount)"]
+            if let session = registry.session(sessionID) { log.write(session: session, fields) } else {
+                var f = fields
+                f["session"] = .string(sessionID)
+                log.writeGlobal(f)
+            }
+        }
+        return error(AgentDenial.rateLimited.localizedDescription)
+    }
+
+    /// Koniec serii odmów `rate_limited`: jeden wiersz dziennika z liczbą odmów i licznik we wpisie aktywności.
+    private func endRateLimitedRun(_ sessionID: String) {
+        guard let run = rateLimitedRuns.removeValue(forKey: sessionID) else { return }
+        if let i = activities.lastIndex(where: { $0.id == run.activity }) { activities[i].result = "× \(run.count)" }
+        let fields: [String: JSONValue] = [
+            "event": "rate_limited_run", "rateLimitedCount": .int(Int64(run.count)),
+            "since": .string(ISO8601DateFormatter().string(from: run.since)),
+        ]
+        if let session = registry.session(sessionID) { log.write(session: session, fields) } else {
+            var f = fields
+            f["session"] = .string(sessionID)
+            log.writeGlobal(f)
+        }
+    }
+
     private func error(_ message: String) -> CallTool.Result {
         CallTool.Result(content: [.text(text: message, annotations: nil, _meta: nil)], isError: true)
     }
@@ -395,7 +440,7 @@ public final class AgentController: AgentInvocationGate {
         // Sesja mogła się zakończyć, gdy wywołanie czekało na bramkę.
         guard let session = registry.session(sessionID) else { throw AgentDenial.sessionClosed }
         let settings = workspace.settings.agent
-        guard limiter.allow(session: sessionID, limit: settings.callsPerMinute) else { throw AgentDenial.rateLimited }
+        // Limit wywołań liczy `callTool` (każde wywołanie, także odrzucone przed bramką).
         let via = context.arguments[ToolCatalog.viaRunCommandKey]?.boolValue == true
         let level = AgentPolicy.effectiveAccess(command: command.descriptor, session: session, settings: settings, viaRunCommand: via)
 
