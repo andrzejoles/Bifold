@@ -358,23 +358,3 @@ import Testing
         #expect(try Checksums.hash(tmp.path.appending("zwykly.txt"), algorithm: .md5) == "900150983cd24fb0d6963f7d28e17f72")
     }
 }
-
-/// Uruchamia `body` na osobnym wątku i czeka najwyżej `limit`. Jeśli się nie skończy (blokada na FIFO),
-/// otwiera FIFO do zapisu i zamyka je — czytelnik dostaje koniec pliku, więc wątek i procesy nie zostają.
-func finishes(within limit: Duration, unblocking fifo: String, _ body: @escaping @Sendable () -> Void) -> Bool {
-    let done = DispatchSemaphore(value: 0)
-    Thread.detachNewThread { body(); done.signal() }
-    let seconds = Double(limit.components.seconds) + Double(limit.components.attoseconds) / 1e18
-    if done.wait(timeout: .now() + seconds) == .success { return true }
-    while done.wait(timeout: .now() + 0.05) == .timedOut {
-        let fd = open(fifo, O_WRONLY | O_NONBLOCK)
-        if fd >= 0 { close(fd) }
-    }
-    return false
-}
-
-final class Flag: Sendable {
-    private let state = Atomic<Bool>(false)
-    var value: Bool { state.load(ordering: .relaxed) }
-    func set() { state.store(true, ordering: .relaxed) }
-}
