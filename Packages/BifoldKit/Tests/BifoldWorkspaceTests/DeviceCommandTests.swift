@@ -43,4 +43,52 @@ import Testing
         #expect((try? ws.providers.provider(for: ProviderID("device:mtp-0"))) == nil)
         #expect(tmp.exists("quit"), "sesja MTP zamknięta")
     }
+
+    /// Dwa telefony: numer z `detect` zmienia się z kolejnością — otwarcie telefonu B nie może zwrócić
+    /// otwartej sesji telefonu A (dostawca identyfikowany po USB, D51). W tym zestawie (szeregowo), bo
+    /// `BIFOLD_MTP_HELPER` jest wspólne dla procesu.
+    @Test func reorderedPhonesGetTheirOwnSessions() async throws {
+        let tmp = try TempDir()
+        let helper = tmp.url.appending(path: "bifold-mtp").path
+        // `detect`: kolejność zależy od pliku `swapped`; `serve <nr> <vid> …` — model wg vid.
+        let script = """
+        #!/bin/bash
+        D="$(dirname "$0")"
+        A='"vendor":"Samsung","product":"A","vid":1,"pid":10,"bus":1,"dev":1'
+        B='"vendor":"Google","product":"B","vid":2,"pid":20,"bus":1,"dev":2'
+        if [ "$1" = detect ]; then
+          if [ -f "$D/swapped" ]; then echo "[{\\"index\\":0,$B},{\\"index\\":1,$A}]"; else echo "[{\\"index\\":0,$A},{\\"index\\":1,$B}]"; fi
+          exit 0
+        fi
+        if [ "$3" = 2 ]; then M=telefon-B; else M=telefon-A; fi
+        echo '{"ok":true,"model":"'"$M"'","name":"x","storages":[{"id":1,"name":"Pamięć","total":10,"free":5}]}'
+        while read -r cmd a b; do
+          case "$cmd" in
+            storages) echo '{"ok":true,"storages":[{"id":1,"name":"Pamięć","total":10,"free":5}]}' ;;
+            list) echo '{"ok":true,"items":[]}' ;;
+            quit) exit 0 ;;
+          esac
+        done
+        """
+        try Data(script.utf8).write(to: URL(filePath: helper))
+        chmod(helper, 0o755)
+        setenv("BIFOLD_MTP_HELPER", helper, 1)
+        defer { unsetenv("BIFOLD_MTP_HELPER") }
+        let (ws, _) = try await makeWorkspace(tmp)
+        defer { withExtendedLifetime(tmp) {} }  // pomocnik leży w katalogu testu
+        defer {
+            for tab in ws.left.tabs + ws.right.tabs { (try? ws.providers.provider(for: tab.path.provider) as? MTPDeviceFS)?.close() }
+        }
+
+        try await ws.invoke("device.open", CommandArguments(["id": "0"]))
+        #expect(ws.left.activeTab.customTitle == "🤖 telefon-A")
+        let first = ws.left.activeTab.path.provider
+        FileManager.default.createFile(atPath: tmp.url.path + "/swapped", contents: Data())
+        try await ws.invoke("device.open", CommandArguments(["id": "0"]))
+        #expect(ws.left.activeTab.customTitle == "🤖 telefon-B", "numer 0 to teraz telefon B")
+        #expect(ws.left.activeTab.path.provider != first)
+        // Telefon A pod nowym numerem — ta sama (otwarta) sesja.
+        try await ws.invoke("device.open", CommandArguments(["id": "1"]))
+        #expect(ws.left.activeTab.path.provider == first && ws.left.activeTab.customTitle == "🤖 telefon-A")
+    }
 }

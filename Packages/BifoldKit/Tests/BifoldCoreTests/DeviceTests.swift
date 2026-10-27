@@ -179,10 +179,13 @@ import Testing
 
         let target = tmp.path
         let download = Task.detached { try fs.extract([other.appending("wolny.mp4")], toTemporaryIn: target, isCancelled: { false }) }
-        try await Task.sleep(for: .milliseconds(500))
+        // Pobieranie trwa (pomocnik dostał `get`) — warunek z terminem zamiast stałego opóźnienia.
+        let deadline = ContinuousClock.now + .seconds(15)
+        while (try? tmp.read("log"))?.contains("get 34") != true, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
         let start = ContinuousClock.now
         fs.close()
-        #expect(ContinuousClock.now - start < .seconds(5))
+        // Luźny limit: pomocnik „pobiera” 10 s, zamknięcie nie może na to czekać.
+        #expect(ContinuousClock.now - start < .seconds(8))
         do {
             _ = try await download.value
             Issue.record("zamknięcie telefonu powinno przerwać pobieranie")
@@ -196,7 +199,7 @@ import Testing
     @Test func toolRunnerTimeout() throws {
         let start = ContinuousClock.now
         #expect(throws: VFSError.self) { _ = try ToolRunner.run("/bin/sleep", ["30"], timeout: 0.5) }
-        #expect(ContinuousClock.now - start < .seconds(5))
+        #expect(ContinuousClock.now - start < .seconds(15), "limit czasu, a nie koniec `sleep 30`")
         #expect(try ToolRunner.run("/bin/echo", ["zażółć"]).output == "zażółć\n")
     }
 

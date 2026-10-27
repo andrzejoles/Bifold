@@ -173,8 +173,10 @@ var remoteCommands: [Command] { [
         }
         guard open.contains(alias) else { throw CommandError.notAvailable(L10n.tr("Połączenie \(alias) nie jest otwarte")) }
         // Agent nie ma dostępu do terminala (D44): nie może też zamknąć terminali SSH ani przerwać edycji
-        // plików zdalnych przez rozłączenie.
-        if ctx.isAgent, tabs.contains(where: { $0.terminal?.alias == alias }) || remotes.hasEditSessions(alias) {
+        // plików zdalnych przez rozłączenie — także terminali innego aliasu tego samego serwera (wspólne
+        // połączenie główne SSH).
+        let sharing = remotes.aliasesSharingSession(with: alias)
+        if ctx.isAgent, tabs.contains(where: { $0.terminal.map { sharing.contains($0.alias) } ?? false }) || remotes.hasEditSessions(alias) {
             throw CommandError.notAvailable(L10n.tr("Połączenie \(alias) ma otwarty terminal SSH albo edycję pliku — rozłączyć może tylko użytkownik"))
         }
         await ctx.workspace.closeTabs { $0.terminal?.alias == alias || RemoteFS.alias(of: $0.path) == alias }

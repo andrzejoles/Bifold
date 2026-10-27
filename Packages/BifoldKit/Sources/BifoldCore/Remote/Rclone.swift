@@ -105,6 +105,8 @@ public final class Rclone: Sendable {
         env.removeValue(forKey: "RCLONE_CONFIG")
         env.removeValue(forKey: "RCLONE_CONFIG_PASS")
         p.environment = env
+        // Bez deskryptorów aplikacji (i pomocnika testów) — proces działa w tle.
+        p.standardInput = FileHandle.nullDevice
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         try p.run()

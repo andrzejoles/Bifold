@@ -8,6 +8,13 @@ import ServiceManagement
 /// Klient pomocnika uprawnień administratora: rejestracja demona (SMAppService), autoryzacja
 /// każdej operacji (Authorization Services — hasło administratora za każdym razem) i XPC.
 final class AdminHelperClient {
+    /// Autoryzacja jednej operacji (referencja żyje do odpowiedzi demona) — przekazywana z wątku
+    /// pytania o hasło; używana potem tylko przez jedno wywołanie `perform`.
+    nonisolated struct Authorization: @unchecked Sendable {
+        let ref: AuthorizationRef
+        let external: Data
+    }
+
     let workspace: Workspace
     private var service: SMAppService { SMAppService.daemon(plistName: HelperConstants.plistName) }
 
@@ -44,8 +51,9 @@ final class AdminHelperClient {
     /// Autoryzacja jednej operacji: prawo w bazie (tworzone przy pierwszym użyciu) i pytanie
     /// o hasło administratora (z dotkniętymi ścieżkami w treści pytania). Zwraca referencję i jej
     /// zewnętrzną formę dla demona — referencja musi żyć, dopóki demon jej nie sprawdzi (po
-    /// `AuthorizationFree` demon nie odtworzy autoryzacji z formy zewnętrznej).
-    func authorize(_ op: HelperOperation, paths: [String]) throws -> (AuthorizationRef, Data) {
+    /// `AuthorizationFree` demon nie odtworzy autoryzacji z formy zewnętrznej). Blokuje na czas pytania
+    /// o hasło — wywoływać poza wątkiem głównym (`runBlocking`), żeby okna aplikacji nie zamarły.
+    nonisolated static func authorize(_ op: HelperOperation, paths: [String]) throws -> Authorization {
         var created: AuthorizationRef?
         guard AuthorizationCreate(nil, nil, [], &created) == errAuthorizationSuccess, let ref = created else { throw HelperError.notAuthorized }
         do {
@@ -73,7 +81,7 @@ final class AdminHelperClient {
             guard status == errAuthorizationSuccess else { throw status == errAuthorizationCanceled ? CommandError.cancelledByUser : HelperError.notAuthorized }
             var ext = AuthorizationExternalForm()
             guard AuthorizationMakeExternalForm(ref, &ext) == errAuthorizationSuccess else { throw HelperError.notAuthorized }
-            return (ref, withUnsafeBytes(of: &ext) { Data($0) })
+            return Authorization(ref: ref, external: withUnsafeBytes(of: &ext) { Data($0) })
         } catch {
             AuthorizationFree(ref, [.destroyRights])
             throw error
@@ -85,9 +93,11 @@ final class AdminHelperClient {
             throw CommandError.notAvailable(L10n.tr("Pomocnik administratora: \(statusText). Użyj „Zainstaluj pomocnika administratora”."))
         }
         _ = try HelperOperations.check(request)
-        let (ref, auth) = try authorize(request.operation, paths: request.paths)
+        let operation = request.operation, paths = request.paths
+        let authorization = try await runBlocking(qos: .userInitiated) { try Self.authorize(operation, paths: paths) }
+        let auth = authorization.external
         // Po odpowiedzi demona (albo błędzie) — prawa niszczone, żadna inna operacja z nich nie skorzysta.
-        defer { AuthorizationFree(ref, [.destroyRights]) }
+        defer { AuthorizationFree(authorization.ref, [.destroyRights]) }
         let data = try JSONEncoder().encode(request)
         let connection = NSXPCConnection(machServiceName: HelperConstants.machService, options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: (any BifoldHelperProtocol).self)
@@ -150,6 +160,8 @@ final class AdminHelperClient {
                 return CommandResult(message: msg)
             },
             cmd("admin.createDirectory", L10n.tr("Jako administrator: nowy katalog…"), L10n.tr("Tworzy katalog w chronionym miejscu.")) { [weak self] ctx in
+                // Ścieżka z panelu serwera wskazałaby lokalny katalog o tej samej ścieżce (jako root).
+                guard ctx.tab.path.isLocal else { throw CommandError.notAvailable(L10n.tr("Katalog docelowy musi być lokalny")) }
                 let name = try await ctx.textPublic("name", title: L10n.tr("Nowy katalog (administrator)"), message: nil, default: "")
                 let msg = try await self?.perform(HelperRequest(operation: .createDirectory, paths: [ctx.tab.path.appending(name).path]))
                 await ctx.tab.reload()
@@ -157,12 +169,14 @@ final class AdminHelperClient {
             },
             cmd("admin.copy", L10n.tr("Jako administrator: kopiuj do drugiego panelu"), L10n.tr("Kopiuje element do katalogu drugiego panelu z uprawnieniami administratora.")) { [weak self] ctx in
                 let item = try target(ctx)
+                guard ctx.otherTab.path.isLocal else { throw CommandError.notAvailable(L10n.tr("Katalog docelowy musi być lokalny")) }
                 let msg = try await self?.perform(HelperRequest(operation: .copy, paths: [item.path.path, ctx.otherTab.path.appending(item.name).path]))
                 await ctx.otherTab.reload()
                 return CommandResult(message: msg)
             },
             cmd("admin.move", L10n.tr("Jako administrator: przenieś do drugiego panelu"), L10n.tr("Przenosi element do katalogu drugiego panelu z uprawnieniami administratora.")) { [weak self] ctx in
                 let item = try target(ctx)
+                guard ctx.otherTab.path.isLocal else { throw CommandError.notAvailable(L10n.tr("Katalog docelowy musi być lokalny")) }
                 let msg = try await self?.perform(HelperRequest(operation: .move, paths: [item.path.path, ctx.otherTab.path.appending(item.name).path]))
                 await ctx.tab.reload()
                 await ctx.otherTab.reload()
