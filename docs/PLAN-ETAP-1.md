@@ -88,7 +88,7 @@ działa płynnie. Operacje w tle da się anulować i cofnąć. Wszystkie czynno�
 | `file.tags` | — | Cmd+Opt+G | za zgodą |
 | `clipboard.copyPaths`, `clipboard.copyNames` | Ctrl+Shift+C, Ctrl+Shift+N | Cmd+Opt+C | pełny |
 | `edit.undo` | Cmd+Z | Cmd+Z | za zgodą |
-| `queue.pauseAll`, `queue.resumeAll`, `queue.cancel`, `queue.setSpeedLimit` | — | — | za zgodą |
+| `queue.pause`, `queue.resume`, `queue.cancel`, `queue.setSpeedLimit` | — | — | za zgodą |
 | `colors.get`, `colors.set` | — | — | pełny |
 | `tools.terminal` | Ctrl+` | Ctrl+` | brak |
 | `tools.commandLine` | Ctrl+E (fokus) | Cmd+L | brak |

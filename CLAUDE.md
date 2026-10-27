@@ -11,7 +11,8 @@ architektura: `docs/ARCHITECTURE.md`, bezpieczeństwo: `docs/SECURITY.md`, decyz
 - Nazwa i bundle id tylko w `Config/Brand.xcconfig`.
 - Każda czynność jest komendą w rejestrze (klawiatura, menu, paleta i agent korzystają z tych samych komend),
   z poziomem dostępu agenta i opisem skutków.
-- Sekrety tylko w Pęku kluczy; nigdy w plikach, argumentach procesów, zmiennych środowiskowych ani logach.
+- Sekrety tylko w Pęku kluczy; nigdy w plikach, argumentach procesów, zmiennych środowiskowych ani logach
+  (jedyny wyjątek: krótkotrwały token sesji agenta w środowisku procesu CLI — `docs/SECURITY.md` A5).
   Repozytorium jest publiczne — przed commitem nic z `~/Library`, `~/.ssh`, kluczy, haseł, ścieżek domowych.
 - Testy nie dotykają `~/.ssh` ani prawdziwych danych aplikacji (`Workspace(persists: false)`).
 - **Teksty interfejsu** tylko przez `L10n.tr("…")` (kluczem jest polskie zdanie). Każdy nowy tekst: `make build`,
