@@ -18,7 +18,7 @@ Bifold/
 │   ├── Info.plist
 │   ├── Sources/
 │   ├── Resources/              # Localizable.xcstrings, InfoPlist.xcstrings, Assets
-│   └── Helper/                 # (Etap 7) Info.plist i plist demona pomocnika administratora
+│   └── Helper/                 # (Etap 7) Info.plist pomocnika administratora (plik demona generowany przy budowaniu z Brand.xcconfig)
 ├── Packages/BifoldKit/         # cała logika jako pakiet SPM, testowalny bez interfejsu
 │   ├── Package.swift
 │   ├── Sources/
