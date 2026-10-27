@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+## [2.6.0] – 2026-10-27
+
 ### Poprawione — przegląd kodu, część 5
 - Agent nie może już poznać treści, nazw ani rozmiarów plików z zablokowanych katalogów przez wyszukiwanie
   (pole „obcięto wyniki”), zaznaczanie katalogów ani archiwa leżące w zablokowanym katalogu; ścieżka zakończona
