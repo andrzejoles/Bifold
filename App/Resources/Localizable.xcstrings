@@ -270,6 +270,35 @@
       "extractionState": "manual",
       "shouldTranslate": false
     },
+    "%@ — na serwerze został plik tymczasowy %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — a temporary file was left on the server: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — auf dem Server ist eine temporäre Datei zurückgeblieben: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — quedó un archivo temporal en el servidor: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — на сервері залишився тимчасовий файл %@"
+          }
+        }
+      }
+    },
     "%@/s": {
       "extractionState": "manual",
       "shouldTranslate": false,

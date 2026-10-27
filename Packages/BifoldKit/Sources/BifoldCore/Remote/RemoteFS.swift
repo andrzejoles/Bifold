@@ -54,7 +54,13 @@ public final class RemoteFS: FileSystemProvider {
     }
 
     public func list(_ directory: VFSPath, options: ListOptions) async throws -> [FileItem] {
-        let entries = try await rclone.list(fs: fs, remote: remotePath(directory))
+        let entries: [Rclone.ListEntry]
+        do {
+            entries = try await rclone.list(fs: fs, remote: remotePath(directory))
+        } catch RemoteError.rc(let message, _) where message.contains("directory not found") {
+            // `fs.ErrorDirNotFound` rclone — „nie znaleziono” (np. Wstecz pomija usunięty katalog).
+            throw VFSError.notFound(directory)
+        }
         // Nazwy od serwera są niezaufane (`..` albo `/` wyprowadziłyby ścieżkę poza katalog).
         let items = entries.filter { isSafeComponentName($0.name) }.map { item($0, in: directory) }
         return options.includeHidden ? items : items.filter { !$0.isHidden }
