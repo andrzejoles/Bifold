@@ -77,6 +77,14 @@ extension CommandContext {
         return arguments.strings("paths")?.map { workspace.parsePath($0, relativeTo: base) } ?? [base]
     }
 
+    /// Dla agenta silnik wyszukiwania nie czyta, nie pokazuje i nie liczy zablokowanych ścieżek — inaczej
+    /// `truncated` przy `maxResults: 1` zdradzałby treść i nazwy zablokowanych plików.
+    var searchExclusion: SearchExclusion {
+        guard isAgent else { return .none }
+        let blocked = BlockedPaths(for: workspace)
+        return SearchExclusion(isExcluded: { blocked.isBlocked($0) }, containsExcluded: { blocked.containsBlocked($0) })
+    }
+
     /// Dla agenta: bez ścieżek zablokowanych (SECURITY.md §4.5) — ani ścieżki, ani dopasowanej treści.
     func visibleToAgent(_ hits: [SearchHit]) -> [SearchHit] {
         guard isAgent else { return hits }
@@ -110,8 +118,8 @@ extension CommandContext {
     }
 }
 
-/// Rozmiar w zapisie „100M”, „1,5G”, „700k” albo w bajtach.
-func parseSize(_ text: String) -> Int64? {
+/// Rozmiar w zapisie „100M”, „1,5G”, „700k” albo w bajtach (także okno wyszukiwania).
+public func parseSize(_ text: String) -> Int64? {
     let t = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".").uppercased()
     let kb = 1024.0, mb = kb * 1024, gb = mb * 1024, tb = gb * 1024
     let units: [(String, Double)] = [("TB", tb), ("GB", gb), ("MB", mb), ("KB", kb), ("T", tb), ("G", gb), ("M", mb), ("K", kb), ("B", 1)]
@@ -173,7 +181,7 @@ var searchCommands: [Command] { [
             return .ok
         }
         let criteria = try ctx.searchCriteria()
-        let (hits, truncated) = try await SearchEngine.collect(criteria, ripgrep: ctx.workspace.settings.toolPath("rg"))
+        let (hits, truncated) = try await SearchEngine.collect(criteria, ripgrep: ctx.workspace.settings.toolPath("rg"), exclusion: ctx.searchExclusion)
         let title = !criteria.contentText.isEmpty ? "„\(criteria.contentText)”" : (criteria.nameMask.isEmpty ? criteria.nameRegex : criteria.nameMask)
         return try await ctx.deliver(hits, truncated: truncated, title: title.isEmpty ? L10n.tr("wyniki") : title)
     },
@@ -216,7 +224,7 @@ var searchCommands: [Command] { [
         }
         let name = try await ctx.text("name", title: L10n.tr("Zapisane wyszukiwanie"), message: saved.map(\.name).joined(separator: ", "), default: saved.first?.name ?? "")
         guard let s = saved.first(where: { $0.name == name }) else { throw CommandError.invalidArgument("name", name) }
-        let (hits, truncated) = try await SearchEngine.collect(s.criteria, ripgrep: ctx.workspace.settings.toolPath("rg"))
+        let (hits, truncated) = try await SearchEngine.collect(s.criteria, ripgrep: ctx.workspace.settings.toolPath("rg"), exclusion: ctx.searchExclusion)
         return try await ctx.deliver(hits, truncated: truncated, title: s.name)
     },
 
