@@ -255,6 +255,7 @@ public final class AgentController: AgentInvocationGate {
         "search.find", "search.spotlight", "search.runSaved", "search.duplicates",
         "file.compare", "dirs.compare", "remote.list", "remote.read", "remote.search", "archive.list",
         "sync.preview", "file.checksumCreate", "file.checksumVerify", "selection.calculateSizes",
+        "tools.volumes", "device.list", "queue.list", "file.multiRename", "edit.undo",
     ]
 
     /// Wpis wyniku do dziennika: treść plików nigdy nie trafia do JSONL, tylko rozmiar i SHA-256.

@@ -54,7 +54,9 @@ var editCommands: [Command] { [
         await ctx.workspace.left.activeTab.reload()
         await ctx.workspace.right.activeTab.reload()
         let message = L10n.tr("Cofnięto: \(result.performed), pominięto: \(result.skipped.count), błędy: \(result.errors.count)")
-        return CommandResult(message: message, value: ["performed": .int(Int64(result.performed)), "skipped": .array(result.skipped.map { .string($0.message) })])
+        let value: JSONValue = ["performed": .int(Int64(result.performed)), "skipped": .array(result.skipped.map { .string($0.message) })]
+        // Pominięte kroki zawierają nazwy plików — dla agenta niezaufane (SECURITY.md §4.6).
+        return CommandResult(message: message, value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(
@@ -143,7 +145,8 @@ var queueCommands: [Command] { [
              "bytesDone": .int(job.progress.bytesDone), "bytesTotal": .int(job.progress.bytesTotal),
              "filesDone": .int(Int64(job.progress.filesDone)), "filesTotal": .int(Int64(job.progress.filesTotal))]
         }
-        return CommandResult(value: .array(jobs))
+        // Tytuły zadań zawierają nazwy plików.
+        return CommandResult(value: ctx.isAgent ? untrusted(.array(jobs)) : .array(jobs))
     },
 
     Command(CommandDescriptor(
@@ -220,9 +223,10 @@ var toolCommands: [Command] { [
     ) { ctx in
         ctx.workspace.refreshVolumes()
         if ctx.isAgent {
-            return CommandResult(value: try JSONValue.encode(ctx.workspace.volumes.map {
+            // Nazwy woluminów nadaje ten, kto sformatował nośnik — dane, nie polecenia.
+            return CommandResult(value: untrusted(try JSONValue.encode(ctx.workspace.volumes.map {
                 ["name": $0.name, "path": $0.path.path, "total": String($0.totalCapacity), "available": String($0.availableCapacity), "ejectable": String($0.isEjectable)]
-            }))
+            })))
         }
         try ctx.requireUI().showVolumes()
         return .ok

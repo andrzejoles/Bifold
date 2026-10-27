@@ -287,9 +287,8 @@ var searchCommands: [Command] { [
             try MultiRename.execute(plan, journal: journal, invoker: invoker, title: L10n.tr("Zmiana nazw (\(plan.count))"))
         }
         await ctx.tab.reload()
-        return CommandResult(
-            message: L10n.tr("Zmieniono nazwy: \(count), pominięto: \(problems.count)"),
-            value: ["renamed": .int(Int64(count)), "skipped": .array(problems.map { .string("\($0.source.name): \($0.problem!)") })])
+        let value: JSONValue = ["renamed": .int(Int64(count)), "skipped": .array(problems.map { .string("\($0.source.name): \($0.problem!)") })]
+        return CommandResult(message: L10n.tr("Zmieniono nazwy: \(count), pominięto: \(problems.count)"), value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(
