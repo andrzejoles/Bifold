@@ -4,6 +4,44 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — przegląd kodu, część 5
+- Agent nie może już poznać treści, nazw ani rozmiarów plików z zablokowanych katalogów przez wyszukiwanie
+  (pole „obcięto wyniki”), zaznaczanie katalogów ani archiwa leżące w zablokowanym katalogu; ścieżka zakończona
+  znakiem nowej linii nie wprowadza panelu do zablokowanego katalogu (a gdyby karta tam trafiła, stan wraca).
+- Agent nie zawiesi ani nie zamknie aplikacji bez zgody: Spotlight z U+FFFE/U+FFFF, złośliwe wyrażenie
+  regularne (zmiana nazw, wyszukiwanie, reguły kolorów — limit czasu i odrzucanie zbyt złożonych wzorców),
+  porównanie dwóch dużych plików tekstowych; zalew wywołań nie zapełnia dziennika agenta.
+- `queue.cancel` z nieaktualnym identyfikatorem nie anuluje wszystkich zadań; wyniki z nazwami z dysku,
+  serwerów i telefonów trafiają do agenta jako niezaufane.
+- ⌃U z kartą-terminalem SSH przenosi sesję — program na serwerze (np. `top`, `mc`, `vim`) działa dalej.
+- SCP: edycja pliku otwartego przez dowiązanie zapisuje do jego celu (wcześniej zastępowała dowiązanie);
+  przerwane „Nadpisz” katalogu lub dowiązania plikiem niczego nie usuwa; zapis w katalogu bez prawa zapisu
+  (np. `/etc`) działa także na serwerach z polską lokalizacją i w katalogach ze „sticky bit”; pozostawiony
+  na serwerze plik tymczasowy jest zgłaszany; kolejne zapisy w edytorze wysyłają się po kolei (wygrywa
+  ostatni); „Rozłącz” i zapis połączenia nie zostawiają w tle osieroconego połączenia ani kart bez połączenia.
+- Podgląd (F3, Quick Look) i `remote_read` nie pobierają całych katalogów z serwera ani z telefonu (także
+  przez dowiązanie do katalogu); kopie do podglądu są usuwane przy zamknięciu Bifolda.
+- Wstecz pomija usunięte katalogi także na AIX/dash i SFTP/FTP/WebDAV, a nie kasuje historii zapisanego
+  serwera; odświeżenie nie cofa przesuniętego w jego trakcie kursora, nie przenosi karty wyżej przy chwilowym
+  błędzie serwera i nie gubi zmiany zgłoszonej w trakcie nawigacji; tytuł karty telefonu w nowej karcie.
+- Dziennik: trwające kopiowanie nie znika po kolejnej operacji; Cmd+Z po odłączeniu pendrive’a nie oznacza
+  operacji jako cofniętej; „Cofnij sesję agenta” nie zgłasza fałszywego „zmieniony”; „Rozpakuj do podkatalogów”
+  chroni później dopisane pliki; okno dziennika odświeża się samo i nie cofa partii dwa razy.
+- Synchronizacja odrzuca „/” i cały wolumin jako cel lustra (także w starych zadaniach i w oknie
+  synchronizacji, które nie wywraca się już przy edycji pola).
+- Podgląd F3 wczytuje plik w tle (iCloud, SMB nie zamrażają aplikacji); Esc najpierw chowa pasek wyszukiwania.
+- Okno wyszukiwania nie zamyka aplikacji przy rozmiarze typu `1e30G`; zbyt złożony wzorzec nazwy daje błąd
+  zamiast pustego wyniku. 7zz nie zabija aplikacji sygnałem SIGPIPE; weryfikacja sum pomija nieczytelne wpisy.
+- Menedżer połączeń pyta przed usunięciem (domyślnie „Anuluj”), pokazuje błąd Pęku kluczy, alias zapisanego
+  połączenia jest tylko do odczytu. Zmiana nazw wielu plików wykonuje dokładnie to, co widać w podglądzie.
+- Pomocnik administratora porównuje ścieżki ze składaniem wielkości liter jak APFS (`ſ` = `s`).
+
+### Zmienione — budowanie
+- Projekt dla Xcode 27 (bez propozycji „Update to recommended settings”); build bez ostrzeżeń
+  zmiennych środowiskowych i HexFiend; pomocnik MTP przebudowuje się po aktualizacji libmtp.
+- `make installer` nie usuwa plików wydania z `dist/staging.noindex`; `make test-release` obejmuje ścisłe
+  terminy serwera agenta; testy pakietu mają przypięte zależności (te same wersje co aplikacja).
+
 ## [2.4.0] – 2026-10-27
 
 ### Poprawione — przegląd kodu, część 4

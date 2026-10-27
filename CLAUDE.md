@@ -36,3 +36,5 @@ make unregister                   # usuwa z Launchpada kopie Bifolda spoza /Appl
   SSH/SCP przez `Spawn` (posix_spawn).
 - Nowy plik źródłowy w `App/` wymaga `xcodegen generate` (`make generate`).
 - Narzędzia Sparkle przez `scripts/sparkle-tools.sh` (inaczej okno zgody Pęku kluczy).
+- Ustawienia Xcode tylko w `project.yml` (`xcodeVersion: "27.0"`); `STRING_CATALOG_GENERATE_SYMBOLS` i
+  `ENABLE_USER_SCRIPT_SANDBOXING` są świadomie NO (komentarze w `project.yml`).

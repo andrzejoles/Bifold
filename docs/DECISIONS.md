@@ -374,3 +374,36 @@ pliku); plik dostaje właściciela wysyłającego i prawa z kopii lokalnej, dowi
 się rozłączają; bez prawa zapisu do katalogu — zapis w miejscu (nieatomowy, jak dawniej). Pobieranie tworzy
 elementy wyłącznie jako nowe, wolną nazwę wybiera system plików. Sesje SSH liczone po gnieździe
 ControlMaster, nie po aliasie (rozszerza D50). Dostawca MTP identyfikowany po USB (uzupełnia D51).
+
+### D57 · 2026-10-27 — Przegląd, część 5: bramka, odświeżanie, dziennik, SCP, budowanie
+- **Bramka agenta (rozszerza D48):** obrona w głąb po nawigacji — jeśli po wywołaniu agenta aktywna karta
+  stoi w zablokowanym katalogu, stan jest przywracany (zamiast deklarowania celów przez każdą komendę).
+  Ścieżki agenta ze znakami sterującymi są odrzucane, cel `panel.navigate` liczy jedna funkcja. Wyszukiwanie
+  dla agenta nie czyta i nie liczy zablokowanych ścieżek (`rg` z korzeniami rozpisanymi wokół blokad, nie
+  globy). Limit wywołań przed bramką, seria odmów agregowana w dzienniku.
+- **Wyrażenia regularne:** do 512 znaków, bez zagnieżdżonych kwantyfikatorów i odwołań wstecznych w
+  powtarzanej grupie; limit czasu procesora (1 s na plan zmiany nazw, 100 ms na dopasowanie w wyszukiwaniu
+  i regułach kolorów — po przekroczeniu wzorzec przestaje pasować). Diff tekstowy do 20 000 różniących się
+  wierszy, powyżej porównanie bajtów.
+- **Karta (uzupełnia D47/D55):** odświeżenie przywraca kursor tylko, gdy użytkownik go nie przesunął;
+  wspina się do katalogu nadrzędnego tylko po „nie istnieje”; odświeżenie pominięte przez nawigację wraca po
+  niej. Martwy wpis historii nie obejmuje zapisanego aliasu serwera (po zapisie połączenie wraca w tle);
+  sąsiednie duplikaty są scalane. Tytuł karty telefonu też z dostawcy — ręcznie zostaje tylko „⌨”.
+- **Kopie do podglądu** z archiwów, telefonów i serwerów są usuwane przy zamknięciu aplikacji (poza F4 i
+  plikami otwartymi w innej aplikacji), stare `bifold-view-*` przy starcie po dobie. Elementów nawigowalnych
+  spoza dysku lokalnego się nie materializuje.
+- **Dziennik (uzupełnia D55):** w pamięci limit partii i 2× limit wpisów, bez partii trwających i najnowszej
+  zakończonej; dokładne limity tylko przy starcie. Krok `.missing` liczy się jak wykonany tylko przy
+  istniejącym katalogu nadrzędnym (odłączony wolumin zostawia partię cofalną). `edit.undo` przyjmuje `batch`
+  (okno dziennika cofa przez rejestr komend).
+- **SCP (uzupełnia D56):** edycja pliku-dowiązania zapisuje do celu, „Nadpisz” zastępuje samo dowiązanie
+  (jak lokalnie); niezgodny typ zastępowany po wysłaniu (`rm -r -f && mv -f`); zapis w miejscu wg `[ -w ]`
+  i po nieudanym `mv`, nie wg tekstu błędu; sesja po rozłączeniu, zapisie lub usunięciu połączenia jest
+  unieważniona; wysyłki jednej edycji idą po kolei.
+- **Synchronizacja:** `/` nigdy nie jest końcem, wolumin nie jest celem lustra (update na wolumin — kopia
+  zapasowa — dozwolony); walidacja wspólna dla komend i okna.
+- **⌃U z kartą-terminalem:** terminale w jednym rejestrze okna, sesja przechodzi z kartą do drugiego panelu.
+- **Budowanie:** projekt deklaruje Xcode 27 (`xcodeVersion` w `project.yml`); `STRING_CATALOG_GENERATE_SYMBOLS`
+  i `ENABLE_USER_SCRIPT_SANDBOXING` świadomie NO. Testy pakietu mają przypięte zależności
+  (`Packages/BifoldKit/Package.resolved`, te same wersje co aplikacja). Sparkle zostaje uniwersalny —
+  przycięcie do arm64 zmieniałoby podpisane części mechanizmu aktualizacji dla ~0,5 MB.
