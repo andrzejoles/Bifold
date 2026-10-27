@@ -194,14 +194,15 @@ import Testing
         #expect(newSize <= size / 2)
     }
 
-    /// W pamięci (długa sesja) też obowiązuje limit wpisów — sprawdzany przy rozpoczęciu nowej partii.
+    /// W pamięci (długa sesja) też obowiązuje limit wpisów — z zapasem 2× limit, sprawdzany przy
+    /// rozpoczęciu nowej partii (najnowsza zakończona partia zostaje).
     @Test func journalTrimsEntriesInMemory() {
         let journal = OperationJournal(maxEntries: 50)
         for b in 0..<4 {
             let batch = journal.beginBatch(title: "p\(b)", invoker: .user)
-            for i in 0..<20 { journal.record(.created(path: .local("/x/\(b)-\(i)"), isDirectory: false), in: batch) }
+            for i in 0..<40 { journal.record(.created(path: .local("/x/\(b)-\(i)"), isDirectory: false), in: batch) }
         }
-        // Przy starcie p3: 60 wpisów > 50 → bez p0; p3 dopisało potem swoje 20.
+        // Przy starcie p3: 120 wpisów > 2×50 → bez p0; p3 dopisało potem swoje 40.
         #expect(journal.batches.map(\.title) == ["p1", "p2", "p3"])
         journal.beginBatch(title: "p4", invoker: .user)
         #expect(journal.batches.map(\.title) == ["p2", "p3", "p4"])

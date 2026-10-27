@@ -93,7 +93,8 @@ public struct JournalBatch: Codable, Sendable, Hashable, Identifiable {
 /// Dziennik operacji zmieniających pliki. Trzyma partie w pamięci i dopisuje każdą zmianę
 /// do pliku JSONL od razu (odporność na awarię) przez stale otwarty uchwyt `O_APPEND`.
 /// Przy starcie plik jest przycinany (atomowo) od najstarszych partii do `maxBatchesInMemory` partii,
-/// `maxEntries` wpisów i `maxBytes` bajtów (najnowsza partia zostaje zawsze).
+/// `maxEntries` wpisów i `maxBytes` bajtów (najnowsza partia zostaje zawsze). W pamięci przy każdej nowej
+/// partii obowiązuje limit partii i 2× limit wpisów, bez partii trwających zadań i najnowszej zakończonej.
 public final class OperationJournal: Sendable {
     private struct State {
         var batches: [JournalBatch] = []
@@ -148,10 +149,22 @@ public final class OperationJournal: Sendable {
         let batch = JournalBatch(id: id, title: title, date: Date(), invoker: invoker, entries: [], undone: false, finished: finished)
         state.withLock { s in
             s.batches.append(batch)
-            let drop = Self.batchesToDrop(entries: s.batches.map(\.entries.count), bytes: nil,
-                                          maxBatches: maxBatchesInMemory, maxEntries: maxEntries, maxBytes: maxBytes)
-            if drop > 0 { s.batches.removeFirst(drop) }
-            s.index = Dictionary(uniqueKeysWithValues: s.batches.enumerated().map { ($1.id, $0) })
+            // W pamięci (długa sesja) z zapasem 2× limit wpisów — dokładne przycięcie robi start (D55).
+            // Nigdy nie znika partia trwającego zadania (dalsze `record`/`endBatch` trafiłyby w próżnię
+            // i operacji nie dałoby się cofnąć) ani najnowsza zakończona przed nową (świeża duża operacja).
+            let newestFinished = s.batches.indices.dropLast().last { s.batches[$0].finished }
+            let protected = s.batches.indices.map { i in
+                !s.batches[i].finished || i == s.batches.count - 1 || i == newestFinished
+            }
+            let drop = Self.batchesToDrop(entries: s.batches.map(\.entries.count), bytes: nil, protected: protected,
+                                          maxBatches: maxBatchesInMemory, maxEntries: maxEntries > Int.max / 2 ? .max : maxEntries * 2,
+                                          maxBytes: maxBytes)
+            if !drop.isEmpty {
+                s.batches = s.batches.enumerated().filter { !drop.contains($0.offset) }.map(\.element)
+                s.index = Dictionary(uniqueKeysWithValues: s.batches.enumerated().map { ($1.id, $0) })
+            } else {
+                s.index[id] = s.batches.count - 1
+            }
         }
         append([.batch(id: id, title: title, date: batch.date, invoker: invoker)])
         return id
@@ -310,39 +323,47 @@ public final class OperationJournal: Sendable {
                 bytes[i] += size
             }
         }
+        // Po wczytaniu każda partia jest zakończona — chroniona jest tylko najnowsza.
         let drop = Self.batchesToDrop(entries: s.batches.map(\.entries.count), bytes: bytes,
+                                      protected: s.batches.indices.map { $0 == s.batches.count - 1 },
                                       maxBatches: maxBatchesInMemory, maxEntries: maxEntries, maxBytes: maxBytes)
-        if drop > 0 {
-            s.batches.removeFirst(drop)
+        var compacted = false
+        if !drop.isEmpty {
+            s.batches = s.batches.enumerated().filter { !drop.contains($0.offset) }.map(\.element)
             s.index = Dictionary(uniqueKeysWithValues: s.batches.enumerated().map { ($1.id, $0) })
-            compact(url, batches: s.batches)
-        } else if let last = data.last, last != 0x0A {
+            compacted = compact(url, batches: s.batches)
+        }
+        if !compacted, let last = data.last, last != 0x0A {
             // Ucięty ostatni wiersz (awaria w trakcie zapisu) bez znaku nowej linii skleiłby się z następnym
             // dopisanym wierszem — przepadłyby oba. Kończymy go, zanim cokolwiek zostanie dopisane
-            // (po przycięciu plik ma tylko pełne wiersze; uchwyt nie może się otworzyć przed zmianą nazwy).
+            // (po udanym przycięciu plik ma tylko pełne wiersze; uchwyt nie może się otworzyć przed zmianą
+            // nazwy). Także gdy przycięcie się nie udało — wtedy plik zostaje stary, z uciętym wierszem.
             append(rawData: Data([0x0A]))
         }
         state.withLock { $0 = s }
     }
 
-    /// Ile najstarszych partii odrzucić, żeby zmieścić się w limitach (najnowsza zostaje zawsze).
+    /// Które partie odrzucić (od najstarszych, z pominięciem chronionych), żeby zmieścić się w limitach.
     /// `bytes` — rozmiar wierszy każdej partii w pliku (`nil` = bez limitu bajtów, w pamięci).
-    private static func batchesToDrop(entries: [Int], bytes: [Int]?, maxBatches: Int, maxEntries: Int, maxBytes: Int) -> Int {
+    private static func batchesToDrop(entries: [Int], bytes: [Int]?, protected: [Bool], maxBatches: Int, maxEntries: Int, maxBytes: Int) -> Set<Int> {
         var count = entries.count
         var totalEntries = entries.reduce(0, +)
         var totalBytes = bytes?.reduce(0, +) ?? 0
-        var drop = 0
-        while count > 1 && (count > maxBatches || totalEntries > maxEntries || (bytes != nil && totalBytes > maxBytes)) {
-            totalEntries -= entries[drop]
-            totalBytes -= bytes?[drop] ?? 0
+        var drop: Set<Int> = []
+        for i in entries.indices where !protected[i] {
+            guard count > maxBatches || totalEntries > maxEntries || (bytes != nil && totalBytes > maxBytes) else { break }
+            totalEntries -= entries[i]
+            totalBytes -= bytes?[i] ?? 0
             count -= 1
-            drop += 1
+            drop.insert(i)
         }
         return drop
     }
 
     /// Przepisuje dziennik do zachowanych partii: nowy plik obok i atomowa zmiana nazwy.
-    private func compact(_ url: URL, batches: [JournalBatch]) {
+    /// - Returns: `false`, gdy się nie udało (stary plik zostaje bez zmian).
+    @discardableResult
+    private func compact(_ url: URL, batches: [JournalBatch]) -> Bool {
         var lines: [Line] = []
         for b in batches {
             lines.append(.batch(id: b.id, title: b.title, date: b.date, invoker: b.invoker))
@@ -354,7 +375,7 @@ public final class OperationJournal: Sendable {
         let data = Self.encode(lines)
         let temp = url.deletingLastPathComponent().appending(path: ".\(url.lastPathComponent).\(UUID().uuidString.prefix(8))")
         let fd = open(temp.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
-        guard fd >= 0 else { return }
+        guard fd >= 0 else { return false }
         let ok = data.withUnsafeBytes { buf -> Bool in
             var offset = 0
             while offset < buf.count {
@@ -365,6 +386,10 @@ public final class OperationJournal: Sendable {
             return fsync(fd) == 0
         }
         close(fd)
-        if !ok || rename(temp.path, url.path) != 0 { unlink(temp.path) }
+        if !ok || rename(temp.path, url.path) != 0 {
+            unlink(temp.path)
+            return false
+        }
+        return true
     }
 }
