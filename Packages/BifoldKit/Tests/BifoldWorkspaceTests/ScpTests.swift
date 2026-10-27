@@ -23,6 +23,7 @@ final class TestSSHD {
             let p = Process()
             p.executableURL = URL(filePath: "/usr/bin/ssh-keygen")
             p.arguments = ["-q"] + args
+            Self.detachStdio(p)
             try p.run()
             p.waitUntilExit()
         }
@@ -53,9 +54,19 @@ final class TestSSHD {
             \(sftp ? "Subsystem sftp internal-sftp" : "")
             """
             try Data(config.utf8).write(to: URL(filePath: d + "/sshd_config"))
+            // `sshd` pod nadzorcą: kończy się z procesem testów (pakiet, który padł, nie zostawia serwera
+            // z sesjami), a SIGTERM nadzorcy (deinit) kończy `sshd`. Bez potoków pomocnika testów — osierocony
+            // proces trzymający stdout/stderr zawieszał `swift test`; dziennik idzie do `-E plik`.
             let p = Process()
-            p.executableURL = URL(filePath: "/usr/sbin/sshd")
-            p.arguments = ["-D", "-f", d + "/sshd_config", "-E", d + "/sshd.log"]
+            p.executableURL = URL(filePath: "/bin/sh")
+            let script = """
+            /usr/sbin/sshd -D -f "$1" -E "$2" & s=$!
+            trap 'kill $s 2>/dev/null; exit 0' TERM
+            while kill -0 \(getpid()) 2>/dev/null && kill -0 $s 2>/dev/null; do sleep 1; done
+            kill $s 2>/dev/null
+            """
+            p.arguments = ["-c", script, "sshd-test", d + "/sshd_config", d + "/sshd.log"]
+            Self.detachStdio(p)
             try p.run()
             for _ in 0..<50 where p.isRunning {
                 if (try? String(contentsOfFile: d + "/sshd.log", encoding: .utf8))?.contains("Server listening") == true {
@@ -69,6 +80,13 @@ final class TestSSHD {
             lastError = (try? String(contentsOfFile: d + "/sshd.log", encoding: .utf8)) ?? ""
         }
         throw RemoteError.ssh("sshd: \(lastError)")
+    }
+
+    /// Procesy pomocnicze bez stdin/stdout/stderr pomocnika testów.
+    static func detachStdio(_ p: Process) {
+        p.standardInput = FileHandle.nullDevice
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
     }
 
     func connection(_ alias: String, kind: RemoteKind = .scp, legacy: Bool = true) -> RemoteConnection {
@@ -598,6 +616,7 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         let p = Process()
         p.executableURL = URL(filePath: "/usr/bin/ssh-keygen")
         p.arguments = ["-q", "-t", "rsa", "-b", "2048", "-N", "", "-f", other.url.path + "/k"]
+        TestSSHD.detachStdio(p)
         try p.run()
         p.waitUntilExit()
         let fake = try String(contentsOfFile: other.url.path + "/k.pub", encoding: .utf8).split(separator: " ").prefix(2).joined(separator: " ")

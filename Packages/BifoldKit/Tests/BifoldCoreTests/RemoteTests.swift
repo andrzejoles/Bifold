@@ -17,6 +17,7 @@ final class TestServer {
         port = Int.random(in: 21000...39000)
         process.executableURL = URL(filePath: rclonePath!)
         process.arguments = ["serve", proto, root.url.path, "--addr", "127.0.0.1:\(port)", "--user", user, "--pass", pass, "--config", ""]
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
