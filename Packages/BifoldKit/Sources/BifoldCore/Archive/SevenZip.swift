@@ -67,8 +67,7 @@ public struct SevenZip: Sendable {
         p.standardOutput = out
         p.standardError = err
         try p.run()
-        if let password { input.fileHandleForWriting.write(Data((password + "\n").utf8)) }
-        try? input.fileHandleForWriting.close()
+        Self.sendPassword(password, to: input)
         let outBox = DataBox(), errBox = DataBox()
         let group = DispatchGroup()
         // Własne wątki zamiast puli GCD: wywołanie bywa synchroniczne z puli Swift Concurrency, a gdy
@@ -100,6 +99,18 @@ public struct SevenZip: Sendable {
     }
 
     private final class DataBox: @unchecked Sendable { var data = Data() }
+
+    /// Hasło na standardowe wejście procesu i zamknięcie wejścia. 7zz, który skończył się bez czytania
+    /// (błąd archiwum, anulowanie), zamyka rurę — zapis nie może wtedy zabić aplikacji sygnałem SIGPIPE
+    /// (jak w `SSH`), a błąd zapisu (EPIPE) jest bez znaczenia: wynik i tak mówi status procesu.
+    static func sendPassword(_ password: String?, to input: Pipe) {
+        let handle = input.fileHandleForWriting
+        if let password {
+            _ = fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1)
+            try? handle.write(contentsOf: Data((password + "\n").utf8))
+        }
+        try? handle.close()
+    }
 
     /// Plik listy ścieżek (UTF-8) dla `@plik`.
     static func listFile(_ paths: [String]) throws -> URL {
@@ -174,7 +185,7 @@ public struct SevenZip: Sendable {
     /// Bez zakresu — cały plik.
     public func read(_ archive: VFSPath, entry: String, password: String?, range: Range<Int64>?,
                      isCancelled: @escaping @Sendable () -> Bool = { false }) throws -> Data {
-        guard let range else { return try read(archive, entry: entry, password: password) }
+        guard let range else { return try read(archive, entry: entry, password: password, isCancelled: isCancelled) }
         guard range.upperBound > max(0, range.lowerBound) else { return Data() }
         let list = try Self.listFile([entry])
         defer { try? FileManager.default.removeItem(at: list) }
@@ -186,8 +197,7 @@ public struct SevenZip: Sendable {
         p.standardOutput = out
         p.standardError = err
         try p.run()
-        if let password { input.fileHandleForWriting.write(Data((password + "\n").utf8)) }
-        try? input.fileHandleForWriting.close()
+        Self.sendPassword(password, to: input)
         let errBox = DataBox()
         let errDone = DispatchSemaphore(value: 0)
         Thread.detachNewThread { errBox.data = err.fileHandleForReading.readDataToEndOfFile(); errDone.signal() }
@@ -254,10 +264,10 @@ public struct SevenZip: Sendable {
     }
 
     /// Zawartość jednego pliku z archiwum (podgląd F3).
-    public func read(_ archive: VFSPath, entry: String, password: String?) throws -> Data {
+    public func read(_ archive: VFSPath, entry: String, password: String?, isCancelled: @escaping @Sendable () -> Bool = { false }) throws -> Data {
         let list = try Self.listFile([entry])
         defer { try? FileManager.default.removeItem(at: list) }
-        let out = try run(["e", "-so", archive.path, "@" + list.path], password: password)
+        let out = try run(["e", "-so", archive.path, "@" + list.path], password: password, isCancelled: isCancelled)
         guard out.status == 0 else { throw ArchiveError.failed(out.stderr.trimmingCharacters(in: .whitespacesAndNewlines)) }
         return out.stdout
     }

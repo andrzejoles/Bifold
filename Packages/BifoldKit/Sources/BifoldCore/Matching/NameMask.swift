@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Maska nazw w stylu Total Commandera:
 /// - kilka wzorców oddzielonych `;` (albo spacją, gdy nie ma `;`),
@@ -88,9 +89,16 @@ struct Glob: Sendable, Hashable {
 }
 
 /// `NSRegularExpression` jest niezmienny i bezpieczny wątkowo; opakowanie daje Sendable/Hashable.
+/// Każde dopasowanie ma limit czasu (`RegexSafety`); po pierwszym przekroczeniu wzorzec uznaje się za
+/// zbyt złożony i dalej nie pasuje do niczego (bez kolejnych prób — kolorowanie wierszy na wątku
+/// głównym i wyszukiwanie w tysiącach plików nie czekają na każdym pliku od nowa).
 struct NSRegularExpressionBox: @unchecked Sendable, Hashable {
+    /// Limit czasu procesora jednego dopasowania nazwy.
+    static let matchLimit: Duration = .milliseconds(100)
+
     let regex: NSRegularExpression
     let pattern: String
+    private let exceeded = ExceededFlag()
 
     init?(pattern: String, caseInsensitive: Bool = true) {
         guard let r = try? NSRegularExpression(pattern: pattern, options: caseInsensitive ? [.caseInsensitive] : []) else {
@@ -100,27 +108,53 @@ struct NSRegularExpressionBox: @unchecked Sendable, Hashable {
         self.pattern = pattern
     }
 
+    /// Czy któreś dopasowanie przekroczyło limit czasu.
+    var exceededTimeLimit: Bool { exceeded.isSet }
+
     func matchesWhole(_ s: String) -> Bool {
-        regex.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil
+        guard !exceeded.isSet else { return false }
+        guard let found = regex.matches(in: s, limit: Self.matchLimit, first: true) else {
+            exceeded.set()
+            return false
+        }
+        return !found.isEmpty
     }
 
     func matchesAnywhere(_ s: String) -> Bool { matchesWhole(s) }
 
-    static func == (a: Self, b: Self) -> Bool { a.pattern == b.pattern }
+    static func == (a: Self, b: Self) -> Bool { a.pattern == b.pattern && a.regex.options == b.regex.options }
     func hash(into h: inout Hasher) { h.combine(pattern) }
 }
 
-/// Dopasowanie nazwy wyrażeniem regularnym (w dowolnym miejscu nazwy).
+/// Znacznik ustawiany raz, czytany z wielu wątków.
+final class ExceededFlag: Sendable {
+    private let state = Atomic<Bool>(false)
+    var isSet: Bool { state.load(ordering: .relaxed) }
+    func set() { state.store(true, ordering: .relaxed) }
+}
+
+/// Dopasowanie nazwy wyrażeniem regularnym (w dowolnym miejscu nazwy). Wzorzec ryzykowny
+/// (`RegexSafety.issue(in:)`) jest odrzucany jak niepoprawny: `isValid == false`, `issue` mówi dlaczego.
 public struct NameRegex: Sendable, Hashable {
     public let pattern: String
+    /// Powód odrzucenia wzorca przed kompilacją (zbyt długi, zbyt złożony).
+    public let issue: RegexSafety.Issue?
     private let box: NSRegularExpressionBox?
 
     public init(_ pattern: String, caseInsensitive: Bool = true) {
         self.pattern = pattern
-        box = NSRegularExpressionBox(pattern: pattern, caseInsensitive: caseInsensitive)
+        issue = RegexSafety.issue(in: pattern)
+        box = issue == nil ? NSRegularExpressionBox(pattern: pattern, caseInsensitive: caseInsensitive) : nil
     }
 
     public var isValid: Bool { box != nil }
+
+    /// Wzorzec przekroczył limit czasu dopasowania — od tej chwili nie pasuje do niczego.
+    public var exceededTimeLimit: Bool { box?.exceededTimeLimit ?? false }
+
+    /// Tekst problemu (odrzucony albo przekroczony limit czasu); `nil` dla wzorca działającego
+    /// lub po prostu niepoprawnego składniowo (wtedy `isValid == false`).
+    public var problem: String? { issue != nil || exceededTimeLimit ? RegexSafety.message : nil }
 
     public func matches(_ name: String) -> Bool { box?.matchesAnywhere(name) ?? false }
 }

@@ -26792,6 +26792,35 @@
         }
       }
     },
+    "wyrażenie regularne zbyt złożone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "regular expression too complex"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "regulärer Ausdruck zu komplex"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "expresión regular demasiado compleja"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "регулярний вираз надто складний"
+          }
+        }
+      }
+    },
     "wyszukiwanie w treści": {
       "extractionState": "manual",
       "localizations": {

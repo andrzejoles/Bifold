@@ -186,14 +186,23 @@ public final class JobQueue {
                         p.currentItem = a.name
                         progressSink.update(p)
                         var target = destination
+                        var copiedEntry: UUID?
                         if subfolders {
                             var stem = a.name
                             while ArchiveFS.isArchive(stem) || stem.fileExtension == "001" { stem = stem.fileStem }
                             target = TransferEngine.uniqueOrSame(destination.appending(stem))
                             try FileManager.default.createDirectory(atPath: target.path, withIntermediateDirectories: true)
                             // Nowe poddrzewo jako całość — cofnięcie przenosi je do Kosza.
-                            journal.record(.copied(from: a, to: target), in: batchID)
+                            copiedEntry = journal.record(.copied(from: a, to: target), in: batchID)
                         }
+                        // Liczba elementów jak przy kopii katalogu (D55): pliki dopisane później do podkatalogu
+                        // to konflikt przy cofaniu, a nie ciche zabranie ich do Kosza. Także po błędzie i anulowaniu.
+                        let recordItemCount = { [target] in
+                            if let copiedEntry, let count = TransferEngine.subtreeItemCount(target) {
+                                journal.setItemCount(count, forEntry: copiedEntry, in: batchID)
+                            }
+                        }
+                        defer { recordItemCount() }
                         do {
                             if subfolders {
                                 // Nowy, pusty katalog — rozpakowanie bezpośrednio, nie ma czego nadpisać.
