@@ -19982,6 +19982,35 @@
         }
       }
     },
+    "Wczytywanie pliku…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading file…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei wird geladen …"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando archivo…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завантаження файлу…"
+          }
+        }
+      }
+    },
     "Wersja, autor i licencja.": {
       "extractionState": "manual",
       "localizations": {

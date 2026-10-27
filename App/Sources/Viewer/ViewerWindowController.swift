@@ -20,6 +20,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private var encoding: TextEncoding = .utf8
     private var mode: Mode = .text
     private var sample = Data()
+    /// Próbka jeszcze się wczytuje (plik „tylko w chmurze” albo na SMB może czytać się długo).
+    private var loading = true
+    private var image: NSImage?
+    private var imageLoaded = false
+    private var imageLoading = false
+    private var closed = false
     /// Tekst czytamy do tego limitu (większe pliki — tylko początek; całość w trybie hex).
     private let textLimit: Int64 = 32 * 1024 * 1024
 
@@ -76,34 +82,56 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         ])
     }
 
+    /// Próbka i obraz są czytane poza wątkiem głównym (plik iCloud „tylko w chmurze” czy na SMB
+    /// zamrażałby aplikację); okno od razu pokazuje wskaźnik. Wynik po zamknięciu okna jest pomijany.
     private func load() {
         let size = max(0, item.size)
         infoLabel.stringValue = "\(Format.bytes(size)) · \(item.path.path)"
-        let fs = LocalFS()
-        sample = (try? fs.readSync(item.path, range: 0..<min(size, textLimit))) ?? Data()
-        encoding = TextDecoding.detect(sample)
-        encodingPopup.selectItem(at: TextEncoding.allCases.firstIndex(of: encoding) ?? 0)
-        if isImage {
-            show(.image)
-        } else if TextDecoding.looksBinary(sample) {
-            show(.hex)
-        } else {
-            show(.text)
+        modeControl.isEnabled = false
+        encodingPopup.isHidden = true
+        wrapCheckbox.isHidden = true
+        install(loadingView())
+        let path = item.path, limit = min(size, textLimit)
+        Task { [weak self] in
+            let result = try? await runBlocking(qos: .userInitiated) { () -> (Data, TextEncoding, Bool) in
+                let sample = try LocalFS().readSync(path, range: 0..<limit)
+                return (sample, TextDecoding.detect(sample), TextDecoding.looksBinary(sample))
+            }
+            guard let self, !self.closed else { return }
+            let (sample, encoding, binary) = result ?? (Data(), .utf8, false)
+            self.sample = sample
+            self.encoding = encoding
+            self.loading = false
+            self.modeControl.isEnabled = true
+            self.encodingPopup.selectItem(at: TextEncoding.allCases.firstIndex(of: encoding) ?? 0)
+            if self.isImage {
+                self.show(.image)
+            } else if binary {
+                self.show(.hex)
+            } else {
+                self.show(.text)
+            }
         }
     }
 
     private func show(_ newMode: Mode) {
+        guard !loading, !closed else { return }
         mode = newMode
         modeControl.selectedSegment = newMode.rawValue
         encodingPopup.isHidden = newMode != .text
         wrapCheckbox.isHidden = newMode != .text
-        container.subviews.forEach { $0.removeFromSuperview() }
         let view: NSView
         switch newMode {
         case .text: view = makeTextView()
         case .hex: view = makeHexView()
         case .image: view = makeImageView()
         }
+        install(view)
+        window?.makeFirstResponder(view is NSScrollView ? (view as! NSScrollView).documentView : view)
+    }
+
+    private func install(_ view: NSView) {
+        container.subviews.forEach { $0.removeFromSuperview() }
         view.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(view)
         NSLayoutConstraint.activate([
@@ -112,7 +140,26 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             view.topAnchor.constraint(equalTo: container.topAnchor),
             view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
-        window?.makeFirstResponder(view is NSScrollView ? (view as! NSScrollView).documentView : view)
+    }
+
+    private func loadingView() -> NSView {
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .regular
+        spinner.startAnimation(nil)
+        let label = NSTextField(labelWithString: L10n.tr("Wczytywanie pliku…"))
+        label.textColor = .secondaryLabelColor
+        let stack = NSStackView(views: [spinner, label])
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        let view = NSView()
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+        return view
     }
 
     private func makeTextView() -> NSView {
@@ -157,9 +204,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private func makeImageView() -> NSView {
         // Podgląd czyta tylko pliki lokalne (z serwera, archiwum i telefonu komenda pobiera kopię).
         guard let url = item.path.url else { return messageView(L10n.tr("Podgląd obrazu jest dostępny tylko dla plików na dysku.")) }
+        guard imageLoaded else {
+            loadImage(url)
+            return loadingView()
+        }
         let scroll = NSScrollView()
         let imageView = NSImageView()
-        imageView.image = NSImage(contentsOf: url)
+        imageView.image = image
         imageView.imageScaling = .scaleProportionallyDown
         imageView.animates = true
         scroll.documentView = imageView
@@ -175,6 +226,20 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         return scroll
+    }
+
+    /// Dane obrazu czytane w tle (NSImage(contentsOf:) czytałby cały plik na wątku głównym).
+    private func loadImage(_ url: URL) {
+        guard !imageLoading else { return }
+        imageLoading = true
+        Task { [weak self] in
+            let data = try? await runBlocking(qos: .userInitiated) { try Data(contentsOf: url) }
+            guard let self, !self.closed else { return }
+            self.imageLoading = false
+            self.imageLoaded = true
+            self.image = data.flatMap { NSImage(data: $0) }
+            if self.mode == .image { self.show(.image) }
+        }
     }
 
     private func messageView(_ text: String) -> NSView {
@@ -210,6 +275,16 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         // Pole wyszukiwania (Cmd+F) przyjmuje zwykłe znaki.
         if let tv = window?.firstResponder as? NSTextView, tv.isEditable, chord.key != "escape" { return false }
         switch (chord.key, chord.modifiers) {
+        case ("escape", []) where mode == .text && textScroll?.isFindBarVisible == true:
+            // Esc najpierw chowa pasek wyszukiwania (jak w innych aplikacjach), dopiero potem zamyka okno.
+            if let textView = textScroll?.documentView as? NSTextView {
+                let action = NSMenuItem()
+                action.tag = NSTextFinder.Action.hideFindInterface.rawValue
+                textView.performTextFinderAction(action)
+                window?.makeFirstResponder(textView)
+            }
+            textScroll?.isFindBarVisible = false
+            return true
         case ("escape", []), ("f3", []):
             close()
             return true
@@ -221,6 +296,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        closed = true
         onClose?()
     }
 }
