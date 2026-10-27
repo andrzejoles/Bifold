@@ -4,7 +4,9 @@ import Testing
 @testable import BifoldWorkspace
 
 /// SCP: pobieranie i wysyłanie nie niszczą danych (dowiązania, błędy listingu, przerwane nadpisanie,
-/// błąd jednego pliku) oraz wspólne połączenie główne kilku aliasów jednego serwera.
+/// błąd jednego pliku) oraz wspólne połączenie główne kilku aliasów jednego serwera. Aliasy z przedrostkiem
+/// `bezp-`: Pęk kluczy testów jest wspólny dla zestawów działających równolegle — `keychain.delete("aix")`
+/// innego zestawu usuwałby hasło klucza w trakcie łączenia („Odmowa dostępu”).
 @MainActor @Suite(.serialized, .enabled(if: sshdAvailable)) struct ScpSafetyTests {
     func setup(_ sshd: TestSSHD, _ connections: RemoteConnection...) async throws -> (TempDir, Workspace) {
         let tmp = try TempDir()
@@ -32,12 +34,12 @@ import Testing
     /// („Readme (2)”) nie jest nadpisywana prawdziwym plikiem o tej nazwie.
     @Test func downloadNeverWritesThroughLinksOrOverExistingNames() async throws {
         let sshd = try TestSSHD()
-        let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
+        let (tmp, ws) = try await setup(sshd, sshd.connection("bezp-aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); ws.remotes.keychain.delete("bezp-aix") }
         try sshd.root.file("as", "z serwera")
         try sshd.root.file("Readme (2)", "prawdziwy")
-        let fs = try await scp(ws, "aix")
+        let fs = try await scp(ws, "bezp-aix")
         try tmp.file("poza/plik", "ważne")
         try tmp.file("kat/Readme (2)", "kolizja")
         try FileManager.default.createSymbolicLink(atPath: tmp.url.path + "/kat/aſ", withDestinationPath: "../poza/plik")
@@ -74,10 +76,10 @@ import Testing
     /// z podkatalogiem bez praw → błąd (a nie po cichu pusty katalog, po którym „usuń” gubi dane).
     @Test func listingErrorsAreNotEmptyDirectories() async throws {
         let sshd = try TestSSHD()
-        let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
+        let (tmp, ws) = try await setup(sshd, sshd.connection("bezp-aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
-        let fs = try await scp(ws, "aix")
+        defer { ws.remotes.stop(); ws.remotes.keychain.delete("bezp-aix") }
+        let fs = try await scp(ws, "bezp-aix")
         #expect(throws: VFSError.notFound(fs.root.appending("brak"))) { _ = try fs.listSync(fs.root.appending("brak")) }
 
         try sshd.root.file("drzewo/a.txt", "a")
@@ -95,15 +97,15 @@ import Testing
     /// plik nie jest nadpisany bez pytania jak „nowy”.
     @Test func uploadIntoUnlistableDirectoryReportsError() async throws {
         let sshd = try TestSSHD()
-        let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
+        let (tmp, ws) = try await setup(sshd, sshd.connection("bezp-aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); ws.remotes.keychain.delete("bezp-aix") }
         try sshd.root.file("kat/a.txt", "stary")
         try tmp.file("L/kat/a.txt", "nowy")
         let dir = sshd.root.url.path + "/kat"
         chmod(dir, 0o300)
         defer { chmod(dir, 0o755) }
-        let fs = try await scp(ws, "aix")
+        let fs = try await scp(ws, "bezp-aix")
         let errors = try await upload(fs, [tmp.path.appending("L/kat")], to: fs.root)
         chmod(dir, 0o755)
         #expect(errors.count == 1 && errors[0].hasPrefix("kat:"), "\(errors)")
@@ -114,9 +116,9 @@ import Testing
     /// plik tymczasowy znika.
     @Test func cancelledOverwriteKeepsOriginal() async throws {
         let sshd = try TestSSHD()
-        let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
+        let (tmp, ws) = try await setup(sshd, sshd.connection("bezp-aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); ws.remotes.keychain.delete("bezp-aix") }
         try sshd.root.file("duzy.bin", "oryginał")
         let original = try FileManager.default.attributesOfItem(atPath: sshd.root.url.path + "/duzy.bin")[.size] as? Int
         // Duży plik rzadki (szybko tworzony, wysyłany dość długo, żeby zdążyć anulować).
@@ -125,7 +127,7 @@ import Testing
         let handle = try FileHandle(forWritingTo: URL(filePath: big))
         try handle.truncate(atOffset: 1 << 30)
         try handle.close()
-        let fs = try await scp(ws, "aix")
+        let fs = try await scp(ws, "bezp-aix")
         let control = JobControl()
         let job = ScpUpload(fs: fs, sources: [.local(big)], destination: fs.root, delegate: PolicyTransferDelegate(conflict: .overwrite))
         let running = Task.detached { try job.run(control: control) { _ in } }
@@ -147,14 +149,14 @@ import Testing
     /// Serwer w ISO-8859-2: „€” nie ma w kodowaniu — błąd tego pliku (ze ścieżką względną), reszta drzewa wysłana.
     @Test func oneBadNameDoesNotStopTheTree() async throws {
         let sshd = try TestSSHD()
-        var c = sshd.connection("latin2")
+        var c = sshd.connection("bezp-latin2")
         c.nameEncoding = .latin2
         let (tmp, ws) = try await setup(sshd, c)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("latin2") }
+        defer { ws.remotes.stop(); ws.remotes.keychain.delete("bezp-latin2") }
         try tmp.file("L/paczka/a€.txt", "euro")
         try tmp.file("L/paczka/b.txt", "b")
-        let fs = try await scp(ws, "latin2")
+        let fs = try await scp(ws, "bezp-latin2")
         let errors = try await upload(fs, [tmp.path.appending("L/paczka")], to: fs.root)
         #expect(errors.count == 1 && errors[0].hasPrefix("paczka/a€.txt:"), "\(errors)")
         #expect(try sshd.root.read("paczka/b.txt") == "b")
@@ -164,42 +166,42 @@ import Testing
     /// a agent nie rozłącza B, gdy A ma terminal.
     @Test func aliasesOfOneServerShareMasterSafely() async throws {
         let sshd = try TestSSHD()
-        let a = sshd.connection("serwer-a"), b = sshd.connection("serwer-b")
+        let a = sshd.connection("bezp-a"), b = sshd.connection("bezp-b")
         let (tmp, ws) = try await setup(sshd, a, b)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("serwer-a"); ws.remotes.keychain.delete("serwer-b") }
-        try await ws.invoke("remote.open", CommandArguments(["alias": "serwer-b", "terminal": false]))
-        try await ws.invoke("remote.terminal", CommandArguments(["alias": "serwer-a"]))
-        #expect(ws.right.tabs.contains { $0.terminal?.alias == "serwer-a" })
-        #expect(ws.remotes.aliasesSharingSession(with: "serwer-b") == ["serwer-a", "serwer-b"])
+        defer { ws.remotes.stop(); ws.remotes.keychain.delete("bezp-a"); ws.remotes.keychain.delete("bezp-b") }
+        try await ws.invoke("remote.open", CommandArguments(["alias": "bezp-b", "terminal": false]))
+        try await ws.invoke("remote.terminal", CommandArguments(["alias": "bezp-a"]))
+        #expect(ws.right.tabs.contains { $0.terminal?.alias == "bezp-a" })
+        #expect(ws.remotes.aliasesSharingSession(with: "bezp-b") == ["bezp-a", "bezp-b"])
 
         let gate = AllowAllGate()
         ws.agentGate = gate
         defer { withExtendedLifetime(gate) {} }
         await #expect(throws: (any Error).self) {
-            try await ws.invoke("remote.disconnect", CommandArguments(["alias": "serwer-b"]), invoker: .agent(sessionID: "t", agentName: "t"))
+            try await ws.invoke("remote.disconnect", CommandArguments(["alias": "bezp-b"]), invoker: .agent(sessionID: "t", agentName: "t"))
         }
-        #expect(ws.remotes.connected.contains("serwer-b"))
+        #expect(ws.remotes.connected.contains("bezp-b"))
 
-        try await ws.invoke("remote.disconnect", CommandArguments(["alias": "serwer-b"]))
-        #expect(!ws.remotes.connected.contains("serwer-b"))
+        try await ws.invoke("remote.disconnect", CommandArguments(["alias": "bezp-b"]))
+        #expect(!ws.remotes.connected.contains("bezp-b"))
         #expect(try ws.remotes.sshSession(a).isConnected, "połączenie główne terminala A nadal działa")
-        #expect(ws.right.tabs.contains { $0.terminal?.alias == "serwer-a" })
+        #expect(ws.right.tabs.contains { $0.terminal?.alias == "bezp-a" })
     }
 
     /// „Rozłącz” w trakcie łączenia: dostawca nie jest rejestrowany, połączenie główne nie zostaje.
     @Test func disconnectWhileConnectingCancels() async throws {
         let sshd = try TestSSHD()
-        let c = sshd.connection("aix")
+        let c = sshd.connection("bezp-aix")
         let (tmp, ws) = try await setup(sshd, c)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
-        let opening = Task { @MainActor in try await ws.remotes.provider("aix") }
-        while ws.remotes.connecting["aix"] == nil { await Task.yield() }
-        await ws.remotes.disconnect("aix")
+        defer { ws.remotes.stop(); ws.remotes.keychain.delete("bezp-aix") }
+        let opening = Task { @MainActor in try await ws.remotes.provider("bezp-aix") }
+        while ws.remotes.connecting["bezp-aix"] == nil { await Task.yield() }
+        await ws.remotes.disconnect("bezp-aix")
         await #expect(throws: (any Error).self) { _ = try await opening.value }
-        #expect(!ws.remotes.connected.contains("aix"))
-        #expect((try? ws.providers.provider(for: RemoteFS.providerID("aix"))) == nil)
+        #expect(!ws.remotes.connected.contains("bezp-aix"))
+        #expect((try? ws.providers.provider(for: RemoteFS.providerID("bezp-aix"))) == nil)
         #expect(!(try ws.remotes.sshSession(c).isConnected), "połączenie główne zamknięte")
     }
 
@@ -207,16 +209,16 @@ import Testing
     @Test func savingConnectionUnregistersOldProvider() async throws {
         let sshd = try TestSSHD()
         try sshd.root.dir("pod")
-        var c = sshd.connection("aix")
+        var c = sshd.connection("bezp-aix")
         let (tmp, ws) = try await setup(sshd, c)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
-        let old = try await scp(ws, "aix")
+        defer { ws.remotes.stop(); ws.remotes.keychain.delete("bezp-aix") }
+        let old = try await scp(ws, "bezp-aix")
         c.path = sshd.root.url.path + "/pod"
         try ws.remotes.save(c, secret: TestSSHD.passphrase)
-        #expect((try? ws.providers.provider(for: RemoteFS.providerID("aix"))) == nil)
+        #expect((try? ws.providers.provider(for: RemoteFS.providerID("bezp-aix"))) == nil)
         #expect(!old.session.isConnected)
-        let new = try await scp(ws, "aix")
+        let new = try await scp(ws, "bezp-aix")
         #expect(new !== old && new.base.hasSuffix("/pod"))
     }
 }
