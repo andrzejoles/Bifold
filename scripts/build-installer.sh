@@ -36,17 +36,6 @@ APP="$DIST/staging.noindex/$APP_NAME-$VERSION.app"
 rm -rf "$DIST/staging.noindex/$APP_NAME-"*.app
 mkdir -p "$DIST/staging.noindex"
 ditto "$SRC" "$APP"
-# Aplikacja jest tylko arm64, a Sparkle z pakietu SPM jest uniwersalny — bez x86_64 (~1,3 MB mniej).
-# Wycięcie psuje podpis Sparkle, ale signing.sh i tak podpisuje od nowa każdą jego część (XPC, Autoupdate,
-# Updater.app, framework) i sprawdza całość: codesign --verify --deep --strict.
-while IFS= read -r -d '' BIN; do
-    # Jedna architektura na wywołanie (kolejne lipo bierze za pliki wejściowe).
-    if lipo "$BIN" -verify_arch x86_64 2>/dev/null && lipo "$BIN" -verify_arch arm64 2>/dev/null; then
-        lipo "$BIN" -thin arm64 -output "$BIN.arm64"
-        chmod "$(stat -f %Lp "$BIN")" "$BIN.arm64"
-        mv -f "$BIN.arm64" "$BIN"
-    fi
-done < <(find "$APP/Contents/Frameworks/Sparkle.framework" -type f -perm +111 -print0)
 # Dane dewelopera nie mogą trafić do instalatora.
 LEAKED="$(find "$APP" \( -name "*.jsonl" -o -name "connections.json" -o -name "settings.json" -o -name "*.p12" -o -name "*.pem" \) -print)"
 [ -z "$LEAKED" ] || { echo "BŁĄD: w pakiecie są pliki z danymi: $LEAKED" >&2; exit 1; }
