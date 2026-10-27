@@ -63,6 +63,21 @@ public struct AgentActivity: Identifiable, Sendable {
     public var result: String?
 }
 
+extension AgentActivity {
+    /// Nazwa narzędzia do panelu aktywności (podaje ją agent) — znaki sterujące, bidi i separatory
+    /// wierszy jako `\u{…}`, jak w oknie zgody.
+    public var toolText: String { ApprovalText.sanitize(tool) }
+
+    /// Kolumna szczegółów panelu aktywności: argumenty i wynik (albo błąd), oczyszczone jak w oknie zgody —
+    /// nazwa pliku z U+202E albo U+2028 nie może udawać innej ścieżki ani dopisać fałszywego wiersza.
+    public var detailText: String {
+        switch status {
+        case .failed(let m): ApprovalText.sanitize(arguments + "  ⟶  " + m)
+        default: ApprovalText.sanitize(arguments + (result.map { "  ⟶  " + $0 } ?? ""))
+        }
+    }
+}
+
 /// Informacje o sesji dla interfejsu.
 public struct AgentSessionInfo: Identifiable, Sendable {
     public let id: String
@@ -357,15 +372,19 @@ public final class AgentController: AgentInvocationGate {
             let tab = panel.activeTab
             guard blocked.isBlocked(tab.path), let old = before.panels[side] else { continue }
             if tab.id == old.activeTab && tab.path == old.path { continue }
-            denied = tab.path
+            let previousExists = panel.tabs.contains { $0.id == old.activeTab }
             if !old.tabs.contains(tab.id) {
                 if let i = panel.tabs.firstIndex(where: { $0 === tab }) { _ = panel.closeTab(at: i) }
-                if panel.tabs.contains(where: { $0.id == old.activeTab }) { panel.selectTab(id: old.activeTab) }
+                if previousExists { panel.selectTab(id: old.activeTab) }
             } else if tab.id != old.activeTab {
-                if panel.tabs.contains(where: { $0.id == old.activeTab }) { panel.selectTab(id: old.activeTab) }
+                // Zamknięta karta agenta odsłoniła kartę użytkownika — nie ma czego cofać, a błąd po udanym
+                // zamknięciu mógłby skłonić agenta do zamykania kolejnych kart.
+                guard previousExists else { continue }
+                panel.selectTab(id: old.activeTab)
             } else {
                 try? await tab.navigate(to: old.path)
             }
+            denied = tab.path
         }
         if let denied { throw AgentDenial.blockedPath(denied.path) }
     }
