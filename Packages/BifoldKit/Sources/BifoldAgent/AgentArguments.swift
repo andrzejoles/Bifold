@@ -67,8 +67,18 @@ struct ArgumentFreezer {
         "sync.preview": ["source", "destination"], "sync.run": ["source", "destination"],
         "selection.calculateSizes": ["paths"],
     ]
-    /// Komendy, które obcinają spacje na brzegach ścieżki (wpisywanej w oknie).
-    static let trimmingCommands: Set<CommandID> = ["panel.navigate", "file.copy", "file.move"]
+    /// Komendy, które obcinają spacje na brzegach ścieżki (`transferRequest`: `.whitespaces`). Cel
+    /// `panel.navigate` liczy wspólna funkcja `Workspace.navigationText` (bramka i komenda).
+    static let trimmingCommands: Set<CommandID> = ["file.copy", "file.move"]
+
+    /// Znaki sterujące (C0, DEL, C1 — w tym U+0085) i separatory wierszy/akapitów (U+2028, U+2029)
+    /// w ścieżce od agenta. Komendy i okna różnie je obcinają (`.newlines` ≠ `.whitespaces`), więc
+    /// ścieżka „~/.ssh\n” mogła przejść bramkę jako inny katalog niż ten, który otworzyła komenda.
+    static func hasControlCharacters(_ raw: String) -> Bool {
+        raw.unicodeScalars.contains { s in
+            s.value < 0x20 || (0x7F...0x9F).contains(s.value) || s.value == 0x2028 || s.value == 0x2029
+        }
+    }
 
     var tab: Tab { workspace.activeTab }
     var other: Tab { workspace.otherTab }
@@ -106,6 +116,7 @@ struct ArgumentFreezer {
     /// interpretacja lokalna (`resolvePath`), którą zobaczyłaby komenda czytająca argument
     /// przez `CommandArguments.path`, żeby `nas:/../../.ssh` nie ominęło blokady.
     func resolve(_ raw: String, base: VFSPath, subtree: Bool) throws -> VFSPath {
+        if Self.hasControlCharacters(raw) { throw AgentDenial.controlCharacters }
         let parsed = workspace.parsePath(raw, relativeTo: base)
         if !parsed.isLocal {
             let local = resolvePath(raw, relativeTo: base.isLocal ? base : nil)
@@ -172,7 +183,6 @@ struct ArgumentFreezer {
         // 2. Pozostałe ścieżki jawne, każda względem bazy, której używa komenda.
         for p in d.parameters where p.type == .path {
             guard let original = input.string(p.name) else { continue }
-            let raw = trimmed(original)
             let base: VFSPath
             switch (id.rawValue, p.name) {
             case ("file.compare", "right"): base = other.path
@@ -181,6 +191,9 @@ struct ArgumentFreezer {
             case ("archive.create", "destination"): base = targets.first?.parent ?? tab.path
             default: base = tab.path
             }
+            if Self.hasControlCharacters(original) { throw AgentDenial.controlCharacters }
+            // Cel nawigacji — ta sama funkcja co w komendzie; zamrożona ścieżka nie jest już przycinana.
+            let raw = id == "panel.navigate" && p.name == "path" ? workspace.navigationText(original, relativeTo: base) : trimmed(original)
             let sub = Self.subtree(d, p.name)
             let path = try resolve(raw, base: base, subtree: sub)
             add(path, sub)

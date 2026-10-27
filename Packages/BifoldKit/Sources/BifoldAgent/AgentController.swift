@@ -308,8 +308,16 @@ public final class AgentController: AgentInvocationGate {
             return fail("unknown_tool", "unknown_tool: \(name)")
         }
 
+        let panelsBefore = PanelSnapshot(workspace)
         do {
-            let result = try await workspace.invoke(commandID, args, invoker: session!.invoker)
+            let result: CommandResult
+            do {
+                result = try await workspace.invoke(commandID, args, invoker: session!.invoker)
+            } catch {
+                try await revertBlockedNavigation(since: panelsBefore)
+                throw error
+            }
+            try await revertBlockedNavigation(since: panelsBefore)
             let text = result.value.map { $0.description } ?? result.message ?? "ok"
             // Odpowiedź większa niż ramka zabiłaby most — czytelny błąd zamiast rozłączenia.
             if text.utf8.count > Self.maxResponseBytes {
@@ -324,6 +332,31 @@ public final class AgentController: AgentInvocationGate {
             finish(.failed(error.localizedDescription), command: commandID, ["decision": "allowed", "error": .string(error.localizedDescription)])
             return self.error(error.localizedDescription)
         }
+    }
+
+    /// Obrona w głąb (SECURITY.md §4.5): jeśli wywołanie agenta (nawigacja, nowa karta, Wstecz/Dalej, wybór
+    /// karty…) zostawiło aktywną kartę w zablokowanym katalogu, w którym przed wywołaniem jej nie było —
+    /// stan karty jest przywracany, a agent dostaje `blocked_path`. Karty otwarte w zablokowanym katalogu
+    /// przez użytkownika zostają (agent widzi je jako „«zablokowana»”).
+    private func revertBlockedNavigation(since before: PanelSnapshot) async throws {
+        let blocked = BlockedPaths(for: workspace)
+        var denied: VFSPath?
+        for side in [PanelSide.left, .right] {
+            let panel = workspace.panel(side)
+            let tab = panel.activeTab
+            guard blocked.isBlocked(tab.path), let old = before.panels[side] else { continue }
+            if tab.id == old.activeTab && tab.path == old.path { continue }
+            denied = tab.path
+            if !old.tabs.contains(tab.id) {
+                if let i = panel.tabs.firstIndex(where: { $0 === tab }) { _ = panel.closeTab(at: i) }
+                if panel.tabs.contains(where: { $0.id == old.activeTab }) { panel.selectTab(id: old.activeTab) }
+            } else if tab.id != old.activeTab {
+                if panel.tabs.contains(where: { $0.id == old.activeTab }) { panel.selectTab(id: old.activeTab) }
+            } else {
+                try? await tab.navigate(to: old.path)
+            }
+        }
+        if let denied { throw AgentDenial.blockedPath(denied.path) }
     }
 
     private func error(_ message: String) -> CallTool.Result {
@@ -417,6 +450,27 @@ public final class AgentController: AgentInvocationGate {
         let decision = AgentPolicy.decide(level: effective, effect: d.effect)
         if case .deny(let why) = decision { throw AgentDenial.permissionDenied(why) }
         return decision
+    }
+}
+
+/// Karty paneli przed wywołaniem agenta (do cofnięcia nawigacji do zablokowanego katalogu).
+@MainActor
+struct PanelSnapshot {
+    struct State {
+        let activeTab: UUID
+        let tabs: Set<UUID>
+        let path: VFSPath
+    }
+
+    let panels: [PanelSide: State]
+
+    init(_ w: Workspace) {
+        var p: [PanelSide: State] = [:]
+        for side in [PanelSide.left, .right] {
+            let panel = w.panel(side)
+            p[side] = State(activeTab: panel.activeTab.id, tabs: Set(panel.tabs.map(\.id)), path: panel.activeTab.path)
+        }
+        panels = p
     }
 }
 
