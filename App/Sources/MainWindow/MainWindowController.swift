@@ -9,6 +9,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
     let services: AppUIServices
     let left: PanelViewController
     let right: PanelViewController
+    /// Wspólne dla obu paneli — ⌃U przenosi kartę-terminal z sesją do drugiego panelu.
+    private let panelTerminals: PanelTerminalRegistry
     private let panelsSplit = NSSplitView()
     private let verticalSplit = NSSplitView()
     /// Dolna część okna: terminal i panel agenta (każde może być ukryte).
@@ -29,8 +31,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
     init(workspace: Workspace, services: AppUIServices) {
         self.workspace = workspace
         self.services = services
-        left = PanelViewController(workspace: workspace, side: .left)
-        right = PanelViewController(workspace: workspace, side: .right)
+        panelTerminals = PanelTerminalRegistry(workspace: workspace)
+        left = PanelViewController(workspace: workspace, side: .left, terminals: panelTerminals)
+        right = PanelViewController(workspace: workspace, side: .right, terminals: panelTerminals)
         terminal = TerminalPane()
         commandLine = CommandLineBar(workspace: workspace)
         jobsBar = JobsBar(workspace: workspace)
@@ -211,6 +214,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSSplitV
 
     func windowWillClose(_ notification: Notification) {
         workspace.saveSession()
+        panelTerminals.stopAll()
     }
 }
 
