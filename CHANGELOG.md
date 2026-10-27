@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+## [2.4.0] – 2026-10-27
+
 ### Poprawione — przegląd kodu, część 4
 - Wyszukiwanie Spotlight z ukośnikiem wstecznym lub cudzysłowem (także od agenta) nie zamyka aplikacji.
 - Cmd+Z po opróżnieniu Kosza nie pokazuje w kółko tego samego konfliktu; starsze operacje znów da się

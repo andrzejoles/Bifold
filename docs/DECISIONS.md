@@ -357,7 +357,7 @@ Trzecia runda przeglądu: sześciu recenzentów (Core, serwery/urządzenia/pomoc
 stos/build) tylko do odczytu, potem sześciu wykonawców w osobnych worktree z rozłącznymi plikami;
 każde ustalenie weryfikowane testem przed poprawką. Dokumentację uzupełnia koordynator po scaleniu.
 
-### D55 · 2026-10-27 — Przegląd, część 4: cofanie, dziennik, nawigacja
+### D55 · 2026-10-27 — Przegląd, część 4: cofanie, dziennik, nawigacja (decyzja właściciela)
 Krok cofania, którego elementu już nie ma (`.missing`, np. opróżniony Kosz), liczy się jak wykonany —
 inaczej partia blokowała Cmd+Z na zawsze. Kopia katalogu zapisuje liczbę elementów poddrzewa (bez
 `.DS_Store`); inna liczba przy cofaniu to konflikt „zmieniony”. Dziennik przycinany przy starcie do 1000
@@ -368,7 +368,7 @@ zostają „⌨” i telefon. Martwe wpisy historii są usuwane przy Wstecz/Dale
 „czynność = komenda”, bo `sync.run` liczy plan od nowa). Widok kolumn trzyma tylko poziomy bieżącej
 ścieżki i widocznych kolumn, a dopóki w tle wczytuje się nowa lista — pokazuje dotychczasową.
 
-### D56 · 2026-10-27 — SCP: nadpisywanie przez plik tymczasowy, sesje po gnieździe, MTP po USB
+### D56 · 2026-10-27 — SCP: nadpisywanie przez plik tymczasowy, sesje po gnieździe, MTP po USB (decyzja właściciela)
 Nadpisywanie na SCP idzie przez plik tymczasowy w katalogu docelowym i `mv -f` (przerwanie nie psuje
 pliku); plik dostaje właściciela wysyłającego i prawa z kopii lokalnej, dowiązania twarde do starego pliku
 się rozłączają; bez prawa zapisu do katalogu — zapis w miejscu (nieatomowy, jak dawniej). Pobieranie tworzy
