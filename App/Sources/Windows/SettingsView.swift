@@ -185,12 +185,17 @@ private struct ColorRuleSettings: View {
             Text(L10n.tr("Reguły kolorowania plików — pierwsza pasująca reguła wygrywa. Warunki: olderThan / newerThan (amount, unit: minutes|hours|days|weeks|months|years, field: modified|created), largerThan / smallerThan (bytes), extensions (list), nameMask (mask), nameRegex (pattern), attribute (directory|file|symlink|hidden|executable|readOnly|locked, value). Styl: textColor, backgroundColor (#RRGGBB), bold, italic, strikethrough."))
                 .font(.caption).foregroundStyle(.secondary)
             List {
-                ForEach(Array(workspace.colorRules.rules.enumerated()), id: \.element.id) { index, rule in
+                // Wiązanie po identyfikatorze reguły, nie po indeksie — „Zastosuj JSON” z mniejszą liczbą reguł
+                // skracał tablicę, a SwiftUI odczytywał jeszcze wiersze znikających reguł (indeks poza zakresem).
+                ForEach(workspace.colorRules.rules) { rule in
                     HStack {
                         // Etykieta ukryta wizualnie, ale czytana przez VoiceOver.
                         Toggle(L10n.tr("Reguła włączona: \(rule.name.isEmpty ? L10n.tr("(bez nazwy)") : rule.name)"), isOn: Binding(
-                            get: { workspace.colorRules.rules[index].enabled },
-                            set: { workspace.colorRules.rules[index].enabled = $0 })).labelsHidden()
+                            get: { workspace.colorRules.rules.first { $0.id == rule.id }?.enabled ?? rule.enabled },
+                            set: { enabled in
+                                guard let index = workspace.colorRules.rules.firstIndex(where: { $0.id == rule.id }) else { return }
+                                workspace.colorRules.rules[index].enabled = enabled
+                            })).labelsHidden()
                         Text(rule.name.isEmpty ? L10n.tr("(bez nazwy)") : rule.name)
                             .foregroundStyle(rule.style.textColor.map { Color(nsColor: Theme.color($0)) } ?? .primary)
                             .bold(rule.style.bold).italic(rule.style.italic)
