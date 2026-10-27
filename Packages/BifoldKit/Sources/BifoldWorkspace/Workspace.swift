@@ -132,7 +132,10 @@ public final class Workspace {
             remotes.sshKnownHostsFile = sshDir.appending(path: "known_hosts").path
             remotes.sshConfigFile = sshDir.appending(path: "ssh_config").path
         }
-        for panel in [left, right] { panel.onTabClosed = { [weak self] in self?.pruneProviders() } }
+        for panel in [left, right] {
+            panel.onTabClosed = { [weak self] in self?.pruneProviders() }
+            panel.isKnownRemoteAlias = { [weak self] in self?.remotes.connection($0) != nil }
+        }
     }
 
     deinit {

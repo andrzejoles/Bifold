@@ -18,6 +18,10 @@ public final class Panel {
     @ObservationIgnored let providers: ProviderRegistry
     /// Wywoływane po zamknięciu karty (`Workspace` wyrejestrowuje wtedy nieużywane archiwa i wyniki).
     @ObservationIgnored var onTabClosed: (@MainActor () -> Void)?
+    /// Przekazywane kartom (`Tab.isKnownRemoteAlias`) — także nowym i przeniesionym przez ⌃U.
+    @ObservationIgnored var isKnownRemoteAlias: (@MainActor (String) -> Bool)? {
+        didSet { for tab in tabs { tab.isKnownRemoteAlias = isKnownRemoteAlias } }
+    }
 
     init(side: PanelSide, tabs: [Tab], activeTabIndex: Int = 0, showsTree: Bool = false, providers: ProviderRegistry) {
         precondition(!tabs.isEmpty)
@@ -34,6 +38,7 @@ public final class Panel {
     public func newTab(at path: VFSPath? = nil, activate: Bool = true) -> Tab {
         let current = activeTab
         let tab = Tab(path: path ?? current.path, viewMode: current.viewMode, sort: current.sort, showHidden: current.showHidden, providers: providers)
+        tab.isKnownRemoteAlias = isKnownRemoteAlias
         tabs.insert(tab, at: activeTabIndex + 1)
         if activate { activeTabIndex += 1 }
         return tab
@@ -67,6 +72,8 @@ public final class Panel {
         let mine = activeTab
         tabs[activeTabIndex] = other.activeTab
         other.tabs[other.activeTabIndex] = mine
+        activeTab.isKnownRemoteAlias = isKnownRemoteAlias
+        mine.isKnownRemoteAlias = other.isKnownRemoteAlias
     }
 }
 
