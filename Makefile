@@ -27,13 +27,16 @@ build:
 release:
 	./scripts/set-version.sh
 	$(XCODEBUILD) -configuration Release ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build -quiet
+	@$(MAKE) -s unregister >/dev/null
 
 test:
 	cd Packages/BifoldKit && swift test
 
-# Testy wydajności w konfiguracji Release (kryterium 100 000 plików < 1 s).
+# Testy ze ścisłymi limitami czasu (BIFOLD_PERF_STRICT=1) w konfiguracji Release: wydajność (100 000 plików
+# < 1 s) i terminy serwera agenta (AgentServerHardeningTests).
 test-release:
-	cd Packages/BifoldKit && BIFOLD_PERF_STRICT=1 swift test -c release -Xswiftc -enable-testing --filter PerformanceTests
+	cd Packages/BifoldKit && BIFOLD_PERF_STRICT=1 swift test -c release -Xswiftc -enable-testing \
+	  --filter 'PerformanceTests|AgentServerHardeningTests'
 
 run: build
 	open $(APP)

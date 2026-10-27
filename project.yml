@@ -6,6 +6,9 @@ options:
   developmentLanguage: pl
   createIntermediateGroups: true
   groupSortPosition: top
+  # Wersja Xcode, dla której projekt jest aktualny (LastUpgradeCheck/LastUpgradeVersion = 2700) — bez tego
+  # Xcode 27 proponuje „Update to recommended settings”, a ręczna zmiana i tak znika przy `make generate`.
+  xcodeVersion: "27.0"
 configFiles:
   Debug: Config/Brand.xcconfig
   Release: Config/Brand.xcconfig
@@ -23,6 +26,16 @@ settings:
     LOCALIZATION_PREFERS_STRING_CATALOGS: YES
     SWIFT_EMIT_LOC_STRINGS: YES
     DEAD_CODE_STRIPPING: YES
+    # Zalecane ustawienia Xcode 27 (jak w szablonie nowego projektu).
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    # Świadomie NO: kluczem tekstu jest polskie zdanie (L10n.tr), a pary typu „Nazwa”/„nazwa” czy
+    # „Kopiuj”/„Kopiuj…” dają ten sam symbol — generowanie kończy budowanie błędem.
+    STRING_CATALOG_GENERATE_SYMBOLS: NO
+    # Świadomie NO (Xcode zaleca YES): skrypty budowania wychodzą poza piaskownicę skryptów —
+    # build-hexfiend.sh uruchamia xcodebuild i pisze do ThirdParty/build, build-mtp-helper.sh pisze tam
+    # bifold-mtp i czyta libmtp z Homebrew, akcja wstępna schematu (set-version.sh) uruchamia git
+    # i zapisuje build/Version.xcconfig.
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
 packages:
   BifoldKit:
     path: Packages/BifoldKit
@@ -51,7 +64,6 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
-        ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
       - package: BifoldKit
         product: BifoldCore
@@ -86,7 +98,10 @@ targets:
           - $(SRCROOT)/scripts/build-hexfiend.sh
         outputFiles:
           - $(SRCROOT)/ThirdParty/build/HexFiend.framework/HexFiend
+      # Przy każdym budowaniu (skrypt sam sprawdza daty, także libmtp z Homebrew — po `brew upgrade libmtp`
+      # pomocnik musi powstać od nowa, a libmtp nie może być plikiem wejściowym: bez niej byłby błąd).
       - name: bifold-mtp
+        basedOnDependencyAnalysis: false
         script: "\"$SRCROOT/scripts/build-mtp-helper.sh\""
         inputFiles:
           - $(SRCROOT)/Tools/bifold-mtp/bifold-mtp.c
@@ -94,9 +109,10 @@ targets:
         outputFiles:
           - $(SRCROOT)/ThirdParty/build/bifold-mtp
     postBuildScripts:
-      # Wejściem jest źródło, nie zbudowany pomocnik — bez libmtp pomocnika nie ma, a brak pliku
-      # wejściowego byłby błędem budowania.
+      # Przy każdym budowaniu, ale kopiuje tylko nowszego pomocnika (embed-mtp-helper.sh). Zbudowany
+      # pomocnik nie może być plikiem wejściowym — bez libmtp go nie ma, a brak pliku byłby błędem.
       - name: Wbuduj bifold-mtp
+        basedOnDependencyAnalysis: false
         script: "\"$SRCROOT/scripts/embed-mtp-helper.sh\""
         inputFiles:
           - $(SRCROOT)/Tools/bifold-mtp/bifold-mtp.c
