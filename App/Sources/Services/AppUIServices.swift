@@ -415,3 +415,20 @@ final class OpenWithTarget: NSObject {
         NSWorkspace.shared.open(p.files, withApplicationAt: p.app, configuration: NSWorkspace.OpenConfiguration())
     }
 }
+
+extension Workspace {
+    /// Otwiera katalog przez `open(_:in:focus:)` (karta zachowuje swoją maszynę — D52) i pokazuje błąd
+    /// jak komenda wywołana z menu; anulowanie bez komunikatu. Dla nawigacji z widoków (drzewo, pasek
+    /// ścieżki, kolumny), które nie przechodzą przez tekstowy argument `panel.navigate`.
+    @discardableResult
+    func openReportingError(_ target: VFSPath, in panel: Panel, focus: String? = nil) async -> BifoldWorkspace.Tab? {
+        do {
+            return try await open(target, in: panel, focus: focus)
+        } catch CommandError.cancelledByUser {
+        } catch VFSError.cancelled {
+        } catch {
+            ui?.showError(error.localizedDescription)
+        }
+        return nil
+    }
+}

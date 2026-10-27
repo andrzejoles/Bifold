@@ -80,7 +80,16 @@ final class SearchModel {
 
     func goToSelected() {
         guard let p = selection, let parent = p.parent else { return }
-        Task { try? await workspace.activeTab.navigate(to: parent, focus: p.name) }
+        // Przez `Workspace.open` — karta serwera albo terminala nie zmienia maszyny (D52); błąd w oknie.
+        Task {
+            do {
+                try await workspace.open(parent, in: workspace.activePanel, focus: p.name)
+            } catch CommandError.cancelledByUser {
+            } catch VFSError.cancelled {
+            } catch {
+                status = "⚠︎ " + error.localizedDescription
+            }
+        }
     }
 
     func save() {

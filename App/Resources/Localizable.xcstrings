@@ -507,6 +507,35 @@
         }
       }
     },
+    "(cofnięto)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(undone)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(rückgängig gemacht)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(deshecho)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(скасовано)"
+          }
+        }
+      }
+    },
     "(limit)": {
       "extractionState": "manual",
       "localizations": {
@@ -24858,6 +24887,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "чекає на згоду"
+          }
+        }
+      }
+    },
+    "częściowo cofnięta": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "partially undone"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "teilweise rückgängig gemacht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "deshecha parcialmente"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "частково скасована"
           }
         }
       }
