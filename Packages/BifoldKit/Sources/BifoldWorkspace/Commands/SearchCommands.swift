@@ -51,6 +51,11 @@ extension CommandContext {
             guard let d = iso.date(from: s) else { throw CommandError.invalidArgument(key, "ISO 8601") }
             return d
         }
+        // Wzorzec odrzucony (zbyt złożony, zbyt długi) albo niepoprawny to błąd, nie „0 wyników”.
+        if let pattern = a.string("nameRegex"), !pattern.isEmpty {
+            let regex = NameRegex(pattern)
+            guard regex.isValid else { throw CommandError.invalidArgument("nameRegex", regex.problem ?? pattern) }
+        }
         return SearchCriteria(
             roots: searchRoots(),
             nameMask: a.string("nameMask") ?? "",

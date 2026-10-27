@@ -4496,6 +4496,35 @@
         }
       }
     },
+    "Identyfikator partii z dziennika (domyślnie ostatnia cofalna)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Journal batch identifier (default: last undoable)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kennung des Journal-Stapels (Standard: der letzte rückgängig machbare)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identificador del lote del registro (predeterminado: el último que se puede deshacer)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ідентифікатор партії з журналу (типово остання, яку можна скасувати)"
+          }
+        }
+      }
+    },
     "Identyfikator urządzenia (domyślnie pierwsze)": {
       "extractionState": "manual",
       "localizations": {

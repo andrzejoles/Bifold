@@ -35,20 +35,25 @@ var editCommands: [Command] { [
     Command(
         CommandDescriptor(
             id: "edit.undo", title: L10n.tr("Cofnij operację"), category: .edit, tc: ["cmd+z"],
+            parameters: [CommandParameter("batch", .string, L10n.tr("Identyfikator partii z dziennika (domyślnie ostatnia cofalna)"))],
             agent: .approval, effect: .modifiesFiles,
             summary: L10n.tr("Cofa ostatnią operację na plikach (przeniesienie, zmianę nazwy, Kosz, utworzenie, kopię, atrybuty, tagi). Agent cofa tylko własne operacje.")),
         preview: { @MainActor ctx in
-            guard let plan = await undoPlan(ctx) else { return EffectPreview(summary: L10n.tr("Nie ma czego cofać")) }
+            guard let plan = try await undoPlan(ctx) else { return EffectPreview(summary: L10n.tr("Nie ma czego cofać")) }
             return EffectPreview(summary: L10n.tr("Cofnięcie: \(undoTitle(ctx) ?? "")"), operations: plan.steps.map(\.preview),
                                  fileCount: plan.steps.count, conflicts: plan.conflicts.map(\.message))
         }
     ) { ctx in
-        guard let plan = await undoPlan(ctx), !plan.isEmpty else { return CommandResult(message: L10n.tr("Nie ma czego cofać")) }
+        guard let plan = try await undoPlan(ctx), !plan.isEmpty else { return CommandResult(message: L10n.tr("Nie ma czego cofać")) }
         var force = false
         if !ctx.isAgent, !plan.conflicts.isEmpty {
             let answer = try await ctx.requireUI().confirmUndo(plan, title: undoTitle(ctx) ?? "")
             guard answer.proceed else { throw CommandError.cancelledByUser }
             force = answer.force
+        }
+        // W czasie planowania i pytania partię mógł cofnąć ktoś inny (Cmd+Z, okno dziennika).
+        guard plan.batches.allSatisfy({ ctx.workspace.journal.batch($0)?.isUndoable == true }) else {
+            return CommandResult(message: L10n.tr("Nie ma czego cofać"))
         }
         let result = await ctx.workspace.fileOps.execute(plan, force: force)
         await ctx.workspace.left.activeTab.reload()
@@ -68,18 +73,28 @@ var editCommands: [Command] { [
     },
 ] }
 
+/// Partia do cofnięcia: podana argumentem `batch` (okno dziennika) albo ostatnia cofalna. Agent tylko
+/// własne partie; podana, a nieistniejąca lub już niecofalna partia to brak czego cofać.
+@MainActor
+private func undoBatch(_ ctx: CommandContext) throws -> JournalBatch? {
+    let session = ctx.invoker.agentSessionID
+    let own: (JournalBatch) -> Bool = { session == nil || $0.invoker.agentSessionID == session }
+    guard let raw = ctx.arguments.string("batch") else { return ctx.workspace.journal.lastUndoable(where: own) }
+    guard let id = UUID(uuidString: raw) else { throw CommandError.invalidArgument("batch", raw) }
+    guard let batch = ctx.workspace.journal.batch(id), batch.isUndoable, own(batch) else { return nil }
+    return batch
+}
+
 /// Plan cofnięcia (sprawdzanie dysku poza wątkiem głównym — duże operacje nie zamrażają okna).
 @MainActor
-private func undoPlan(_ ctx: CommandContext) async -> UndoPlan? {
-    let session = ctx.invoker.agentSessionID
-    guard let batch = ctx.workspace.journal.lastUndoable(where: { session == nil || $0.invoker.agentSessionID == session }) else { return nil }
+private func undoPlan(_ ctx: CommandContext) async throws -> UndoPlan? {
+    guard let batch = try undoBatch(ctx) else { return nil }
     return try? await runBlocking(qos: .userInitiated) { UndoPlanner.plan(for: [batch]) }
 }
 
 @MainActor
 private func undoTitle(_ ctx: CommandContext) -> String? {
-    let session = ctx.invoker.agentSessionID
-    return ctx.workspace.journal.lastUndoable { session == nil || $0.invoker.agentSessionID == session }?.title
+    (try? undoBatch(ctx))?.title
 }
 
 /// Zadania z argumentu `job`; bez argumentu — wszystkie aktywne. Podany, a nieznaleziony identyfikator

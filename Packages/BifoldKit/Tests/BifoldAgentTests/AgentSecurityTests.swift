@@ -219,7 +219,7 @@ import Testing
         #expect(try await client.call("set_tags", ["paths": [docs + "/B.md"], "tags": ["Czerwony"]]).1 == false)
         #expect(try tree(env.tmp.url) != snapshot)
 
-        let plan = env.workspace.fileOps.undoPlan(forAgentSession: session.id)
+        let plan = await env.workspace.fileOps.planUndo(forAgentSession: session.id)
         #expect(plan.conflicts.isEmpty)
         let result = await env.workspace.fileOps.execute(plan)
         #expect(result.errors.isEmpty)

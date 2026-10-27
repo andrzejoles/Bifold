@@ -182,7 +182,7 @@ import Testing
         // Operacja użytkownika w tym czasie nie jest cofana.
         try await ops.makeDirectory(tmp.path.appending("user-dir"))
 
-        let plan = ops.undoPlan(forAgentSession: "S1")
+        let plan = await ops.planUndo(forAgentSession: "S1")
         #expect(plan.conflicts.isEmpty)
         let result = await ops.execute(plan)
         #expect(result.errors.isEmpty)

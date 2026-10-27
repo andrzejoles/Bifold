@@ -50,11 +50,6 @@ public struct SearchCriteria: Codable, Sendable, Hashable {
     }
 
     var hasContentSearch: Bool { !contentText.isEmpty }
-
-    /// Warunki niezależne od treści (pojedyncze sprawdzenie; przy przeglądaniu — `MetadataMatcher`).
-    func matchesMetadata(_ item: FileItem) -> Bool {
-        MetadataMatcher(self).matches(item)
-    }
 }
 
 /// Warunki niezależne od treści z maską/wyrażeniem skompilowanym raz na całe wyszukiwanie

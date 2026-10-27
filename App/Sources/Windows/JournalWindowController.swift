@@ -162,7 +162,7 @@ final class JournalWindowController: NSWindowController, NSWindowDelegate, NSTab
         guard !undoing, table.selectedRow >= 0, table.selectedRow < batches.count else { return }
         // Partia świeżo z dziennika, nie z migawki listy (mogła zostać cofnięta Cmd+Z w oknie głównym).
         let id = batches[table.selectedRow].id
-        guard let batch = workspace.journal.batch(id), batch.isUndoable else {
+        guard workspace.journal.batch(id)?.isUndoable == true else {
             reload()
             return
         }
@@ -173,21 +173,16 @@ final class JournalWindowController: NSWindowController, NSWindowDelegate, NSTab
                 undoing = false
                 reload()
             }
-            // Plan poza wątkiem głównym (duże operacje nie zamrażają okna).
-            guard let plan = try? await runBlocking(qos: .userInitiated, { UndoPlanner.plan(for: [batch]) }) else { return }
-            var force = false
-            if !plan.conflicts.isEmpty, let ui = workspace.ui {
-                let answer = await ui.confirmUndo(plan, title: batch.title)
-                guard answer.proceed else { return }
-                force = answer.force
+            // Przez komendę „Cofnij operację” z identyfikatorem partii — plan, pytanie o konflikty i odświeżenie
+            // paneli jak przy Cmd+Z (komenda sama sprawdza, czy partia jest nadal cofalna).
+            do {
+                let result = try await workspace.invoke("edit.undo", CommandArguments(["batch": .string(id.uuidString)]))
+                if let message = result.message { workspace.setStatus(message) }
+            } catch CommandError.cancelledByUser {
+            } catch VFSError.cancelled {
+            } catch {
+                workspace.ui?.showError(error.localizedDescription)
             }
-            // W czasie planowania i pytania partię mógł cofnąć Cmd+Z w oknie głównym.
-            guard workspace.journal.batch(id)?.isUndoable == true else { return }
-            let result = await workspace.fileOps.execute(plan, force: force)
-            workspace.setStatus(L10n.tr("Cofnięto: \(result.performed), pominięto: \(result.skipped.count), błędy: \(result.errors.count)"))
-            // Jak komenda „Cofnij operację” — panele pokazują stan po cofnięciu.
-            await workspace.left.activeTab.reload()
-            await workspace.right.activeTab.reload()
         }
     }
 }

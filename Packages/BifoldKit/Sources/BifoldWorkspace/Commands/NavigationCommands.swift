@@ -69,7 +69,9 @@ var navigationCommands: [Command] { [
         } else if item.path.isLocal, item.kind == .file, ArchiveFS.isArchive(item.name), ctx.workspace.settings.toolPath("7zz") != nil {
             try await ctx.workspace.enterArchive(item.path, in: ctx.tab)
         } else if !item.path.isLocal {
-            let local = try await ctx.workspace.materialize(item)
+            // Kopia zostaje po zamknięciu Bifolda (jak przy F4) — inna aplikacja może ją jeszcze trzymać;
+            // stare kopie usuwa start po dobie.
+            let local = try await ctx.workspace.materialize(item, removeOnExit: false)
             if let url = local.path.url { try ctx.requireUI().openWithDefaultApp([url]) }
         } else if let url = item.path.url {
             try ctx.requireUI().openWithDefaultApp([url])

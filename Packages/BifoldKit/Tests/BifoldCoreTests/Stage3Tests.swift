@@ -338,13 +338,11 @@ let rg: String? = ["/opt/homebrew/bin/rg", "/usr/local/bin/rg"].first { FileMana
         _ = stream
     }
 
-    /// Maska i wyrażenie skompilowane raz dają te same wyniki co pojedyncze sprawdzenie.
+    /// Maska i wyrażenie skompilowane raz na całe wyszukiwanie (wielkość liter wg kryteriów).
     @Test func matcherMatchesCriteria() {
         let item = FileItem(path: .local("/x/Raport-2024.TXT"), kind: .file, size: 10)
-        for c in [SearchCriteria(roots: [], nameMask: "*.txt"), SearchCriteria(roots: [], nameRegex: "^raport-\\d+"),
-                  SearchCriteria(roots: [], nameRegex: "^raport", caseSensitive: true), SearchCriteria(roots: [], nameMask: "*.pdf")] {
-            #expect(MetadataMatcher(c).matches(item) == c.matchesMetadata(item))
-        }
+        #expect(MetadataMatcher(SearchCriteria(roots: [], nameRegex: "^raport-\\d+")).matches(item))
+        #expect(!MetadataMatcher(SearchCriteria(roots: [], nameMask: "*.pdf")).matches(item))
         #expect(MetadataMatcher(SearchCriteria(roots: [], nameMask: "*.txt")).matches(item))
         #expect(!MetadataMatcher(SearchCriteria(roots: [], nameRegex: "^raport", caseSensitive: true)).matches(item))
     }

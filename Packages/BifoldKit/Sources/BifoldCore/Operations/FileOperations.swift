@@ -76,12 +76,7 @@ public struct FileOperations: Sendable {
         }
     }
 
-    /// Plan cofnięcia całej sesji agenta.
-    public func undoPlan(forAgentSession sessionID: String) -> UndoPlan {
-        UndoPlanner.plan(for: journal.batches(forAgentSession: sessionID))
-    }
-
-    /// Jak `undoPlan(forAgentSession:)`, ale sprawdzanie dysku poza wątkiem głównym.
+    /// Plan cofnięcia całej sesji agenta (sprawdzanie dysku poza wątkiem głównym).
     public func planUndo(forAgentSession sessionID: String) async -> UndoPlan {
         let batches = journal.batches(forAgentSession: sessionID)
         return (try? await runBlocking { UndoPlanner.plan(for: batches) }) ?? UndoPlan(batches: [], steps: [])

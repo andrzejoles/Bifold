@@ -84,7 +84,11 @@ var viewCommands: [Command] { [
         agent: .read, effect: .uiState, summary: L10n.tr("Otwiera Quick Look dla zaznaczonych elementów."))
     ) { ctx in
         var items: [FileItem] = []
-        for item in try ctx.targets(allowNonLocal: true) { items.append(try await ctx.workspace.materialize(item)) }
+        // Katalogi spoza dysku lokalnego (serwer, telefon, archiwum) są pomijane — nie pobieramy całych drzew.
+        for item in try ctx.targets(allowNonLocal: true) where item.path.isLocal || !item.isNavigable {
+            items.append(try await ctx.workspace.materialize(item))
+        }
+        guard !items.isEmpty else { throw CommandError.notAvailable(L10n.tr("Katalogu spoza dysku lokalnego nie można otworzyć jak pliku")) }
         try ctx.requireUI().toggleQuickLook(items)
         return .ok
     },
