@@ -108,6 +108,9 @@ final class ColumnListView: NSView, FileListView {
         defer { programmatic = false }
         var node = root
         for (column, name) in comps.enumerated() {
+            // `reloadColumn` ustawia przeładowaną kolumnę jako ostatnią (zachowując w niej zaznaczenie) —
+            // kolumny dalej trzeba dodać, zanim zaznaczy się w nich wiersz.
+            guard column <= browser.lastColumn else { break }
             // Poziom jeszcze się wczytuje — dokończy `loaded(_:)`.
             guard let children = node.loadedChildren(showHidden: tab.showHidden) else { return }
             guard let row = children.firstIndex(where: { $0.name == name }) else { break }
@@ -115,8 +118,9 @@ final class ColumnListView: NSView, FileListView {
                 browser.selectRow(row, inColumn: column)
             }
             node = children[row]
+            if column + 1 < comps.count, node.isDirectory, browser.lastColumn == column { browser.addColumn() }
         }
-        browser.scrollColumnToVisible(max(0, comps.count - 1))
+        browser.scrollColumnToVisible(min(browser.lastColumn, max(0, comps.count - 1)))
     }
 
     /// Oznaczenia i reguły kolorów — ponowne ustawienie komórek widocznych kolumn (w bardzo długiej
@@ -192,8 +196,10 @@ final class ColumnListView: NSView, FileListView {
             workspace.perform("panel.open")
         } else if let panel = controller?.panel {
             Task {
+                // „panel.open” działa na aktywnej karcie — w czasie wczytywania mogła się zmienić
+                // (Tab, kliknięcie w drugi panel); wtedy otwarty zostałby element drugiego panelu.
                 guard let opened = await workspace.openReportingError(parent, in: panel, focus: node.name),
-                      opened.cursor == node.path else { return }
+                      workspace.activeTab === opened, opened.cursor == node.path else { return }
                 workspace.perform("panel.open")
             }
         }
