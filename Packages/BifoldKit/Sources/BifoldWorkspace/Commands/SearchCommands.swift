@@ -329,9 +329,14 @@ var searchCommands: [Command] { [
         guard !sumFiles.isEmpty else { throw CommandError.notAvailable(L10n.tr("Zaznacz plik sum (.md5, .sha1, .sha256)")) }
         var lines: [String] = []
         var json: [JSONValue] = []
+        let blocked = ctx.isAgent ? BlockedPaths(for: ctx.workspace) : nil
         for f in sumFiles {
             let results = try await runBlocking(qos: .userInitiated) { try Checksums.verify(checksumFile: f.path) }
-            for r in results {
+            let base = f.path.parent ?? .root
+            for var r in results {
+                // Dla agenta wpis wskazujący zablokowany plik (np. `.ssh/id_ed25519` w pliku sum w `~`) to
+                // `invalid` — `ok`/`mismatch`/`missing` byłyby wyrocznią treści i istnienia (SECURITY.md §4.5).
+                if let blocked, blocked.isBlocked(r.path.hasPrefix("/") ? r.path : base.path + "/" + r.path) { r.status = .invalid }
                 lines.append("\(r.status == .ok ? "✓" : "✕") \(r.status.rawValue)  \(r.path)")
                 json.append(["path": .string(r.path), "status": .string(r.status.rawValue)])
             }
@@ -339,7 +344,8 @@ var searchCommands: [Command] { [
         let bad = json.filter { $0["status"]?.stringValue != "ok" }.count
         let text = L10n.tr("Błędy: \(bad) z \(json.count)") + "\n" + lines.joined(separator: "\n")
         if !ctx.isAgent { ctx.ui?.showReport(title: L10n.tr("Weryfikacja sum"), text: text) }
-        return CommandResult(message: text, value: .array(json))
+        // Ścieżki wpisów pochodzą z pliku (SECURITY.md §4.6).
+        return CommandResult(message: text, value: ctx.isAgent ? untrusted(.array(json)) : .array(json))
     },
 
     Command(

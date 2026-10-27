@@ -79,6 +79,11 @@ extension CommandContext {
             throw CommandError.invalidArgument("mode", SyncMode.allCases.map(\.rawValue).joined(separator: " | "))
         }
         guard source != destination else { throw CommandError.notAvailable(L10n.tr("Źródło i cel są tym samym katalogiem")) }
+        // Karta archiwum, wyników wyszukiwania albo telefonu ma ścieżkę wewnętrzną (`/`, `/docs`), która
+        // zapisana tekstem wskazywałaby katalog na dysku (lustro z `/` = cały dysk).
+        for end in [source, destination] where !end.isLocal && RemoteFS.alias(of: end) == nil {
+            throw CommandError.notAvailable(L10n.tr("Synchronizacja działa dla katalogów lokalnych i serwerów"))
+        }
         return (source, destination, mode)
     }
 
@@ -148,10 +153,11 @@ var syncCommands: [Command] { [
                                          "firstDifference": r.firstDifference.map { .int($0) } ?? .null, "differingBytes": .int(r.differingBytes)])
         }
         let r = FileCompare.text(TextDecoding.decode(da, as: TextDecoding.detect(da)), TextDecoding.decode(db, as: TextDecoding.detect(db)))
-        return CommandResult(value: [
-            "untrusted": true, "identical": .bool(r.identical), "removed": .int(Int64(r.removed)), "added": .int(Int64(r.added)),
+        // Różnice to treść plików (SECURITY.md §4.6).
+        return CommandResult(value: untrusted([
+            "identical": .bool(r.identical), "removed": .int(Int64(r.removed)), "added": .int(Int64(r.added)),
             "diff": .string(FileCompare.unified(r, leftName: a.name, rightName: b.name)),
-        ])
+        ]))
     },
 
     Command(CommandDescriptor(
@@ -162,16 +168,20 @@ var syncCommands: [Command] { [
     ) { ctx in
         let left = ctx.workspace.left.activeTab, right = ctx.workspace.right.activeTab
         let byContent = ctx.arguments.bool("byContent") ?? false
-        let l = left.items, r = right.items
+        // Dla agenta zablokowane pliki (np. ~/.netrc) nie trafiają do wyniku ani zaznaczenia, a ich treść nie
+        // jest porównywana (SECURITY.md §4.5) — inaczej porównanie `~` ujawniałoby nazwy i równość treści.
+        let blocked = ctx.isAgent ? BlockedPaths(for: ctx.workspace) : nil
+        let l = left.items.filter { blocked?.isBlocked($0.path) != true }, r = right.items.filter { blocked?.isBlocked($0.path) != true }
         let result = byContent ? try await runBlocking(qos: .userInitiated) { DirectoryCompare.compare(left: l, right: r, byContent: true) }
             : DirectoryCompare.compare(left: l, right: r)
         left.setSelection(Set(result.markLeft.map { left.path.appending($0) }))
         right.setSelection(Set(result.markRight.map { right.path.appending($0) }))
         func arr(_ a: [String]) -> JSONValue { .array(a.map { .string($0) }) }
+        let value: JSONValue = ["onlyLeft": arr(result.onlyLeft), "onlyRight": arr(result.onlyRight), "newerLeft": arr(result.newerLeft),
+                                "newerRight": arr(result.newerRight), "different": arr(result.different), "identical": .int(Int64(result.identical))]
         return CommandResult(
             message: L10n.tr("Różnice: \(result.markLeft.count) po lewej, \(result.markRight.count) po prawej; identycznych: \(result.identical)"),
-            value: ["onlyLeft": arr(result.onlyLeft), "onlyRight": arr(result.onlyRight), "newerLeft": arr(result.newerLeft),
-                    "newerRight": arr(result.newerRight), "different": arr(result.different), "identical": .int(Int64(result.identical))])
+            value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(
@@ -222,7 +232,10 @@ var syncCommands: [Command] { [
         id: "sync.listSaved", title: L10n.tr("Zapisane zadania synchronizacji"), category: .tools,
         agent: .read, effect: .none, summary: L10n.tr("Lista zapisanych zadań synchronizacji."), inMenu: false)
     ) { ctx in
-        CommandResult(value: .array(ctx.workspace.syncJobs.map { ["name": .string($0.name), "source": .string($0.source), "destination": .string($0.destination), "mode": .string($0.mode.rawValue)] }))
+        CommandResult(value: .array(ctx.workspace.syncJobs.map {
+            ["name": .string($0.name), "source": .string($0.source), "destination": .string($0.destination), "mode": .string($0.mode.rawValue),
+             "exclude": .array($0.exclude.map { .string($0) })]
+        }))
     },
 
     Command(

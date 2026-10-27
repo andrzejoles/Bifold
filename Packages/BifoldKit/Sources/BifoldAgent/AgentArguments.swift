@@ -3,7 +3,8 @@ import BifoldWorkspace
 import Foundation
 
 /// Zasób wywołania agenta: ścieżka i to, czy operacja obejmuje całe jej poddrzewo (kopiowanie,
-/// przenoszenie, Kosz, archiwum, synchronizacja). Zasób-poddrzewo nie może zawierać zablokowanej ścieżki.
+/// przenoszenie, Kosz, archiwum, synchronizacja, rozmiar katalogu). Zasób-poddrzewo nie może zawierać
+/// zablokowanej ścieżki.
 struct AgentResource: Equatable, Sendable {
     let path: VFSPath
     let subtree: Bool
@@ -57,12 +58,24 @@ struct ArgumentFreezer {
     let blocked: BlockedPaths
 
     static let searchCommands: Set<CommandID> = ["search.find", "search.save", "search.spotlight", "search.duplicates"]
-    static let recursiveReadCommands: Set<CommandID> = ["sync.preview", "sync.run"]
+    /// Komendy czytające rekurencyjnie poddrzewo argumentu (bez zmian w plikach): argumenty, których
+    /// poddrzewo czytają. Rozmiar i liczba plików `~` obejmowałyby `~/.ssh` (SECURITY.md §4.5).
+    /// Pozostałe odczyty nie schodzą w głąb: `dirs.compare` porównuje tylko pliki w obu katalogach
+    /// (zablokowane odfiltrowuje komenda), `file.checksumVerify` czyta wpisy pliku sum (zablokowane →
+    /// `invalid` w komendzie), `archive.list`/`archive.test` — jeden plik, wyszukiwanie — wyniki filtrowane.
+    static let recursiveReadCommands: [CommandID: Set<String>] = [
+        "sync.preview": ["source", "destination"], "sync.run": ["source", "destination"],
+        "selection.calculateSizes": ["paths"],
+    ]
     /// Komendy, które obcinają spacje na brzegach ścieżki (wpisywanej w oknie).
     static let trimmingCommands: Set<CommandID> = ["panel.navigate", "file.copy", "file.move"]
 
     var tab: Tab { workspace.activeTab }
     var other: Tab { workspace.otherTab }
+    /// Baza względnego celu kopiowania/przenoszenia — jak `CommandContext.localBaseDirectory` w komendzie:
+    /// lokalny katalog aktywnego panelu, inaczej drugiego (dla ścieżki nielokalnej `parsePath` liczy
+    /// od `/`, jak `resolvePath(_, relativeTo: nil)` w komendzie).
+    var transferBase: VFSPath { tab.path.isLocal ? tab.path : other.path }
 
     /// Tekst ścieżki, który `parsePath` i (dla ścieżek lokalnych) `resolvePath` rozumieją tak samo,
     /// niezależnie od bazy. `nil` — ścieżki nie da się zapisać tekstem (archiwum, telefon, wyniki).
@@ -82,7 +95,7 @@ struct ArgumentFreezer {
 
     /// Czy dany argument ścieżkowy obejmuje całe poddrzewo.
     static func subtree(_ d: CommandDescriptor, _ param: String) -> Bool {
-        if recursiveReadCommands.contains(d.id) { return param == "source" || param == "destination" }
+        if let params = recursiveReadCommands[d.id] { return params.contains(param) }
         guard d.effect == .modifiesFiles else { return false }
         if ["file.copy", "file.move"].contains(d.id), param == "destination" { return false }
         if d.id == "file.split", param == "destination" { return false }
@@ -162,7 +175,8 @@ struct ArgumentFreezer {
             let raw = trimmed(original)
             let base: VFSPath
             switch (id.rawValue, p.name) {
-            case ("file.compare", "right"), ("file.copy", "destination"), ("file.move", "destination"): base = other.path
+            case ("file.compare", "right"): base = other.path
+            case ("file.copy", "destination"), ("file.move", "destination"): base = transferBase
             case ("panel.navigate", "path"): base = sideTab(input).path
             case ("archive.create", "destination"): base = targets.first?.parent ?? tab.path
             default: base = tab.path
@@ -186,7 +200,7 @@ struct ArgumentFreezer {
                 set("destination", other.path)
             }
             if let raw = call.arguments.string("destination") {
-                let dest = workspace.parsePath(raw, relativeTo: other.path)
+                let dest = workspace.parsePath(raw, relativeTo: transferBase)
                 let isDir = dest.isLocal ? ((try? LocalFS().itemSync(at: dest))?.isNavigable ?? false) : true
                 if isDir || raw.hasSuffix("/") || targets.count > 1 {
                     // Element ląduje jako `cel/nazwa` — także całe jego poddrzewo (np. katalog „.ssh” do ~).

@@ -32,8 +32,9 @@ extension Workspace {
         let fs = try await openArchive(archive, invoker: invoker)
         registerEphemeral(fs)
         defer { unpinEphemeral(fs.id) }
+        // Tytuł „📦 …” wylicza karta — przy wygranej nowszej nawigacji (D47) nie trafia do karty,
+        // która jest już gdzie indziej.
         try await tab.navigate(to: fs.root)
-        tab.customTitle = "📦 " + archive.name
     }
 
     /// Plik z archiwum, serwera albo telefonu skopiowany do katalogu tymczasowego (podgląd, Quick Look,
@@ -44,25 +45,34 @@ extension Workspace {
         if let remote = provider as? any RemoteFileProvider {
             return try LocalFS().itemSync(at: .local(try await remote.download(item.path)))
         }
+        let archive = provider as? ArchiveFS, device = provider as? any ExtractingProvider
+        guard archive != nil || device != nil else { throw VFSError.unsupported(item.path.description) }
         let dir = FileManager.default.temporaryDirectory.appending(path: "bifold-view-\(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        if let fs = provider as? ArchiveFS {
-            // Rozpakowanie jednego wpisu wprost do pliku (bez wczytywania go całego do pamięci).
+        // Przy błędzie albo anulowaniu katalog tymczasowy nie zostaje.
+        do {
             let path = item.path, target = VFSPath.local(dir.path)
-            let local = try await runBlocking(qos: .userInitiated) { try fs.extractFile(path, to: target) }
-            return try LocalFS().itemSync(at: local)
-        }
-        if let device = provider as? any ExtractingProvider {
-            // Telefon (AFC/MTP): kopia przez katalog tymczasowy jak przy kopiowaniu F5.
-            let path = item.path
-            let (_, extracted) = try await runBlocking(qos: .userInitiated) {
-                try device.extract([path], toTemporaryIn: .local(dir), isCancelled: { false })
+            let flag = CancellationFlag()
+            let local: VFSPath = try await withTaskCancellationHandler {
+                try await runBlocking(qos: .userInitiated) { () throws -> VFSPath in
+                    if let archive {
+                        // Rozpakowanie jednego wpisu wprost do pliku (bez wczytywania go całego do pamięci).
+                        return try archive.extractFile(path, to: target, isCancelled: { flag.isCancelled })
+                    }
+                    // Telefon (AFC/MTP): kopia przez katalog tymczasowy jak przy kopiowaniu F5.
+                    let (_, extracted) = try device!.extract([path], toTemporaryIn: target, isCancelled: { flag.isCancelled })
+                    guard let local = extracted.first, local.isLocal else { throw VFSError.notFound(path) }
+                    return local
+                }
+            } onCancel: {
+                flag.cancel()
             }
-            guard let local = extracted.first, local.isLocal else { throw VFSError.notFound(item.path) }
+            try Task.checkCancellation()
             return try LocalFS().itemSync(at: local)
+        } catch {
+            try? FileManager.default.removeItem(at: dir)
+            throw error
         }
-        try? FileManager.default.removeItem(at: dir)
-        throw VFSError.unsupported(item.path.description)
     }
 }
 
@@ -172,12 +182,14 @@ var archiveCommands: [Command] { [
         let tool = try ctx.workspace.sevenZip()
         let entries = try await runBlocking(qos: .userInitiated) { try tool.list(path, password: nil) }
         let limit = Int(max(0, ctx.arguments.int("limit") ?? 2000))
-        return CommandResult(value: [
+        let value: JSONValue = [
             "archive": .string(path.path), "total": .int(Int64(entries.count)),
             "entries": .array(entries.prefix(limit).map { e in
                 ["path": .string(e.path), "directory": .bool(e.isDirectory), "size": .int(e.size), "encrypted": .bool(e.encrypted)]
             }),
-        ])
+        ]
+        // Nazwy wpisów pochodzą z pliku archiwum (SECURITY.md §4.6).
+        return CommandResult(value: ctx.isAgent ? untrusted(value) : value)
     },
 ] }
 
