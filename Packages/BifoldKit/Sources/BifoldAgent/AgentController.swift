@@ -136,6 +136,9 @@ public final class AgentController: AgentInvocationGate {
         self.server = server
     }
 
+    /// Trwające uzgodnienia serwera gniazda (testy).
+    var pendingHandshakes: Int { server?.pendingHandshakes ?? 0 }
+
     public func stop() {
         server?.stop()
         server = nil

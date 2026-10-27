@@ -23,6 +23,8 @@ public final class AgentServer: @unchecked Sendable {
     private let socketInode = Mutex<ino_t?>(nil)
     /// Liczba trwających uzgodnień (przed uwierzytelnieniem).
     private let handshakes = Mutex<Int>(0)
+    /// Liczba trwających uzgodnień (testy czekają na nią zamiast na stały czas).
+    var pendingHandshakes: Int { handshakes.withLock { $0 } }
     /// Wyłącza sprawdzanie przodków (tylko testy jednostkowe uwierzytelniania).
     var verifyAncestry = true
     /// Bezwzględny limit czasu na ramkę `hello` (od przyjęcia połączenia).
