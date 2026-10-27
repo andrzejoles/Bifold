@@ -109,7 +109,11 @@ var selectionCommands: [Command] { [
         guard let item = tab.cursorItem else { return .ok }
         if !item.isParentLink {
             tab.toggleSelection(item.path)
-            if item.isDirectory && tab.selection.contains(item.path) { tab.calculateSize(of: item) }
+            // Dla agenta bez katalogów z zablokowaną ścieżką w poddrzewie (jak `dir_size`, SECURITY.md §4.5).
+            if item.isDirectory && tab.selection.contains(item.path),
+               !ctx.isAgent || !BlockedPaths(for: ctx.workspace).containsBlocked(item.path) {
+                tab.calculateSize(of: item)
+            }
         }
         if let i = tab.cursorIndex { tab.moveCursor(to: i + 1) }
         return .ok
