@@ -169,10 +169,17 @@ public final class Workspace {
     }
 
     @ObservationIgnored private var restoredCursors: [UUID: String]
+    /// Katalogi tymczasowe kopii do podglądu z tej sesji (`materialize`) — usuwane przy zamykaniu.
+    @ObservationIgnored var temporaryViewDirectories: Set<URL> = []
 
     /// Wczytuje katalogi wszystkich kart (po starcie). Karty z nieistniejącą ścieżką trafiają
     /// do najbliższego istniejącego katalogu nadrzędnego.
     public func start() async {
+        if persists {
+            // Kopie do podglądu pozostawione przez wcześniejsze uruchomienia (np. po awarii).
+            let temporary = FileManager.default.temporaryDirectory
+            Task.detached(priority: .utility) { Workspace.removeStaleViewCopies(in: temporary) }
+        }
         for tab in left.tabs + right.tabs {
             // Karty wyników wyszukiwania nie przetrwają restartu — wracają do katalogu domowego.
             var target: VFSPath? = (try? providers.provider(for: tab.path)) == nil && RemoteFS.alias(of: tab.path) == nil ? homePath : tab.path
@@ -287,7 +294,9 @@ public final class Workspace {
 
     public func refreshVolumes() { volumes = Volumes.mounted() }
 
+    /// Zapis sesji przy zamykaniu okna głównego i aplikacji; usuwa też kopie do podglądu z tej sesji.
     public func saveSession() {
+        removeTemporaryViewCopies()
         guard persists else { return }
         let snapshot = SessionSnapshot(left: left.snapshot(home: homePath), right: right.snapshot(home: homePath), activeSide: activeSide)
         try? JSONStore.save(snapshot, to: paths.session)
