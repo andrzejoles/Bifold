@@ -54,8 +54,9 @@ public final class RemoteManager {
     }
 
     public func remove(_ alias: String) throws {
+        // Najpierw sekret: gdy Pęk kluczy odmówi, połączenie zostaje (można ponowić), a błąd widać w oknie.
+        try keychain.delete(alias)
         connections.removeAll { $0.alias == alias }
-        keychain.delete(alias)
         drop(alias)
         try JSONStore.save(connections, to: url)
     }

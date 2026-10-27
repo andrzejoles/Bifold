@@ -35,7 +35,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("as", "z serwera")
         try sshd.root.file("Readme (2)", "prawdziwy")
         let fs = try await scp(ws, "aix")
@@ -77,7 +77,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         let fs = try await scp(ws, "aix")
         #expect(throws: VFSError.notFound(fs.root.appending("brak"))) { _ = try fs.listSync(fs.root.appending("brak")) }
 
@@ -98,7 +98,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("kat/a.txt", "stary")
         try tmp.file("L/kat/a.txt", "nowy")
         let dir = sshd.root.url.path + "/kat"
@@ -117,7 +117,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("duzy.bin", "oryginał")
         let original = try FileManager.default.attributesOfItem(atPath: sshd.root.url.path + "/duzy.bin")[.size] as? Int
         // Duży plik rzadki (szybko tworzony, wysyłany dość długo, żeby zdążyć anulować).
@@ -152,7 +152,7 @@ import Testing
         c.nameEncoding = .latin2
         let (tmp, ws) = try await setup(sshd, c)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("latin2") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("latin2") }
         try tmp.file("L/paczka/a€.txt", "euro")
         try tmp.file("L/paczka/b.txt", "b")
         let fs = try await scp(ws, "latin2")
@@ -168,7 +168,7 @@ import Testing
         let a = sshd.connection("aix-a"), b = sshd.connection("aix-b")
         let (tmp, ws) = try await setup(sshd, a, b)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix-a"); ws.remotes.keychain.delete("aix-b") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix-a"); try? ws.remotes.keychain.delete("aix-b") }
         try await ws.invoke("remote.open", CommandArguments(["alias": "aix-b", "terminal": false]))
         try await ws.invoke("remote.terminal", CommandArguments(["alias": "aix-a"]))
         #expect(ws.right.tabs.contains { $0.terminal?.alias == "aix-a" })
@@ -194,7 +194,7 @@ import Testing
         let c = sshd.connection("aix")
         let (tmp, ws) = try await setup(sshd, c)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         let opening = Task { @MainActor in try await ws.remotes.provider("aix") }
         while ws.remotes.connecting["aix"] == nil { await Task.yield() }
         await ws.remotes.disconnect("aix")
@@ -211,7 +211,7 @@ import Testing
         var c = sshd.connection("aix")
         let (tmp, ws) = try await setup(sshd, c)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         let old = try await scp(ws, "aix")
         c.path = sshd.root.url.path + "/pod"
         try ws.remotes.save(c, secret: TestSSHD.passphrase)
@@ -240,7 +240,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("real.txt", "stara")
         try FileManager.default.createSymbolicLink(atPath: sshd.root.url.path + "/link", withDestinationPath: "real.txt")
         let fs = try await scp(ws, "aix")
@@ -265,7 +265,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("duzy.bin/ważne.txt", "zawartość")
         let big = tmp.url.path + "/L/duzy.bin"
         FileManager.default.createFile(atPath: big, contents: nil)
@@ -307,7 +307,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("etc/konfig.conf", "stara")
         let dir = sshd.root.url.path + "/etc"
         chmod(dir, 0o555)
@@ -333,7 +333,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("kat/plik.txt", "stara")
         let dir = sshd.root.url.path + "/kat"
         defer { chmod(dir, 0o755) }
@@ -363,7 +363,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("drzewo/a.txt", "a")
         let name = "link-\(UUID().uuidString.prefix(8))"
         try FileManager.default.createSymbolicLink(atPath: sshd.root.url.path + "/" + name, withDestinationPath: "drzewo")
@@ -394,7 +394,7 @@ import Testing
         let sshd = try TestSSHD(shell: shell)
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("plik.txt", "p")
         try sshd.root.file("zamknięty/x.txt", "x")
         let locked = sshd.root.url.path + "/zamknięty"
@@ -422,7 +422,7 @@ import Testing
         let sshd = try TestSSHD()
         let (tmp, ws) = try await setup(sshd, sshd.connection("aix"))
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try sshd.root.file("a.txt", "a")
         let fs = try await scp(ws, "aix")
         await ws.remotes.disconnect("aix")
@@ -442,7 +442,7 @@ import Testing
         var c = sshd.connection("aix")
         let (tmp, ws) = try await setup(sshd, c)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         let opening = Task { @MainActor in try await ws.remotes.provider("aix") }
         while ws.remotes.connecting["aix"] == nil { await Task.yield() }
         c.path = sshd.root.url.path + "/pod"
@@ -468,7 +468,7 @@ import Testing
         let c = sshd.connection("aix")
         let (tmp, ws) = try await setup(sshd, c)
         defer { withExtendedLifetime(tmp) {} }  // katalog testu żyje do końca (zapis połączeń by go odtworzył)
-        defer { ws.remotes.stop(); ws.remotes.keychain.delete("aix") }
+        defer { ws.remotes.stop(); try? ws.remotes.keychain.delete("aix") }
         try await ws.invoke("remote.open", CommandArguments(["alias": "aix", "terminal": false]))
         let old = try await scp(ws, "aix")
         #expect(ws.remotes.isKnown(alias: "aix") && !ws.remotes.isKnown(alias: "brak"))

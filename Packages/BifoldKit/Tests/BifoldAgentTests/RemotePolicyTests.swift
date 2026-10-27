@@ -23,7 +23,7 @@ import Testing
         let remotes = env.workspace.remotes!
         try remotes.save(RemoteConnection(alias: "prod-logi", kind: .sftp, host: "127.0.0.1", port: sftp.port, user: "u"), secret: "tajne")
         try remotes.save(RemoteConnection(alias: "ftp-pub", kind: .ftp, host: "127.0.0.1", port: ftp.port, user: "u"), secret: "tajne")
-        defer { remotes.keychain.delete("prod-logi"); remotes.keychain.delete("ftp-pub") }
+        defer { try? remotes.keychain.delete("prod-logi"); try? remotes.keychain.delete("ftp-pub") }
         let (session, _) = env.session()
 
         // Odczyt z SFTP — dozwolony, tylko po aliasie.
@@ -74,7 +74,7 @@ import Testing
         try await env.workspace.left.activeTab.navigate(to: env.tmp.path.appending("src"))
         let remotes = env.workspace.remotes!
         try remotes.save(RemoteConnection(alias: "prod-logi", kind: .sftp, host: "127.0.0.1", port: sftp.port, user: "u"), secret: "tajne")
-        defer { remotes.keychain.delete("prod-logi") }
+        defer { try? remotes.keychain.delete("prod-logi") }
         let (session, _) = env.session()
         env.approver.answer = true
 

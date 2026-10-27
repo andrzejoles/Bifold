@@ -294,9 +294,9 @@ public final class Workspace {
 
     public func refreshVolumes() { volumes = Volumes.mounted() }
 
-    /// Zapis sesji przy zamykaniu okna głównego i aplikacji; usuwa też kopie do podglądu z tej sesji.
+    /// Zapis sesji przy zamykaniu okna głównego i aplikacji (kopie do podglądu usuwa `removeTemporaryViewCopies`
+    /// dopiero przy zamykaniu aplikacji — okno podglądu może jeszcze pokazywać plik).
     public func saveSession() {
-        removeTemporaryViewCopies()
         guard persists else { return }
         let snapshot = SessionSnapshot(left: left.snapshot(home: homePath), right: right.snapshot(home: homePath), activeSide: activeSide)
         try? JSONStore.save(snapshot, to: paths.session)

@@ -103,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         agents?.controller.stop()
         workspace.remotes.stop()
         workspace.saveSession()
+        workspace.removeTemporaryViewCopies()
         LanguageService.shared?.launchRelaunchHelperIfRequested()
     }
 

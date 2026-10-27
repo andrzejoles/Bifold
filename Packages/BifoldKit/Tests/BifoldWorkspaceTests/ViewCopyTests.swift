@@ -35,7 +35,7 @@ private final class CountingDeviceFS: ExtractingProvider, Sendable {
 }
 
 @MainActor @Suite struct ViewCopyTests {
-    /// Kopia do podglądu (F3, Quick Look, Enter) z telefonu znika przy zamykaniu aplikacji (`saveSession`).
+    /// Kopia do podglądu (F3, Quick Look, Enter) z telefonu znika przy zamykaniu aplikacji (`removeTemporaryViewCopies`).
     @Test func viewCopyIsRemovedOnExit() async throws {
         let tmp = try TempDir()
         let (ws, _) = try await makeWorkspace(tmp)
@@ -44,7 +44,7 @@ private final class CountingDeviceFS: ExtractingProvider, Sendable {
         let local = try await ws.materialize(device.file)
         let dir = try #require(local.path.parent?.parent)
         #expect(dir.name.hasPrefix("bifold-view-") && FileManager.default.fileExists(atPath: local.path.path))
-        ws.saveSession()
+        ws.removeTemporaryViewCopies()
         #expect(!FileManager.default.fileExists(atPath: dir.path))
     }
 
@@ -57,7 +57,7 @@ private final class CountingDeviceFS: ExtractingProvider, Sendable {
         let local = try await ws.materialize(device.file, removeOnExit: false)
         let dir = try #require(local.path.parent?.parent)
         defer { try? FileManager.default.removeItem(atPath: dir.path) }
-        ws.saveSession()
+        ws.removeTemporaryViewCopies()
         #expect(FileManager.default.fileExists(atPath: local.path.path))
     }
 

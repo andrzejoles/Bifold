@@ -71,7 +71,7 @@ var deviceCommands: [Command] { [
         ctx.workspace.providers.register(provider)
         let target = VFSPath(provider: provider.id, path: "/")
         // Telefon w nowej karcie (chyba że aktywna karta już go pokazuje).
-        let tab = try await ctx.workspace.open(target, in: try ctx.panel(forSide: "side")) { tab in
+        _ = try await ctx.workspace.open(target, in: try ctx.panel(forSide: "side")) { tab in
             do {
                 try await tab.navigate(to: target)
             } catch let error as MTPDeviceFS.MTPError {
@@ -80,8 +80,8 @@ var deviceCommands: [Command] { [
                 if !ctx.isAgent { ctx.ui?.showMessage(error.localizedDescription) }
             }
         }
+        // Tytuł karty („📱/🤖 nazwa”) wylicza `setPath` z dostawcy.
         let name = (provider as? MTPDeviceFS)?.model ?? device.name
-        tab.customTitle = (device.kind == .iPhone ? "📱 " : "🤖 ") + name
         if device.kind == .iPhone, !ctx.isAgent { ctx.ui?.showMessage(AFCDeviceFS.limitation) }
         // Model i nazwa pochodzą z telefonu — agent dostaje je jako niezaufane dane, nie w komunikacie.
         if ctx.isAgent {

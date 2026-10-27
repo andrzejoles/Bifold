@@ -163,8 +163,10 @@ public struct KeychainStore: Sendable {
         return String(decoding: data, as: UTF8.self)
     }
 
-    public func delete(_ account: String) {
+    /// Usuwa sekret; brak wpisu to nie błąd. Rzuca, gdy Pęk kluczy odmówi (np. zablokowany).
+    public func delete(_ account: String) throws {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
-        SecItemDelete(q as CFDictionary)
+        let status = SecItemDelete(q as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw RemoteError.protocolError("Keychain \(status)") }
     }
 }

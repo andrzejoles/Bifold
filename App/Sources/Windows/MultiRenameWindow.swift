@@ -73,7 +73,7 @@ struct MultiRenameView: View {
     }
 
     /// Podgląd liczony w tle po krótkiej przerwie w pisaniu (~150 ms); nowsza reguła anuluje czekające
-    /// obliczenie, a naraz liczy się najwyżej jeden plan (`MultiRename.plan` nie da się przerwać w trakcie).
+    /// obliczenie, a naraz liczy się najwyżej jeden plan (`MultiRename.plan` ma limit czasu dopasowań wyrażeń).
     /// Spóźniony wynik starszej reguły (numer generacji) nie nadpisuje nowszego podglądu.
     private func refresh(debounce: Bool = true) {
         let items = items, rule = rule
