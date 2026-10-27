@@ -82,10 +82,14 @@ private func undoTitle(_ ctx: CommandContext) -> String? {
     return ctx.workspace.journal.lastUndoable { session == nil || $0.invoker.agentSessionID == session }?.title
 }
 
+/// Zadania z argumentu `job`; bez argumentu — wszystkie aktywne. Podany, a nieznaleziony identyfikator
+/// (np. zadanie zakończone i usunięte z paska) to błąd — inaczej `queue.cancel` jednego zadania,
+/// pokazanego w oknie zgody, anulowałoby wszystkie zadania użytkownika.
 @MainActor
-private func jobArgument(_ ctx: CommandContext) -> [Job] {
-    if let raw = ctx.arguments.string("job"), let id = UUID(uuidString: raw), let job = ctx.workspace.jobs.job(id) { return [job] }
-    return ctx.workspace.jobs.activeJobs
+private func jobArgument(_ ctx: CommandContext) throws -> [Job] {
+    guard let raw = ctx.arguments.string("job") else { return ctx.workspace.jobs.activeJobs }
+    guard let id = UUID(uuidString: raw), let job = ctx.workspace.jobs.job(id) else { throw CommandError.invalidArgument("job", raw) }
+    return [job]
 }
 
 private let jobParam = CommandParameter("job", .string, L10n.tr("Identyfikator zadania (domyślnie wszystkie aktywne)"))
@@ -96,7 +100,7 @@ var queueCommands: [Command] { [
         id: "queue.pause", title: L10n.tr("Wstrzymaj operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Wstrzymuje zadania w tle."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.pause)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.pause)
         return .ok
     },
 
@@ -104,7 +108,7 @@ var queueCommands: [Command] { [
         id: "queue.resume", title: L10n.tr("Wznów operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Wznawia wstrzymane zadania."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.resume)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.resume)
         return .ok
     },
 
@@ -112,7 +116,7 @@ var queueCommands: [Command] { [
         id: "queue.cancel", title: L10n.tr("Anuluj operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Anuluje zadania w tle (bez pozostawiania częściowych plików)."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.cancel)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.cancel)
         return .ok
     },
 
@@ -121,6 +125,7 @@ var queueCommands: [Command] { [
         parameters: [jobParam, CommandParameter("bytesPerSecond", .integer, required: true, L10n.tr("Bajty na sekundę (0 = bez limitu)"))],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Ogranicza prędkość zadań w tle."))
     ) { ctx in
+        let targets = try jobArgument(ctx)
         let limit: Int64
         if let v = ctx.arguments.int("bytesPerSecond") {
             guard v >= 0 else { throw CommandError.invalidArgument("bytesPerSecond", String(v)) }
@@ -132,7 +137,7 @@ var queueCommands: [Command] { [
                   let bytes = Int64(exactly: (mb * 1024 * 1024).rounded()) else { throw CommandError.invalidArgument("bytesPerSecond", text) }
             limit = bytes
         }
-        for job in jobArgument(ctx) { ctx.workspace.jobs.setSpeedLimit(job, limit) }
+        for job in targets { ctx.workspace.jobs.setSpeedLimit(job, limit) }
         return .ok
     },
 
