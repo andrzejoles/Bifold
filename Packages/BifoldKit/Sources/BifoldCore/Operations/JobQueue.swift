@@ -18,7 +18,6 @@ public enum JobSpec: Sendable {
     /// Tworzenie archiwum.
     case createArchive(VFSPath, format: ArchiveFormat, base: VFSPath, names: [String], tool: SevenZip, level: Int, password: String?, volumeSize: String?)
 
-    public var isTransfer: Bool { if case .transfer = self { true } else { false } }
 }
 
 public enum JobState: Sendable, Hashable {
@@ -108,8 +107,6 @@ public final class JobQueue {
         job.control.setSpeedLimit(job.speedLimit)
     }
 
-    public func pauseAll() { activeJobs.forEach(pause) }
-    public func resumeAll() { activeJobs.forEach(resume) }
     public func cancelAll() { activeJobs.forEach(cancel) }
 
     public func removeFinished() {

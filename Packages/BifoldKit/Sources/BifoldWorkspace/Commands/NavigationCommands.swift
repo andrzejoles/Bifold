@@ -72,7 +72,11 @@ var navigationCommands: [Command] { [
         let panel = try ctx.panel(forSide: "side")
         let tab = panel.activeTab
         let raw = try await ctx.text("path", title: L10n.tr("Przejdź do katalogu"), default: tab.path.displayPath)
-        let target = ctx.workspace.parsePath(raw.trimmingCharacters(in: .whitespaces), relativeTo: tab.path)
+        // Spacje obcinane tylko, gdy ścieżka bez obcięcia nie istnieje (katalog „Projekt ” z odstępem na końcu
+        // zostaje osiągalny z drzewa i paska ścieżki).
+        let exact = ctx.workspace.parsePath(raw.trimmingCharacters(in: .newlines), relativeTo: tab.path)
+        let target = (exact.isLocal && !FileManager.default.fileExists(atPath: exact.path))
+            ? ctx.workspace.parsePath(raw.trimmingCharacters(in: .whitespacesAndNewlines), relativeTo: tab.path) : exact
         if let alias = RemoteFS.alias(of: target) {
             _ = try await ctx.workspace.remotes.provider(alias)
             try await ctx.workspace.open(target, in: panel)

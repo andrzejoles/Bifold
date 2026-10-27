@@ -361,6 +361,21 @@ private final class CursorRaceFS: FileSystemProvider, Sendable {
     }
 }
 
+@MainActor @Suite struct NavigateWhitespaceTests {
+    /// Katalog z odstępem na końcu nazwy jest osiągalny przez `panel.navigate` (drzewo, pasek ścieżki);
+    /// spacje obcinane tylko, gdy ścieżka dosłowna nie istnieje.
+    @Test func trailingSpaceDirectoryIsReachable() async throws {
+        let tmp = try TempDir()
+        try tmp.dir("Projekt ")
+        try tmp.dir("Inny")
+        let (ws, _) = try await makeWorkspace(tmp)
+        try await ws.invoke("panel.navigate", CommandArguments(["path": .string(tmp.url.path + "/Projekt ")]))
+        #expect(ws.activeTab.path.name == "Projekt ")
+        try await ws.invoke("panel.navigate", CommandArguments(["path": .string("  " + tmp.url.path + "/Inny  ")]))
+        #expect(ws.activeTab.path.name == "Inny")
+    }
+}
+
 @MainActor @Suite struct CursorRaceTests {
     /// Odświeżenie rozpoczęte, gdy jawna nawigacja (F7 z fokusem) czeka na przeliczenie listy, wznawia
     /// się przed nią i czeka na swoje `volumeInfo`; po nim nie może przywrócić kursora sprzed nawigacji („..”).

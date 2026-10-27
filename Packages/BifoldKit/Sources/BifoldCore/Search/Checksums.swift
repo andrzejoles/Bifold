@@ -86,7 +86,9 @@ public enum Checksums {
     }
 
     /// Sprawdza pozycje pliku sum względem katalogu, w którym leży plik sum.
-    public static func verify(checksumFile: VFSPath, isCancelled: () -> Bool = { false }) throws -> [VerifyResult] {
+    /// - Parameter skip: wpisy, których nie wolno czytać (np. zablokowane dla agenta) — wynik `invalid`
+    ///   bez otwierania pliku.
+    public static func verify(checksumFile: VFSPath, isCancelled: () -> Bool = { false }, skip: (VFSPath) -> Bool = { _ in false }) throws -> [VerifyResult] {
         guard let algorithm = ChecksumAlgorithm(fileExtension: checksumFile.name.fileExtension) else {
             throw VFSError.unsupported("checksum file")
         }
@@ -94,7 +96,7 @@ public enum Checksums {
         let base = checksumFile.parent ?? .root
         let baseReal = VFSPath.local(realPath(base.path) ?? base.path)
         return try parse(text).map { e in
-            guard let p = entryPath(e.path, base: base, baseReal: baseReal) else { return VerifyResult(path: e.path, status: .invalid) }
+            guard let p = entryPath(e.path, base: base, baseReal: baseReal), !skip(p) else { return VerifyResult(path: e.path, status: .invalid) }
             guard FileManager.default.fileExists(atPath: p.path) else { return VerifyResult(path: e.path, status: .missing) }
             let h = try hash(p, algorithm: algorithm, isCancelled: isCancelled)
             return VerifyResult(path: e.path, status: h == e.hash ? .ok : .mismatch)

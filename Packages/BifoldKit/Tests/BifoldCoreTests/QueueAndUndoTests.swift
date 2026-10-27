@@ -15,6 +15,27 @@ import Testing
         #expect(job.progress.filesDone == 1)
     }
 
+    /// Pasek zadań usuwa pojedynczy wiersz: tylko zadanie zakończone, nigdy trwające ani oczekujące.
+    @Test func removeDropsOnlyFinishedJob() async throws {
+        let tmp = try TempDir()
+        try tmp.file("src/a.txt", "a")
+        let big = tmp.url.appending(path: "src/big.bin")
+        FileManager.default.createFile(atPath: big.path, contents: Data(count: 32 * 1024 * 1024))
+        let queue = JobQueue(journal: OperationJournal())
+        let done = queue.enqueue(.transfer(TransferRequest(kind: .copy, sources: [tmp.path.appending("src/a.txt")], destinationDirectory: try tmp.dir("d1"))), title: "Mały")
+        _ = await queue.wait(for: done)
+        let running = queue.enqueue(.transfer(TransferRequest(kind: .copy, sources: [tmp.path.appending("src/big.bin")], destinationDirectory: try tmp.dir("d2"))),
+                                    title: "Duży", speedLimit: 4 * 1024 * 1024)
+        queue.remove(running.id)
+        #expect(queue.job(running.id) != nil)
+        queue.remove(done.id)
+        #expect(queue.job(done.id) == nil)
+        queue.cancel(running)
+        _ = await queue.wait(for: running)
+        queue.remove(running.id)
+        #expect(queue.job(running.id) == nil)
+    }
+
     @Test func cancelledLargeCopyLeavesNoPartialFile() async throws {
         let tmp = try TempDir()
         // 64 MB z limitem 8 MB/s → ok. 8 s; anulujemy po chwili.

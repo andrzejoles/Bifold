@@ -120,7 +120,7 @@ public final class Workspace {
 
         registry = CommandRegistry.standard()
         rebuildKeymap()
-        remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "bifold") + (persists ? ".remote" : ".tests"))
+        remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "bifold") + (persists ? ".remote" : ".tests-\(UUID().uuidString.prefix(8))"))
         // Próby na żywo (zwykle razem z BIFOLD_DATA_DIR): własna konfiguracja SSH i known_hosts zamiast ~/.ssh.
         let env = ProcessInfo.processInfo.environment
         if let config = env["BIFOLD_SSH_CONFIG"] { remotes.sshConfigFile = config }

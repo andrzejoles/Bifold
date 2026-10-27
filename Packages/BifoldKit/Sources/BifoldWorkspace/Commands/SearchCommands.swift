@@ -331,12 +331,12 @@ var searchCommands: [Command] { [
         var json: [JSONValue] = []
         let blocked = ctx.isAgent ? BlockedPaths(for: ctx.workspace) : nil
         for f in sumFiles {
-            let results = try await runBlocking(qos: .userInitiated) { try Checksums.verify(checksumFile: f.path) }
-            let base = f.path.parent ?? .root
-            for var r in results {
-                // Dla agenta wpis wskazujący zablokowany plik (np. `.ssh/id_ed25519` w pliku sum w `~`) to
-                // `invalid` — `ok`/`mismatch`/`missing` byłyby wyrocznią treści i istnienia (SECURITY.md §4.5).
-                if let blocked, blocked.isBlocked(r.path.hasPrefix("/") ? r.path : base.path + "/" + r.path) { r.status = .invalid }
+            // Dla agenta wpis wskazujący zablokowany plik (np. `.ssh/id_ed25519` w pliku sum w `~`) to `invalid`
+            // bez czytania pliku — `ok`/`mismatch`/`missing` byłyby wyrocznią treści i istnienia (SECURITY.md §4.5).
+            let results = try await runBlocking(qos: .userInitiated) {
+                try Checksums.verify(checksumFile: f.path, skip: { blocked?.isBlocked($0) ?? false })
+            }
+            for r in results {
                 lines.append("\(r.status == .ok ? "✓" : "✕") \(r.status.rawValue)  \(r.path)")
                 json.append(["path": .string(r.path), "status": .string(r.status.rawValue)])
             }
