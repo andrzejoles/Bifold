@@ -54,7 +54,9 @@ var editCommands: [Command] { [
         await ctx.workspace.left.activeTab.reload()
         await ctx.workspace.right.activeTab.reload()
         let message = L10n.tr("Cofnięto: \(result.performed), pominięto: \(result.skipped.count), błędy: \(result.errors.count)")
-        return CommandResult(message: message, value: ["performed": .int(Int64(result.performed)), "skipped": .array(result.skipped.map { .string($0.message) })])
+        let value: JSONValue = ["performed": .int(Int64(result.performed)), "skipped": .array(result.skipped.map { .string($0.message) })]
+        // Pominięte kroki zawierają nazwy plików — dla agenta niezaufane (SECURITY.md §4.6).
+        return CommandResult(message: message, value: ctx.isAgent ? untrusted(value) : value)
     },
 
     Command(CommandDescriptor(
@@ -80,10 +82,14 @@ private func undoTitle(_ ctx: CommandContext) -> String? {
     return ctx.workspace.journal.lastUndoable { session == nil || $0.invoker.agentSessionID == session }?.title
 }
 
+/// Zadania z argumentu `job`; bez argumentu — wszystkie aktywne. Podany, a nieznaleziony identyfikator
+/// (np. zadanie zakończone i usunięte z paska) to błąd — inaczej `queue.cancel` jednego zadania,
+/// pokazanego w oknie zgody, anulowałoby wszystkie zadania użytkownika.
 @MainActor
-private func jobArgument(_ ctx: CommandContext) -> [Job] {
-    if let raw = ctx.arguments.string("job"), let id = UUID(uuidString: raw), let job = ctx.workspace.jobs.job(id) { return [job] }
-    return ctx.workspace.jobs.activeJobs
+private func jobArgument(_ ctx: CommandContext) throws -> [Job] {
+    guard let raw = ctx.arguments.string("job") else { return ctx.workspace.jobs.activeJobs }
+    guard let id = UUID(uuidString: raw), let job = ctx.workspace.jobs.job(id) else { throw CommandError.invalidArgument("job", raw) }
+    return [job]
 }
 
 private let jobParam = CommandParameter("job", .string, L10n.tr("Identyfikator zadania (domyślnie wszystkie aktywne)"))
@@ -94,7 +100,7 @@ var queueCommands: [Command] { [
         id: "queue.pause", title: L10n.tr("Wstrzymaj operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Wstrzymuje zadania w tle."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.pause)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.pause)
         return .ok
     },
 
@@ -102,7 +108,7 @@ var queueCommands: [Command] { [
         id: "queue.resume", title: L10n.tr("Wznów operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Wznawia wstrzymane zadania."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.resume)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.resume)
         return .ok
     },
 
@@ -110,7 +116,7 @@ var queueCommands: [Command] { [
         id: "queue.cancel", title: L10n.tr("Anuluj operacje"), category: .queue, parameters: [jobParam],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Anuluje zadania w tle (bez pozostawiania częściowych plików)."))
     ) { ctx in
-        jobArgument(ctx).forEach(ctx.workspace.jobs.cancel)
+        try jobArgument(ctx).forEach(ctx.workspace.jobs.cancel)
         return .ok
     },
 
@@ -119,6 +125,7 @@ var queueCommands: [Command] { [
         parameters: [jobParam, CommandParameter("bytesPerSecond", .integer, required: true, L10n.tr("Bajty na sekundę (0 = bez limitu)"))],
         agent: .approval, effect: .modifiesFiles, summary: L10n.tr("Ogranicza prędkość zadań w tle."))
     ) { ctx in
+        let targets = try jobArgument(ctx)
         let limit: Int64
         if let v = ctx.arguments.int("bytesPerSecond") {
             guard v >= 0 else { throw CommandError.invalidArgument("bytesPerSecond", String(v)) }
@@ -130,7 +137,7 @@ var queueCommands: [Command] { [
                   let bytes = Int64(exactly: (mb * 1024 * 1024).rounded()) else { throw CommandError.invalidArgument("bytesPerSecond", text) }
             limit = bytes
         }
-        for job in jobArgument(ctx) { ctx.workspace.jobs.setSpeedLimit(job, limit) }
+        for job in targets { ctx.workspace.jobs.setSpeedLimit(job, limit) }
         return .ok
     },
 
@@ -143,7 +150,8 @@ var queueCommands: [Command] { [
              "bytesDone": .int(job.progress.bytesDone), "bytesTotal": .int(job.progress.bytesTotal),
              "filesDone": .int(Int64(job.progress.filesDone)), "filesTotal": .int(Int64(job.progress.filesTotal))]
         }
-        return CommandResult(value: .array(jobs))
+        // Tytuły zadań zawierają nazwy plików.
+        return CommandResult(value: ctx.isAgent ? untrusted(.array(jobs)) : .array(jobs))
     },
 
     Command(CommandDescriptor(
@@ -220,9 +228,10 @@ var toolCommands: [Command] { [
     ) { ctx in
         ctx.workspace.refreshVolumes()
         if ctx.isAgent {
-            return CommandResult(value: try JSONValue.encode(ctx.workspace.volumes.map {
+            // Nazwy woluminów nadaje ten, kto sformatował nośnik — dane, nie polecenia.
+            return CommandResult(value: untrusted(try JSONValue.encode(ctx.workspace.volumes.map {
                 ["name": $0.name, "path": $0.path.path, "total": String($0.totalCapacity), "available": String($0.availableCapacity), "ejectable": String($0.isEjectable)]
-            }))
+            })))
         }
         try ctx.requireUI().showVolumes()
         return .ok

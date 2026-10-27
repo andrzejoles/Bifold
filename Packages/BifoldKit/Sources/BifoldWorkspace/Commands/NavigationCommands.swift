@@ -26,6 +26,19 @@ extension CommandContext {
     }
 }
 
+extension Workspace {
+    /// Tekst celu „Przejdź do katalogu” — jedna funkcja dla komendy `panel.navigate` i bramki agenta
+    /// (`ArgumentFreezer`), żeby obie widziały ten sam katalog. Końce wierszy (wklejona ścieżka) są
+    /// obcinane zawsze; spacje na brzegach — gdy ścieżka lokalna bez obcięcia nie istnieje (katalog
+    /// „Projekt ” z odstępem na końcu zostaje osiągalny) i zawsze dla ścieżek serwera (`prod:/var/log `).
+    public func navigationText(_ raw: String, relativeTo base: VFSPath) -> String {
+        let lines = raw.trimmingCharacters(in: .newlines)
+        let exact = parsePath(lines, relativeTo: base)
+        if exact.isLocal, FileManager.default.fileExists(atPath: exact.path) { return lines }
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 @MainActor
 var navigationCommands: [Command] { [
     Command(CommandDescriptor(
@@ -72,11 +85,9 @@ var navigationCommands: [Command] { [
         let panel = try ctx.panel(forSide: "side")
         let tab = panel.activeTab
         let raw = try await ctx.text("path", title: L10n.tr("Przejdź do katalogu"), default: tab.path.displayPath)
-        // Spacje obcinane tylko, gdy ścieżka bez obcięcia nie istnieje (katalog „Projekt ” z odstępem na końcu
-        // zostaje osiągalny z drzewa i paska ścieżki).
-        let exact = ctx.workspace.parsePath(raw.trimmingCharacters(in: .newlines), relativeTo: tab.path)
-        let target = (exact.isLocal && !FileManager.default.fileExists(atPath: exact.path))
-            ? ctx.workspace.parsePath(raw.trimmingCharacters(in: .whitespacesAndNewlines), relativeTo: tab.path) : exact
+        // Argument agenta zamroziła bramka tą samą funkcją (`navigationText`) — nie jest już przycinany,
+        // żeby komenda nie otworzyła innego katalogu niż ten, który sprawdziła bramka.
+        let target = ctx.workspace.parsePath(ctx.isAgent ? raw : ctx.workspace.navigationText(raw, relativeTo: tab.path), relativeTo: tab.path)
         if let alias = RemoteFS.alias(of: target) {
             _ = try await ctx.workspace.remotes.provider(alias)
             try await ctx.workspace.open(target, in: panel)

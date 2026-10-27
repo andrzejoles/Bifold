@@ -63,6 +63,21 @@ public struct AgentActivity: Identifiable, Sendable {
     public var result: String?
 }
 
+extension AgentActivity {
+    /// Nazwa narzędzia do panelu aktywności (podaje ją agent) — znaki sterujące, bidi i separatory
+    /// wierszy jako `\u{…}`, jak w oknie zgody.
+    public var toolText: String { ApprovalText.sanitize(tool) }
+
+    /// Kolumna szczegółów panelu aktywności: argumenty i wynik (albo błąd), oczyszczone jak w oknie zgody —
+    /// nazwa pliku z U+202E albo U+2028 nie może udawać innej ścieżki ani dopisać fałszywego wiersza.
+    public var detailText: String {
+        switch status {
+        case .failed(let m): ApprovalText.sanitize(arguments + "  ⟶  " + m)
+        default: ApprovalText.sanitize(arguments + (result.map { "  ⟶  " + $0 } ?? ""))
+        }
+    }
+}
+
 /// Informacje o sesji dla interfejsu.
 public struct AgentSessionInfo: Identifiable, Sendable {
     public let id: String
@@ -94,6 +109,9 @@ public final class AgentController: AgentInvocationGate {
     /// sprawdzone (i zatwierdzone) — agent nie zmieni stanu paneli w trakcie otwartego okna zgody.
     @ObservationIgnored private var gateBusy: Set<String> = []
     @ObservationIgnored private var gateWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    /// Seria odmów `rate_limited` sesji: w dzienniku i panelu aktywności jeden wpis z licznikiem
+    /// (zapisywanym przy pierwszym wywołaniu po serii albo przy końcu sesji), nie wiersz na wywołanie.
+    @ObservationIgnored private var rateLimitedRuns: [String: (count: Int, since: Date, activity: UUID)] = [:]
 
     /// Największa odpowiedź narzędzia (z zapasem na kopertę JSON-RPC w ramce 4 MB).
     static let maxResponseBytes = Wire.maxFrame - 64 * 1024
@@ -157,6 +175,7 @@ public final class AgentController: AgentInvocationGate {
 
     public func closeSession(_ id: String) {
         guard let session = registry.session(id) else { return }
+        endRateLimitedRun(id)
         registry.close(id)
         for s in mcpServers[id] ?? [] { Task { await s.stop() } }
         mcpServers[id] = nil
@@ -251,6 +270,7 @@ public final class AgentController: AgentInvocationGate {
         "search.find", "search.spotlight", "search.runSaved", "search.duplicates",
         "file.compare", "dirs.compare", "remote.list", "remote.read", "remote.search", "archive.list",
         "sync.preview", "file.checksumCreate", "file.checksumVerify", "selection.calculateSizes",
+        "tools.volumes", "device.list", "queue.list", "file.multiRename", "edit.undo",
     ]
 
     /// Wpis wyniku do dziennika: treść plików nigdy nie trafia do JSONL, tylko rozmiar i SHA-256.
@@ -266,6 +286,12 @@ public final class AgentController: AgentInvocationGate {
     /// Wywołanie narzędzia MCP (także z testów bez gniazda).
     public func callTool(_ name: String, arguments raw: [String: Value], sessionID: String) async -> CallTool.Result {
         let started = Date()
+        // Limit przed czymkolwiek innym — także nieznane narzędzia i brakujące argumenty (każde wywołanie
+        // to wiersz dziennika i wpis aktywności odświeżany na głównym wątku).
+        guard limiter.allow(session: sessionID, limit: workspace.settings.agent.callsPerMinute) else {
+            return rateLimited(name, sessionID: sessionID, started: started)
+        }
+        endRateLimitedRun(sessionID)
         var args = CommandArguments(raw.mapValues(JSONValue.init(mcp:)))
         // Klucze wewnętrzne („__…”) może ustawić tylko aplikacja.
         for key in args.values.keys where key.hasPrefix("__") { args[key] = nil }
@@ -308,8 +334,16 @@ public final class AgentController: AgentInvocationGate {
             return fail("unknown_tool", "unknown_tool: \(name)")
         }
 
+        let panelsBefore = PanelSnapshot(workspace)
         do {
-            let result = try await workspace.invoke(commandID, args, invoker: session!.invoker)
+            let result: CommandResult
+            do {
+                result = try await workspace.invoke(commandID, args, invoker: session!.invoker)
+            } catch {
+                try await revertBlockedNavigation(since: panelsBefore)
+                throw error
+            }
+            try await revertBlockedNavigation(since: panelsBefore)
             let text = result.value.map { $0.description } ?? result.message ?? "ok"
             // Odpowiedź większa niż ramka zabiłaby most — czytelny błąd zamiast rozłączenia.
             if text.utf8.count > Self.maxResponseBytes {
@@ -323,6 +357,70 @@ public final class AgentController: AgentInvocationGate {
         } catch {
             finish(.failed(error.localizedDescription), command: commandID, ["decision": "allowed", "error": .string(error.localizedDescription)])
             return self.error(error.localizedDescription)
+        }
+    }
+
+    /// Obrona w głąb (SECURITY.md §4.5): jeśli wywołanie agenta (nawigacja, nowa karta, Wstecz/Dalej, wybór
+    /// karty…) zostawiło aktywną kartę w zablokowanym katalogu, w którym przed wywołaniem jej nie było —
+    /// stan karty jest przywracany, a agent dostaje `blocked_path`. Karty otwarte w zablokowanym katalogu
+    /// przez użytkownika zostają (agent widzi je jako „«zablokowana»”).
+    private func revertBlockedNavigation(since before: PanelSnapshot) async throws {
+        let blocked = BlockedPaths(for: workspace)
+        var denied: VFSPath?
+        for side in [PanelSide.left, .right] {
+            let panel = workspace.panel(side)
+            let tab = panel.activeTab
+            guard blocked.isBlocked(tab.path), let old = before.panels[side] else { continue }
+            if tab.id == old.activeTab && tab.path == old.path { continue }
+            let previousExists = panel.tabs.contains { $0.id == old.activeTab }
+            if !old.tabs.contains(tab.id) {
+                if let i = panel.tabs.firstIndex(where: { $0 === tab }) { _ = panel.closeTab(at: i) }
+                if previousExists { panel.selectTab(id: old.activeTab) }
+            } else if tab.id != old.activeTab {
+                // Zamknięta karta agenta odsłoniła kartę użytkownika — nie ma czego cofać, a błąd po udanym
+                // zamknięciu mógłby skłonić agenta do zamykania kolejnych kart.
+                guard previousExists else { continue }
+                panel.selectTab(id: old.activeTab)
+            } else {
+                try? await tab.navigate(to: old.path)
+            }
+            denied = tab.path
+        }
+        if let denied { throw AgentDenial.blockedPath(denied.path) }
+    }
+
+    /// Odmowa `rate_limited`: pierwsza w serii — wiersz dziennika i wpis aktywności, kolejne tylko licznik.
+    private func rateLimited(_ name: String, sessionID: String, started: Date) -> CallTool.Result {
+        if rateLimitedRuns[sessionID] != nil {
+            rateLimitedRuns[sessionID]!.count += 1
+        } else {
+            var activity = AgentActivity(sessionID: sessionID, tool: name, arguments: "", started: started, status: .denied("rate_limited"))
+            activity.duration = 0
+            activities.append(activity)
+            if activities.count > 500 { activities.removeFirst(activities.count - 500) }
+            rateLimitedRuns[sessionID] = (1, started, activity.id)
+            let fields: [String: JSONValue] = ["tool": .string(name), "decision": "rate_limited", "note": "kolejne odmowy serii tylko liczone (rateLimitedCount)"]
+            if let session = registry.session(sessionID) { log.write(session: session, fields) } else {
+                var f = fields
+                f["session"] = .string(sessionID)
+                log.writeGlobal(f)
+            }
+        }
+        return error(AgentDenial.rateLimited.localizedDescription)
+    }
+
+    /// Koniec serii odmów `rate_limited`: jeden wiersz dziennika z liczbą odmów i licznik we wpisie aktywności.
+    private func endRateLimitedRun(_ sessionID: String) {
+        guard let run = rateLimitedRuns.removeValue(forKey: sessionID) else { return }
+        if let i = activities.lastIndex(where: { $0.id == run.activity }) { activities[i].result = "× \(run.count)" }
+        let fields: [String: JSONValue] = [
+            "event": "rate_limited_run", "rateLimitedCount": .int(Int64(run.count)),
+            "since": .string(ISO8601DateFormatter().string(from: run.since)),
+        ]
+        if let session = registry.session(sessionID) { log.write(session: session, fields) } else {
+            var f = fields
+            f["session"] = .string(sessionID)
+            log.writeGlobal(f)
         }
     }
 
@@ -362,7 +460,7 @@ public final class AgentController: AgentInvocationGate {
         // Sesja mogła się zakończyć, gdy wywołanie czekało na bramkę.
         guard let session = registry.session(sessionID) else { throw AgentDenial.sessionClosed }
         let settings = workspace.settings.agent
-        guard limiter.allow(session: sessionID, limit: settings.callsPerMinute) else { throw AgentDenial.rateLimited }
+        // Limit wywołań liczy `callTool` (każde wywołanie, także odrzucone przed bramką).
         let via = context.arguments[ToolCatalog.viaRunCommandKey]?.boolValue == true
         let level = AgentPolicy.effectiveAccess(command: command.descriptor, session: session, settings: settings, viaRunCommand: via)
 
@@ -417,6 +515,27 @@ public final class AgentController: AgentInvocationGate {
         let decision = AgentPolicy.decide(level: effective, effect: d.effect)
         if case .deny(let why) = decision { throw AgentDenial.permissionDenied(why) }
         return decision
+    }
+}
+
+/// Karty paneli przed wywołaniem agenta (do cofnięcia nawigacji do zablokowanego katalogu).
+@MainActor
+struct PanelSnapshot {
+    struct State {
+        let activeTab: UUID
+        let tabs: Set<UUID>
+        let path: VFSPath
+    }
+
+    let panels: [PanelSide: State]
+
+    init(_ w: Workspace) {
+        var p: [PanelSide: State] = [:]
+        for side in [PanelSide.left, .right] {
+            let panel = w.panel(side)
+            p[side] = State(activeTab: panel.activeTab.id, tabs: Set(panel.tabs.map(\.id)), path: panel.activeTab.path)
+        }
+        panels = p
     }
 }
 
