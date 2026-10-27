@@ -1016,6 +1016,35 @@
         }
       }
     },
+    "Aliasu zapisanego połączenia nie można zmienić — utwórz nowe połączenie i usuń stare.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The alias of a saved connection can’t be changed — create a new connection and delete the old one."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Alias einer gespeicherten Verbindung kann nicht geändert werden – erstelle eine neue Verbindung und lösche die alte."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El alias de una conexión guardada no se puede cambiar: crea una conexión nueva y elimina la antigua."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Псевдонім збереженого з’єднання змінити не можна — створіть нове з’єднання і видаліть старе."
+          }
+        }
+      }
+    },
     "Aliasy połączeń i rodzaj dostępu agenta (bez danych logowania).": {
       "extractionState": "manual",
       "localizations": {
@@ -19373,6 +19402,35 @@
         }
       }
     },
+    "Usunąć połączenie „%@”?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete connection “%@”?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung „%@“ löschen?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Eliminar la conexión «%@»?"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видалити з’єднання «%@»?"
+          }
+        }
+      }
+    },
     "Usunąć trwale jako administrator?": {
       "extractionState": "manual",
       "localizations": {
@@ -21196,6 +21254,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вмикає алгоритми diffie-hellman-group1/14-sha1, ssh-rsa і шифри CBC — лише для серверів, які не знають новіших."
+          }
+        }
+      }
+    },
+    "Z Pęku kluczy zostaną też usunięte zapisane dane logowania (hasło lub token).": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The saved credentials (password or token) will also be removed from the Keychain."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die gespeicherten Anmeldedaten (Passwort oder Token) werden auch aus dem Schlüsselbund entfernt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las credenciales guardadas (contraseña o token) también se eliminarán del Llavero."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Збережені облікові дані (пароль або токен) також буде видалено зі Зв’язки ключів."
           }
         }
       }
