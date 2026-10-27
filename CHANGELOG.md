@@ -4,6 +4,41 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione — przegląd kodu, część 4
+- Wyszukiwanie Spotlight z ukośnikiem wstecznym lub cudzysłowem (także od agenta) nie zamyka aplikacji.
+- Cmd+Z po opróżnieniu Kosza nie pokazuje w kółko tego samego konfliktu; starsze operacje znów da się
+  cofać. Cofnięcie kopii katalogu ostrzega, gdy w kopii pojawiły się nowe pliki, zamiast zabrać je do Kosza.
+  Cmd+Z w trakcie zmiany atrybutów, tagów albo nazw wielu plików nie cofa niepełnej operacji.
+- Dziennik operacji ma limit wielkości (start nie zwalnia po operacjach na setkach tysięcy plików) i nie
+  gubi wpisów po awarii w trakcie zapisu.
+- Zmiana nazw wielu plików: absurdalne zakresy i szerokość licznika nie zamykają aplikacji; liczniki powyżej
+  2 147 483 647 wyświetlają się poprawnie; płynniejszy podgląd przy szybkim pisaniu.
+- Łączenie części nie zapisuje przez dowiązanie; podgląd, sumy i porównanie nie zawieszają się na FIFO;
+  anulowanie podglądu pliku z archiwum działa od razu; F6 w to samo miejsce przez dowiązanie nie blokuje cofania.
+- Wstecz/Dalej pomija katalogi, których już nie ma (usunięte, rozłączony serwer, zamknięte archiwum).
+- Kursor po F7/„Nowy plik” nie wraca na „..” przy równoczesnym odświeżeniu (także pod dużym obciążeniem).
+- Zapis zadania synchronizacji z karty wyników, archiwum albo telefonu jest odrzucany (lustro z „/” oznaczało
+  cały dysk); okno synchronizacji wykonuje dokładnie operacje z podglądu.
+- ⌃U zamienia całe karty, także kartę z terminalem SSH; tytuł karty nie psuje się po nieudanym wyjściu
+  z archiwum ani przy szybkiej zmianie katalogu.
+- Podgląd pliku z telefonu lub archiwum można przerwać i nie zostawia katalogu tymczasowego; podgląd
+  kopiowania z telefonu mówi „z urządzenia”.
+- Agent: rozmiar katalogu, porównanie katalogów i weryfikacja sum nie ujawniają plików z zablokowanych
+  katalogów (pliki zablokowane nie są nawet czytane).
+- Widok kolumn: naprawiona awaria po przełączeniu plików ukrytych lub karty; mniejsze zużycie pamięci;
+  podwójne kliknięcie pliku w innej kolumnie zawsze go otwiera; błąd wczytania katalogu jest pokazywany.
+- Drzewo nie zaznacza katalogu, z którego panel zdążył wyjść; katalog z odstępem na końcu nazwy można
+  otworzyć z drzewa i paska ścieżki.
+- Pozycje menu ze skrótami z Ctrl można wybrać myszą także przy kursorze w polu tekstowym lub terminalu.
+- Pasek zadań nie gromadzi zakończonych zadań; Dziennik pokazuje stany „w toku” i „częściowo cofnięta”.
+- Miniatury: plik z samymi spacjami pokazuje ikonę typu zamiast białej kartki.
+- Wyszukiwanie: „Przejdź do” na karcie serwera lub terminala otwiera nową kartę; błąd widać w oknie.
+
+### Zmienione — wydania i testy
+- `scripts/release.sh` uruchamia pełne testy przed wydaniem; CHANGELOG ma sekcje wydanych wersji.
+- Nazwa i autor w skryptach z `Config/Brand.xcconfig`; testy nie dają fałszywych porażek czasowych pod
+  obciążeniem (ścisłe limity tylko w `make test-release`) i nie kolidują w Pęku kluczy przy równoległych przebiegach.
+
 ## [2.3.0] – 2026-10-26
 
 ### Poprawione — przegląd kodu, część 3 (bezpieczeństwo agenta AI)
