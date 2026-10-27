@@ -28,8 +28,8 @@ final class PanelViewController: NSViewController {
     private let fileContainer = NSView()
     private let tree: DirectoryTreeView
     private var currentView: (any FileListView)?
-    /// Terminale kart-terminali (proces działa także, gdy karta nie jest widoczna).
-    private var terminals: [UUID: PanelTerminalView] = [:]
+    /// Terminale kart-terminali obu paneli (proces działa także, gdy karta nie jest widoczna).
+    private let terminals: PanelTerminalRegistry
     private var shownTerminal: PanelTerminalView?
     private var currentMode: ViewMode?
     private var previewView: QuickViewPane?
@@ -40,9 +40,10 @@ final class PanelViewController: NSViewController {
     private var lastFontSize: Double?
     private(set) var isActive = false
 
-    init(workspace: Workspace, side: PanelSide) {
+    init(workspace: Workspace, side: PanelSide, terminals: PanelTerminalRegistry) {
         self.workspace = workspace
         self.side = side
+        self.terminals = terminals
         tree = DirectoryTreeView(workspace: workspace)
         super.init(nibName: nil, bundle: nil)
     }
@@ -153,13 +154,8 @@ final class PanelViewController: NSViewController {
             guard let self else { return }
             let panel = self.panel
             self.tabBar.update(titles: panel.tabs.map(\.title), active: panel.activeTabIndex)
-            // Zamknięta karta-terminal kończy swój proces ssh.
-            let ids = Set(panel.tabs.map(\.id))
-            for (id, view) in self.terminals where !ids.contains(id) {
-                view.stop()
-                view.removeFromSuperview()
-                self.terminals[id] = nil
-            }
+            // Zamknięta karta-terminal kończy swój proces ssh — ale nie karta przeniesiona ⌃U do drugiego panelu.
+            self.terminals.scheduleSweep()
         }
         // Widok, katalog, listing
         observations.add { [weak self] in
@@ -232,9 +228,9 @@ final class PanelViewController: NSViewController {
         CommandArguments(["index": .int(Int64(index)), "side": .string(side.rawValue)])
     }
 
-    /// Katalog lokalny wskazany w pasku ścieżki albo drzewie — bezpośrednio przez `Workspace.open`
-    /// (jak `panel.navigate`: karta serwera, telefonu albo terminala dostaje nową kartę obok), bo komenda
-    /// przyjmuje tekst i obcina spacje z końców, przez co katalog „Projekt ” byłby nieosiągalny.
+    /// Katalog wskazany w pasku ścieżki albo drzewie — bezpośrednio przez `Workspace.open` (jak
+    /// `panel.navigate`: karta serwera, telefonu albo terminala dostaje nową kartę obok). Pasek i drzewo
+    /// mają gotową ścieżkę `VFSPath`; komenda przyjmuje tekst, który musiałaby z powrotem rozbierać.
     private func navigate(to path: VFSPath) {
         let panel = panel
         Task { await workspace.openReportingError(path, in: panel) }
@@ -283,21 +279,9 @@ final class PanelViewController: NSViewController {
     }
 
     private func showTerminal(tab: Tab, spec: TerminalSpec) {
-        let view: PanelTerminalView
-        if let existing = terminals[tab.id], existing.spec == spec {
-            view = existing
-        } else {
-            terminals[tab.id]?.stop()
-            view = PanelTerminalView(spec: spec, workspace: workspace)
-            view.onSwitchPanel = { [weak self] in self?.workspace.perform("panel.switch") }
-            let id = tab.id
-            view.onCloseTab = { [weak self] in
-                guard let self, let index = self.panel.tabs.firstIndex(where: { $0.id == id }) else { return }
-                self.workspace.perform("tab.close", self.tabArguments(index))
-            }
-            terminals[tab.id] = view
-        }
-        guard shownTerminal !== view else { return }
+        let view = terminals.view(for: tab, spec: spec)
+        // Widok przeniesiony do drugiego panelu (⌃U tam i z powrotem) trzeba przejąć z powrotem.
+        guard shownTerminal !== view || view.superview !== fileContainer else { return }
         currentView = nil
         currentMode = nil
         previewView = nil

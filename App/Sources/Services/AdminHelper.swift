@@ -46,8 +46,6 @@ final class AdminHelperClient {
         if service.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
     }
 
-    func uninstall() throws { try service.unregister() }
-
     /// Autoryzacja jednej operacji: prawo w bazie (tworzone przy pierwszym użyciu) i pytanie
     /// o hasło administratora (z dotkniętymi ścieżkami w treści pytania). Zwraca referencję i jej
     /// zewnętrzną formę dla demona — referencja musi żyć, dopóki demon jej nie sprawdzi (po

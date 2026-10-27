@@ -14,6 +14,9 @@ struct ConnectionsView: View {
     @State private var portText = ""
     @State private var status = ""
     @State private var testing = false
+    /// Formularz pokazuje zapisane połączenie — alias jest wtedy zablokowany (zmiana tworzyłaby
+    /// duplikat bez hasła, a stary wpis z hasłem w Pęku kluczy zostawałby).
+    @State private var editingExisting = false
 
     private var remotes: RemoteManager { workspace.remotes }
 
@@ -33,9 +36,12 @@ struct ConnectionsView: View {
                     .tag(c.alias)
                 }
                 HStack {
-                    Button(L10n.tr("Nowe")) { select(nil) }
+                    Button(L10n.tr("Nowe")) {
+                        selection = nil
+                        select(nil)
+                    }
                     Button(L10n.tr("Usuń")) {
-                        if let s = selection { try? remotes.remove(s); select(nil) }
+                        if let s = selection { confirmRemove(s) }
                     }
                     .disabled(selection == nil)
                 }
@@ -45,6 +51,8 @@ struct ConnectionsView: View {
 
             Form {
                 TextField(L10n.tr("Alias (widoczny dla agenta)"), text: $draft.alias, prompt: Text("prod-logi"))
+                    .disabled(editingExisting)
+                    .help(editingExisting ? L10n.tr("Aliasu zapisanego połączenia nie można zmienić — utwórz nowe połączenie i usuń stare.") : "")
                 Picker(L10n.tr("Rodzaj"), selection: $draft.kind) {
                     ForEach(RemoteKind.allCases, id: \.self) { Text($0.displayName).tag($0) }
                 }
@@ -134,9 +142,11 @@ struct ConnectionsView: View {
         if let alias, let c = remotes.connection(alias) {
             draft = c
             portText = c.port.map(String.init) ?? ""
+            editingExisting = true
         } else {
             draft = RemoteConnection(alias: "", kind: .sftp)
             portText = ""
+            editingExisting = false
         }
         secret = ""
         status = ""
@@ -150,6 +160,34 @@ struct ConnectionsView: View {
             status = L10n.tr("Zapisano")
         } catch {
             status = error.localizedDescription
+        }
+    }
+
+    /// Usunięcie kasuje też hasło lub token z Pęku kluczy — tylko po potwierdzeniu; domyślny przycisk
+    /// (Return) to „Anuluj”, „Usuń” wymaga kliknięcia (jak D23).
+    private func confirmRemove(_ alias: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = L10n.tr("Usunąć połączenie „\(alias)”?")
+        alert.informativeText = L10n.tr("Z Pęku kluczy zostaną też usunięte zapisane dane logowania (hasło lub token).")
+        alert.addButton(withTitle: L10n.tr("Anuluj"))
+        let remove = alert.addButton(withTitle: L10n.tr("Usuń"))
+        remove.hasDestructiveAction = true
+        remove.keyEquivalent = ""
+        let handler: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .alertSecondButtonReturn else { return }
+            do {
+                try remotes.remove(alias)
+                selection = nil
+                select(nil)
+            } catch {
+                status = "✕ " + error.localizedDescription
+            }
+        }
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window, completionHandler: handler)
+        } else {
+            handler(alert.runModal())
         }
     }
 
