@@ -7,6 +7,19 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
 @Suite(.enabled(if: sevenZipPath != nil)) struct ArchiveTests {
     let tool = SevenZip(executable: sevenZipPath ?? "")
 
+    /// Ścieżki wszystkich wpisów archiwum (jak w archiwum) przez listowanie katalogów — tak jak przegląda je panel.
+    func allEntryPaths(_ fs: ArchiveFS) async throws -> [String] {
+        var out: [String] = []
+        var stack = [fs.root]
+        while let dir = stack.popLast() {
+            for item in try await fs.list(dir, options: ListOptions(includeHidden: true)) {
+                out.append(fs.entryPath(item.path))
+                if item.isDirectory { stack.append(item.path) }
+            }
+        }
+        return out
+    }
+
     func fixture() throws -> TempDir {
         let tmp = try TempDir()
         try tmp.file("src/zażółć.txt", "gęślą jaźń")
@@ -16,14 +29,14 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
     }
 
     @Test(arguments: [ArchiveFormat.zip, .sevenZ, .tar, .tarGz, .tarBz2, .tarXz])
-    func createListExtract(format: ArchiveFormat) throws {
+    func createListExtract(format: ArchiveFormat) async throws {
         let tmp = try fixture()
         let archive = tmp.path.appending("a." + format.fileExtension)
         try tool.create(archive, format: format, base: tmp.path.appending("src"), names: ["zażółć.txt", "katalog"])
         let fs = try ArchiveFS(archive: archive, tool: tool)
         // tar.* — w środku jest jeden plik .tar (jak w TC); 7zz widzi go jako zawartość.
         if format.isTarCompound { return }
-        let names = Set(fs.descendants(of: fs.root).map(\.path))
+        let names = Set(try await allEntryPaths(fs))
         #expect(names.contains("zażółć.txt") || names.contains("zażółć.txt".decomposedStringWithCanonicalMapping))
         #expect(names.contains("katalog/głęboko/c.txt") || names.contains("katalog/głęboko/c.txt".decomposedStringWithCanonicalMapping))
         let out = try tmp.dir("out")
@@ -59,7 +72,7 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
 
         let bad = try ArchiveFS(archive: tmp.path.appending("zly.tar"), tool: tool)
         #expect(try await bad.list(bad.root, options: ListOptions()).map(\.name) == ["kat"])
-        #expect(!bad.descendants(of: bad.root).contains { $0.path.contains("..") })
+        #expect(!(try await allEntryPaths(bad)).contains { $0.contains("..") })
     }
 
     @Test func browseAsDirectoryAndRead() async throws {
@@ -282,7 +295,7 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
         FileManager.default.createFile(atPath: archive.path, contents: tar)
         let fs = try ArchiveFS(archive: archive, tool: tool)
         // 7zz sam zamienia część znaków sterujących (np. nowa linia → „_”); reszta musi odpaść u nas.
-        let paths = fs.descendants(of: fs.root).map(\.path)
+        let paths = try await allEntryPaths(fs)
         #expect(paths.allSatisfy { ArchiveFS.isUsable($0) }, "\(paths)")
         #expect(Set(try await fs.list(fs.root, options: ListOptions()).map(\.name)).isSuperset(of: ["ok.txt", "dobry"]))
         #expect(!paths.contains { $0.hasPrefix("   ") || $0.unicodeScalars.contains { $0.properties.generalCategory == .control } })

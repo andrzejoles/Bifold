@@ -76,6 +76,14 @@ func finishes(within limit: Duration, unblocking fifo: String, unblockLimit: Dur
     return false
 }
 
+extension FileOperations {
+    /// Plan cofnięcia ostatniej partii — tak jak `edit.undo` (`journal.lastUndoable` + `UndoPlanner.plan`),
+    /// synchronicznie dla testów.
+    func undoPlanForLast(where predicate: (JournalBatch) -> Bool = { _ in true }) -> UndoPlan? {
+        journal.lastUndoable(where: predicate).map { UndoPlanner.plan(for: [$0]) }
+    }
+}
+
 final class Flag: Sendable {
     private let state = Atomic<Bool>(false)
     var value: Bool { state.load(ordering: .relaxed) }

@@ -118,13 +118,6 @@ public final class ArchiveFS: FileSystemProvider {
         try Volumes.info(for: archive)
     }
 
-    /// Wszystkie pliki poddrzewa (do rozpakowania wybranych elementów i liczenia rozmiaru).
-    public func descendants(of path: VFSPath) -> [SevenZip.Entry] {
-        let k = Self.key(path.path)
-        let prefix = path.isRoot ? "/" : k + "/"
-        return entriesByPath.filter { $0.key.hasPrefix(prefix) || $0.key == k }.map(\.value)
-    }
-
     /// Rozpakowuje wskazane elementy (pliki lub katalogi) do katalogu docelowego bez ścieżki
     /// nadrzędnej w archiwum: `a/b/c.txt` trafia jako `c.txt`. Najpierw do katalogu tymczasowego
     /// na woluminie docelowym, potem przeniesienie silnikiem kopiowania (konflikty, dziennik).

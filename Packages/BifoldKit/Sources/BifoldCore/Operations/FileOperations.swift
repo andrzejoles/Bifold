@@ -76,11 +76,6 @@ public struct FileOperations: Sendable {
         }
     }
 
-    /// Plan cofnięcia ostatniej partii (opcjonalnie tylko pasującej do warunku).
-    public func undoPlanForLast(where predicate: (JournalBatch) -> Bool = { _ in true }) -> UndoPlan? {
-        journal.lastUndoable(where: predicate).map { UndoPlanner.plan(for: [$0]) }
-    }
-
     /// Plan cofnięcia całej sesji agenta.
     public func undoPlan(forAgentSession sessionID: String) -> UndoPlan {
         UndoPlanner.plan(for: journal.batches(forAgentSession: sessionID))
