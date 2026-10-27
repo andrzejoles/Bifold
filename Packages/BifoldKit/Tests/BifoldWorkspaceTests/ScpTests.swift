@@ -15,7 +15,9 @@ final class TestSSHD {
     let knownHosts: String
     static let passphrase = "tajne hasło klucza"
 
-    init(sftp: Bool = false) throws {
+    /// - Parameter shell: powłoka poleceń zamiast powłoki użytkownika (np. `/bin/dash` — inne komunikaty
+    ///   błędów i składnia bez rozszerzeń bash/zsh, jak sh na starych systemach).
+    init(sftp: Bool = false, shell: String? = nil) throws {
         dir = try TempDir()
         root = try TempDir()
         let d = dir.url.path
@@ -52,18 +54,21 @@ final class TestSSHD {
             KexAlgorithms diffie-hellman-group14-sha1
             Ciphers aes128-cbc
             \(sftp ? "Subsystem sftp internal-sftp" : "")
+            \(shell.map { "ForceCommand \($0) -c \"$SSH_ORIGINAL_COMMAND\"" } ?? "")
             """
             try Data(config.utf8).write(to: URL(filePath: d + "/sshd_config"))
             // `sshd` pod nadzorcą: kończy się z procesem testów (pakiet, który padł, nie zostawia serwera
             // z sesjami), a SIGTERM nadzorcy (deinit) kończy `sshd`. Bez potoków pomocnika testów — osierocony
-            // proces trzymający stdout/stderr zawieszał `swift test`; dziennik idzie do `-E plik`.
+            // proces trzymający stdout/stderr zawieszał `swift test`; dziennik idzie do `-E plik`. Procesy sesji
+            // (dzieci `sshd`, po PID rodzica) kończone razem z nim — inaczej połączenie główne klienta
+            // (ControlPersist), którego test nie zamknął, zostałoby po teście.
             let p = Process()
             p.executableURL = URL(filePath: "/bin/sh")
             let script = """
             /usr/sbin/sshd -D -f "$1" -E "$2" & s=$!
-            trap 'kill $s 2>/dev/null; exit 0' TERM
+            trap 'pkill -TERM -P $s 2>/dev/null; kill $s 2>/dev/null; exit 0' TERM
             while kill -0 \(getpid()) 2>/dev/null && kill -0 $s 2>/dev/null; do sleep 1; done
-            kill $s 2>/dev/null
+            pkill -TERM -P $s 2>/dev/null; kill $s 2>/dev/null
             """
             p.arguments = ["-c", script, "sshd-test", d + "/sshd_config", d + "/sshd.log"]
             Self.detachStdio(p)

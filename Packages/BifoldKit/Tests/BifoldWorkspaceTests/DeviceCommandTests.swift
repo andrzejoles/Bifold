@@ -24,9 +24,20 @@ import Testing
         """
         try Data(script.utf8).write(to: URL(filePath: helper))
         chmod(helper, 0o755)
-        setenv("BIFOLD_MTP_HELPER", helper, 1)
-        defer { unsetenv("BIFOLD_MTP_HELPER") }
+        // Pomocnik dla tego testu (wartość zadania) — `setenv` nie jest bezpieczne przy zestawach równoległych.
+        try await DeviceDetector.$mtpHelperOverride.withValue(helper) {
+            try await androidFlow(tmp)
+        }
+    }
+
+    func androidFlow(_ tmp: TempDir) async throws {
         let (ws, _) = try await makeWorkspace(tmp)
+        let gate = AllowAllGate()
+        ws.agentGate = gate
+        defer { withExtendedLifetime(gate) {} }
+        // Nazwy z telefonu dla agenta jako dane niezaufane.
+        let listed = try await ws.invoke("device.list", invoker: .agent(sessionID: "t", agentName: "t"))
+        #expect(listed.value?["untrusted"] == true && "\(listed.value?["content"] ?? .null)".contains("Samsung"))
 
         try await ws.invoke("device.open", CommandArguments(["id": "0"]))
         let tab = ws.left.activeTab
@@ -42,11 +53,16 @@ import Testing
         #expect(ws.left.tabs.count == 1 && ws.left.activeTab.path == tmp.path, "karta telefonu zamknięta")
         #expect((try? ws.providers.provider(for: ProviderID("device:mtp-0"))) == nil)
         #expect(tmp.exists("quit"), "sesja MTP zamknięta")
+
+        // Otwarcie przez agenta: model telefonu w wyniku niezaufanym, nie w komunikacie.
+        FileManager.default.createFile(atPath: tmp.url.path + "/allowed", contents: Data())
+        let opened = try await ws.invoke("device.open", CommandArguments(["id": "0"]), invoker: .agent(sessionID: "t", agentName: "t"))
+        #expect(opened.message == nil && opened.value?["untrusted"] == true && opened.value?["content"]?["name"] == "SM-F776B")
+        await ws.closeDevice(ProviderID("device:mtp-0"))
     }
 
     /// Dwa telefony: numer z `detect` zmienia się z kolejnością — otwarcie telefonu B nie może zwrócić
-    /// otwartej sesji telefonu A (dostawca identyfikowany po USB, D51). W tym zestawie (szeregowo), bo
-    /// `BIFOLD_MTP_HELPER` jest wspólne dla procesu.
+    /// otwartej sesji telefonu A (dostawca identyfikowany po USB, D51).
     @Test func reorderedPhonesGetTheirOwnSessions() async throws {
         let tmp = try TempDir()
         let helper = tmp.url.appending(path: "bifold-mtp").path
@@ -72,8 +88,12 @@ import Testing
         """
         try Data(script.utf8).write(to: URL(filePath: helper))
         chmod(helper, 0o755)
-        setenv("BIFOLD_MTP_HELPER", helper, 1)
-        defer { unsetenv("BIFOLD_MTP_HELPER") }
+        try await DeviceDetector.$mtpHelperOverride.withValue(helper) {
+            try await reorderedFlow(tmp)
+        }
+    }
+
+    func reorderedFlow(_ tmp: TempDir) async throws {
         let (ws, _) = try await makeWorkspace(tmp)
         defer { withExtendedLifetime(tmp) {} }  // pomocnik leży w katalogu testu
         defer {
