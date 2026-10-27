@@ -356,3 +356,21 @@ kolumn tylko dla dysku lokalnego, poziomy wczytywane w tle. Skróty przechwytywa
 Trzecia runda przeglądu: sześciu recenzentów (Core, serwery/urządzenia/pomocnik, Workspace, agent, UI,
 stos/build) tylko do odczytu, potem sześciu wykonawców w osobnych worktree z rozłącznymi plikami;
 każde ustalenie weryfikowane testem przed poprawką. Dokumentację uzupełnia koordynator po scaleniu.
+
+### D55 · 2026-10-27 — Przegląd, część 4: cofanie, dziennik, nawigacja
+Krok cofania, którego elementu już nie ma (`.missing`, np. opróżniony Kosz), liczy się jak wykonany —
+inaczej partia blokowała Cmd+Z na zawsze. Kopia katalogu zapisuje liczbę elementów poddrzewa (bez
+`.DS_Store`); inna liczba przy cofaniu to konflikt „zmieniony”. Dziennik przycinany przy starcie do 1000
+partii / 100 000 wpisów / 32 MB (najnowsza partia zostaje zawsze). Jawna nawigacja liczy się jako
+zastosowana zaraz po ustawieniu kursora (uzupełnia D47). Tytuł karty tylko z dostawcy (`setPath`); ręcznie
+zostają „⌨” i telefon. Martwe wpisy historii są usuwane przy Wstecz/Dalej. ⌃U przenosi też karty-terminale
+(agent nie). Okno synchronizacji wykonuje sprawdzony plan bezpośrednio przez kolejkę (wyjątek od zasady
+„czynność = komenda”, bo `sync.run` liczy plan od nowa). Widok kolumn trzyma tylko poziomy bieżącej
+ścieżki i widocznych kolumn, a dopóki w tle wczytuje się nowa lista — pokazuje dotychczasową.
+
+### D56 · 2026-10-27 — SCP: nadpisywanie przez plik tymczasowy, sesje po gnieździe, MTP po USB
+Nadpisywanie na SCP idzie przez plik tymczasowy w katalogu docelowym i `mv -f` (przerwanie nie psuje
+pliku); plik dostaje właściciela wysyłającego i prawa z kopii lokalnej, dowiązania twarde do starego pliku
+się rozłączają; bez prawa zapisu do katalogu — zapis w miejscu (nieatomowy, jak dawniej). Pobieranie tworzy
+elementy wyłącznie jako nowe, wolną nazwę wybiera system plików. Sesje SSH liczone po gnieździe
+ControlMaster, nie po aliasie (rozszerza D50). Dostawca MTP identyfikowany po USB (uzupełnia D51).

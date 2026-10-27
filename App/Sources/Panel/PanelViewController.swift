@@ -76,7 +76,7 @@ final class PanelViewController: NSViewController {
         pathBar.onNavigate = { [weak self] path in
             guard let self else { return }
             self.activate()
-            self.workspace.perform("panel.navigate", self.navigateArguments(path))
+            self.navigate(to: path)
         }
         pathBar.onDrives = { [weak self] in
             self?.activate()
@@ -115,7 +115,7 @@ final class PanelViewController: NSViewController {
         tree.onNavigate = { [weak self] path in
             guard let self else { return }
             self.activate()
-            self.workspace.perform("panel.navigate", self.navigateArguments(path))
+            self.navigate(to: path)
         }
 
         let statusRow = NSStackView(views: [statusBar])
@@ -232,9 +232,12 @@ final class PanelViewController: NSViewController {
         CommandArguments(["index": .int(Int64(index)), "side": .string(side.rawValue)])
     }
 
-    /// Ścieżka lokalna (pasek ścieżki, drzewo) dla `panel.navigate` w tym panelu.
-    private func navigateArguments(_ path: VFSPath) -> CommandArguments {
-        CommandArguments(["path": .string(path.path), "side": .string(side.rawValue)])
+    /// Katalog lokalny wskazany w pasku ścieżki albo drzewie — bezpośrednio przez `Workspace.open`
+    /// (jak `panel.navigate`: karta serwera, telefonu albo terminala dostaje nową kartę obok), bo komenda
+    /// przyjmuje tekst i obcina spacje z końców, przez co katalog „Projekt ” byłby nieosiągalny.
+    private func navigate(to path: VFSPath) {
+        let panel = panel
+        Task { await workspace.openReportingError(path, in: panel) }
     }
 
     private func updateContent(tab: Tab, mode: ViewMode, generation: Int, quickView: Bool) {

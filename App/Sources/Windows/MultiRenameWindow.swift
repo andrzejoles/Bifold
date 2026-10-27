@@ -13,6 +13,8 @@ struct MultiRenameView: View {
     @State private var plan: [RenamePlanEntry] = []
     @State private var error: String?
     @State private var planTask: Task<Void, Never>?
+    /// Trwające obliczenie planu (poza wątkiem głównym) — kolejne startuje dopiero po jego zakończeniu.
+    @State private var computeTask: Task<[RenamePlanEntry], Never>?
     @State private var generation = 0
 
     var body: some View {
@@ -62,19 +64,26 @@ struct MultiRenameView: View {
         }
         .padding(16)
         .frame(minWidth: 860, minHeight: 600)
-        .onAppear(perform: refresh)
+        .onAppear { refresh(debounce: false) }
         .onChange(of: rule) { refresh() }
     }
 
-    /// Podgląd liczony w tle; poprzednie obliczenie jest anulowane, a spóźniony wynik starszej reguły
-    /// (numer generacji) nie nadpisuje nowszego podglądu.
-    private func refresh() {
+    /// Podgląd liczony w tle po krótkiej przerwie w pisaniu (~150 ms); nowsza reguła anuluje czekające
+    /// obliczenie, a naraz liczy się najwyżej jeden plan (`MultiRename.plan` nie da się przerwać w trakcie).
+    /// Spóźniony wynik starszej reguły (numer generacji) nie nadpisuje nowszego podglądu.
+    private func refresh(debounce: Bool = true) {
         let items = items, rule = rule
         planTask?.cancel()
         generation += 1
         let current = generation
         planTask = Task {
-            let p = await Task.detached { MultiRename.plan(items, rule: rule) }.value
+            if debounce { try? await Task.sleep(for: .milliseconds(150)) }
+            guard !Task.isCancelled, current == generation else { return }
+            if let running = computeTask { _ = await running.value }
+            guard !Task.isCancelled, current == generation else { return }
+            let compute = Task.detached(priority: .userInitiated) { MultiRename.plan(items, rule: rule) }
+            computeTask = compute
+            let p = await compute.value
             guard !Task.isCancelled, current == generation else { return }
             plan = p
         }

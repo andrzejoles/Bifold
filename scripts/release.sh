@@ -15,10 +15,15 @@ VERSION="$(scripts/version.sh)"
 TAG="v$VERSION"
 REPO="$(awk -F' = ' '/^BIFOLD_REPOSITORY/{print $2}' Config/Brand.xcconfig)"
 APP_NAME="$(awk -F' = ' '/^BIFOLD_APP_NAME/{print $2}' Config/Brand.xcconfig)"
+AUTHOR="$(awk -F' = ' '/^BIFOLD_COPYRIGHT/{print $2}' Config/Brand.xcconfig | sed 's/^© [0-9]* //')"
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
     echo "Wydanie $TAG już istnieje" >&2
     exit 1
 fi
+
+# Wydanie tylko z zielonymi testami (pełne `make test`; porażka przerywa skrypt przez `set -e`).
+echo "=== Testy przed wydaniem ==="
+make test
 
 scripts/build-installer.sh
 
@@ -50,7 +55,7 @@ Zainstalowane kopie aktualizują się same. Narzędzia: \`brew install ripgrep s
 
 Pliki \`$APP_NAME-$VERSION.zip\` i \`appcast.xml\` służą automatycznym aktualizacjom.
 
-Autor: Andrzej Oleś w kooperacji z Claude AI · licencja MIT
+Autor: $AUTHOR · licencja MIT
 NOTES
 } > "$RELEASE_DIR/notes.md"
 

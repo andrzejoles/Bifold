@@ -1,6 +1,6 @@
 # Stan realizacji (2026-10-26)
 
-Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **256** w pakiecie
+Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **310** w pakiecie
 `BifoldKit` (`make test`), w tym 2 pomijane warunkowo: `DocsGenerator.writeShortcuts` (generuje
 `docs/SKROTY.md`, `BIFOLD_WRITE_DOCS=1`) i `AgentE2ETests` (opcjonalny test E2E z prawdziwymi CLI
 agentów, `BIFOLD_E2E_AGENTS=1`) + test wydajności w Release (`make test-release`). Zgodnie z poleceniem

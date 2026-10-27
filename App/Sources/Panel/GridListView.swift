@@ -341,16 +341,42 @@ final class ThumbnailCache {
         return request
     }
 
-    /// Obraz jednolity (jeden kolor) w próbce 32×32 — w mniejszej próbce plik z jednym znakiem też
-    /// wyglądałby na pusty.
+    /// Pusta strona: wszystkie nieprzezroczyste piksele wnętrza strony mają jeden kolor. W trybie ikony
+    /// QuickLook rysuje stronę z zaokrąglonymi rogami i cieniem na przezroczystym tle, więc badany jest
+    /// prostokąt nieprzezroczystych pikseli (bez 2 px brzegu), a piksele półprzezroczyste są pomijane.
+    /// Próbka w rozdzielczości miniatury (najwyżej 256 px) — po zmniejszeniu jedno słowo tekstu
+    /// (drobny druk w lewym górnym rogu strony) zlewałoby się z tłem. Wątpliwy przypadek (mało
+    /// nieprzezroczystych pikseli, inny kolor w pierwszym pikselu) daje miniaturę, nie ikonę.
     nonisolated static func isBlank(_ image: CGImage) -> Bool {
-        let side = 32
-        guard let ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+        let side = min(256, max(image.width, image.height))
+        guard side > 8,
+              let ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
               let data = ctx.data else { return false }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
-        let pixels = data.bindMemory(to: UInt32.self, capacity: side * side)
-        let first = pixels[0]
-        return (1..<side * side).allSatisfy { pixels[$0] == first }
+        let px = data.bindMemory(to: UInt8.self, capacity: side * side * 4)
+        func isOpaque(_ x: Int, _ y: Int) -> Bool { px[(y * side + x) * 4 + 3] >= 250 }
+        var minX = side, minY = side, maxX = -1, maxY = -1
+        for y in 0..<side {
+            for x in 0..<side where isOpaque(x, y) {
+                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        let margin = 2
+        guard maxX - minX > 4 * margin, maxY - minY > 4 * margin else { return false }
+        var reference: (r: Int, g: Int, b: Int)?
+        var total = 0, opaque = 0
+        for y in (minY + margin)...(maxY - margin) {
+            for x in (minX + margin)...(maxX - margin) {
+                total += 1
+                guard isOpaque(x, y) else { continue }
+                opaque += 1
+                let i = (y * side + x) * 4
+                let r = Int(px[i]), g = Int(px[i + 1]), b = Int(px[i + 2])
+                guard let ref = reference else { reference = (r, g, b); continue }
+                if abs(r - ref.r) > 16 || abs(g - ref.g) > 16 || abs(b - ref.b) > 16 { return false }
+            }
+        }
+        return opaque * 10 >= total * 9
     }
 }

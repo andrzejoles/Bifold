@@ -66,12 +66,6 @@ public enum AgentPolicy {
         return level
     }
 
-    /// Poziom zasobu: lokalny = pełny, zablokowany = brak; operacja na całym poddrzewie
-    /// (`subtree`) — brak, jeśli w poddrzewie leży zablokowana ścieżka. (Serwery: `Workspace.resourceAccess`.)
-    public static func resourceAccess(_ path: VFSPath, blocked: BlockedPaths, subtree: Bool = false) -> AgentAccess {
-        (subtree ? blocked.containsBlocked(path) : blocked.isBlocked(path)) ? .none : .full
-    }
-
     /// Czy wywołanie o danym poziomie i skutkach może się odbyć bez zgody, wymaga zgody, czy jest zabronione.
     public enum Decision: Equatable, Sendable { case allow, needsApproval, deny(String) }
 

@@ -51,7 +51,6 @@ var navigationCommands: [Command] { [
             try await ctx.tab.goUp()
         } else if ctx.tab.isSearchResults, item.isNavigable {
             try await ctx.tab.navigate(to: item.path)
-            ctx.tab.customTitle = nil
         } else if item.isNavigable && (!item.path.isLocal || !isPackage(item)) {
             try await ctx.tab.navigate(to: item.path)
         } else if item.path.isLocal, item.kind == .file, ArchiveFS.isArchive(item.name), ctx.workspace.settings.toolPath("7zz") != nil {
@@ -73,7 +72,11 @@ var navigationCommands: [Command] { [
         let panel = try ctx.panel(forSide: "side")
         let tab = panel.activeTab
         let raw = try await ctx.text("path", title: L10n.tr("Przejdź do katalogu"), default: tab.path.displayPath)
-        let target = ctx.workspace.parsePath(raw.trimmingCharacters(in: .whitespaces), relativeTo: tab.path)
+        // Spacje obcinane tylko, gdy ścieżka bez obcięcia nie istnieje (katalog „Projekt ” z odstępem na końcu
+        // zostaje osiągalny z drzewa i paska ścieżki).
+        let exact = ctx.workspace.parsePath(raw.trimmingCharacters(in: .newlines), relativeTo: tab.path)
+        let target = (exact.isLocal && !FileManager.default.fileExists(atPath: exact.path))
+            ? ctx.workspace.parsePath(raw.trimmingCharacters(in: .whitespacesAndNewlines), relativeTo: tab.path) : exact
         if let alias = RemoteFS.alias(of: target) {
             _ = try await ctx.workspace.remotes.provider(alias)
             try await ctx.workspace.open(target, in: panel)
@@ -162,12 +165,14 @@ var navigationCommands: [Command] { [
 
     Command(CommandDescriptor(
         id: "panel.swap", title: L10n.tr("Zamień panele"), category: .panel, tc: ["ctrl+u"], cmd: ["cmd+u"],
-        agent: .full, effect: .uiState, summary: L10n.tr("Zamienia katalogi aktywnych kart obu paneli."))
+        agent: .full, effect: .uiState, summary: L10n.tr("Zamienia aktywne karty obu paneli."))
     ) { ctx in
         let a = ctx.workspace.left.activeTab, b = ctx.workspace.right.activeTab
-        guard a.terminal == nil, b.terminal == nil else { throw CommandError.notAvailable(L10n.tr("Karta z terminalem SSH nie pokazuje plików — otwórz je w nowej karcie")) }
-        // Całe karty (z historią, tytułem i maszyną) — karta serwera zostaje kartą serwera, a lokalna
-        // lokalną (wcześniej lokalna lista dostawała tytuł „🌐 prod”).
+        // Agent nie ma dostępu do terminala (PROMPT 5.5, D44) — nie przenosi też kart z sesją SSH.
+        if ctx.isAgent, a.terminal != nil || b.terminal != nil { throw CommandError.notAvailable(L10n.tr("Agent nie ma dostępu do terminala")) }
+        // Całe karty (z historią, tytułem, maszyną i terminalem) — karta serwera zostaje kartą serwera,
+        // a lokalna lokalną (wcześniej lokalna lista dostawała tytuł „🌐 prod”); karta-terminal przechodzi
+        // do drugiego panelu razem ze swoją sesją.
         ctx.workspace.left.swapActiveTabs(with: ctx.workspace.right)
         return .ok
     },
@@ -236,7 +241,6 @@ var tabCommands: [Command] { [
             panel.selectTab(id: current.id)
             throw error
         }
-        if let alias = RemoteFS.alias(of: tab.path) { tab.customTitle = "🌐 " + alias }
         return CommandResult(value: .int(Int64(panel.activeTabIndex)))
     },
 

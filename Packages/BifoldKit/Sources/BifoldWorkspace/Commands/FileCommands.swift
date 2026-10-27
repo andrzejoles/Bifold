@@ -89,7 +89,9 @@ private func transferCommand(_ kind: TransferKind) -> Command {
             }
             if ctx.tab.isInArchive || ctx.tab.path.isDevice {
                 let dest = try ctx.arguments.path("destination", relativeTo: ctx.localBaseDirectory) ?? ctx.localOtherDirectory()
-                return EffectPreview(summary: L10n.tr("Kopiowanie z archiwum \(Format.describe(items)) → \(dest.path)"),
+                let summary = ctx.tab.path.isDevice ? L10n.tr("Kopiowanie z urządzenia \(Format.describe(items)) → \(dest.path)")
+                    : L10n.tr("Kopiowanie z archiwum \(Format.describe(items)) → \(dest.path)")
+                return EffectPreview(summary: summary,
                                      operations: items.map { PlannedOperation(kind: "extract", source: $0.path, destination: dest, isDirectory: $0.isDirectory, bytes: max(0, $0.size)) },
                                      fileCount: items.count, totalBytes: items.reduce(0) { $0 + max(0, $1.size) })
             }

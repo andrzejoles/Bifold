@@ -27,7 +27,7 @@ public enum ChecksumAlgorithm: String, Codable, Sendable, CaseIterable {
 /// Sumy kontrolne (CryptoKit), strumieniowo w blokach 1 MB.
 public enum Checksums {
     public static func hash(_ path: VFSPath, algorithm: ChecksumAlgorithm, isCancelled: () -> Bool = { false }) throws -> String {
-        guard let handle = FileHandle(forReadingAtPath: path.path) else { throw VFSError.notFound(path) }
+        let handle = FileHandle(fileDescriptor: try LocalFS.openRegularFile(path), closeOnDealloc: true)
         defer { try? handle.close() }
         func run<H: HashFunction>(_ h: inout H) throws -> String {
             while true {
@@ -86,7 +86,9 @@ public enum Checksums {
     }
 
     /// Sprawdza pozycje pliku sum względem katalogu, w którym leży plik sum.
-    public static func verify(checksumFile: VFSPath, isCancelled: () -> Bool = { false }) throws -> [VerifyResult] {
+    /// - Parameter skip: wpisy, których nie wolno czytać (np. zablokowane dla agenta) — wynik `invalid`
+    ///   bez otwierania pliku.
+    public static func verify(checksumFile: VFSPath, isCancelled: () -> Bool = { false }, skip: (VFSPath) -> Bool = { _ in false }) throws -> [VerifyResult] {
         guard let algorithm = ChecksumAlgorithm(fileExtension: checksumFile.name.fileExtension) else {
             throw VFSError.unsupported("checksum file")
         }
@@ -94,7 +96,7 @@ public enum Checksums {
         let base = checksumFile.parent ?? .root
         let baseReal = VFSPath.local(realPath(base.path) ?? base.path)
         return try parse(text).map { e in
-            guard let p = entryPath(e.path, base: base, baseReal: baseReal) else { return VerifyResult(path: e.path, status: .invalid) }
+            guard let p = entryPath(e.path, base: base, baseReal: baseReal), !skip(p) else { return VerifyResult(path: e.path, status: .invalid) }
             guard FileManager.default.fileExists(atPath: p.path) else { return VerifyResult(path: e.path, status: .missing) }
             let h = try hash(p, algorithm: algorithm, isCancelled: isCancelled)
             return VerifyResult(path: e.path, status: h == e.hash ? .ok : .mismatch)
@@ -254,20 +256,21 @@ public enum FileSplitter {
     /// Łączy części w plik `target`. Zwraca `true`/`false` dla weryfikacji sumą (albo `nil`, gdy brak pliku sum).
     @discardableResult
     public static func join(_ parts: [VFSPath], into target: VFSPath, isCancelled: () -> Bool = { false }) throws -> Bool? {
-        guard !FileManager.default.fileExists(atPath: target.path) else { throw VFSError.alreadyExists(target) }
-        guard FileManager.default.createFile(atPath: target.path, contents: nil), let output = FileHandle(forWritingAtPath: target.path) else {
-            throw VFSError.permissionDenied(target)
-        }
+        // O_EXCL (jak w `split`): bez wyścigu między sprawdzeniem a utworzeniem i bez zapisu przez
+        // (wiszące) dowiązanie; przy błędzie usuwamy tylko plik, który sami utworzyliśmy.
+        let fd = open(target.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o644)
+        guard fd >= 0 else { throw VFSError.from(errno: errno, path: target) }
+        let output = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
         do {
             for part in parts {
-                guard let input = FileHandle(forReadingAtPath: part.path) else { throw VFSError.notFound(part) }
+                let input = FileHandle(fileDescriptor: try LocalFS.openRegularFile(part), closeOnDealloc: true)
+                defer { try? input.close() }
                 while true {
                     if isCancelled() { throw VFSError.cancelled }
                     let chunk = try input.read(upToCount: 1 << 20) ?? Data()
                     if chunk.isEmpty { break }
                     try output.write(contentsOf: chunk)
                 }
-                try input.close()
             }
             try output.close()
         } catch {

@@ -214,7 +214,14 @@ public final class MTPDeviceFS: ExtractingProvider, @unchecked Sendable {
         self.arguments = arguments
         current = helper
         model = (hello["model"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? device.name
-        id = ProviderID("device:mtp-\(device.id)")
+        id = Self.providerID(for: device)
+    }
+
+    /// Identyfikator dostawcy telefonu: z identyfikatora USB (vid-pid-bus-dev), a nie z numeru na liście
+    /// `detect` — po zmianie kolejności telefonów numer wskazywałby inny telefon (D51). Bez USB — numer.
+    public static func providerID(for device: DeviceInfo) -> ProviderID {
+        let key = device.usb.map { $0.split(separator: " ").joined(separator: "-") } ?? device.id
+        return ProviderID("device:mtp-\(key)")
     }
 
     public var displayName: String { model }

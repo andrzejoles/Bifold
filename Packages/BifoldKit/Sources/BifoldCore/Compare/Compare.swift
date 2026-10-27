@@ -89,8 +89,9 @@ public enum FileCompare {
 
     /// Porównanie blokami po 1 MB (pierwsze różniące się miejsce i liczba różnych bajtów).
     public static func binary(_ a: VFSPath, _ b: VFSPath, isCancelled: () -> Bool = { false }) throws -> BinaryResult {
-        guard let ha = FileHandle(forReadingAtPath: a.path) else { throw VFSError.notFound(a) }
-        guard let hb = FileHandle(forReadingAtPath: b.path) else { throw VFSError.notFound(b) }
+        // Zwykłe pliki bez blokowania na FIFO (`LocalFS.openRegularFile`).
+        let ha = FileHandle(fileDescriptor: try LocalFS.openRegularFile(a), closeOnDealloc: true)
+        let hb = FileHandle(fileDescriptor: try LocalFS.openRegularFile(b), closeOnDealloc: true)
         defer { try? ha.close(); try? hb.close() }
         let sa = Int64((try? ha.seekToEnd()) ?? 0), sb = Int64((try? hb.seekToEnd()) ?? 0)
         try ha.seek(toOffset: 0)

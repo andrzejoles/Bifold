@@ -8,6 +8,7 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
     private let table = NSTableView()
     private let details = NSTextView()
     private var batches: [JournalBatch] = []
+    private var undoButton: NSButton!
 
     init(workspace: Workspace) {
         self.workspace = workspace
@@ -47,6 +48,8 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
         detailScroll.hasVerticalScroller = true
         details.autoresizingMask = [.width]
         let undo = NSButton(title: L10n.tr("Cofnij zaznaczoną operację"), target: self, action: #selector(undoSelected))
+        undo.isEnabled = false
+        undoButton = undo
         let refresh = NSButton(title: L10n.tr("Odśwież"), target: self, action: #selector(refreshClicked))
         let buttons = NSStackView(views: [undo, refresh, NSView()])
         let split = NSSplitView()
@@ -70,6 +73,16 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
     private func reload() {
         batches = workspace.journal.batches.reversed()
         table.reloadData()
+        updateSelection()
+    }
+
+    /// Stan partii: trwające zadanie, cofnięta (cała albo wszystkie odwracalne wpisy), częściowo cofnięta,
+    /// nieodwracalna; pusty, gdy można ją cofnąć w całości.
+    private func stateText(_ b: JournalBatch) -> String {
+        if b.undone { return L10n.tr("cofnięta") }
+        if !b.finished { return L10n.tr("w toku") }
+        if b.entries.contains(where: \.undone) { return b.isUndoable ? L10n.tr("częściowo cofnięta") : L10n.tr("cofnięta") }
+        return b.isUndoable ? "" : L10n.tr("nieodwracalna")
     }
 
     @objc private func refreshClicked() { reload() }
@@ -88,18 +101,27 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
             case let .agent(session, name): text = "\(name) (\(session.prefix(6)))"
             }
         case "count": text = "\(b.entries.count)"
-        default: text = b.undone ? L10n.tr("cofnięta") : (b.isUndoable ? "" : L10n.tr("nieodwracalna"))
+        default: text = stateText(b)
         }
         let field = NSTextField(labelWithString: text)
         field.lineBreakMode = .byTruncatingMiddle
         return field
     }
 
-    func tableViewSelectionDidChange(_ notification: Notification) {
-        guard table.selectedRow >= 0 else { details.string = ""; return }
+    func tableViewSelectionDidChange(_ notification: Notification) { updateSelection() }
+
+    /// Szczegóły zaznaczonej partii (cofnięte wpisy oznaczone) i dostępność „Cofnij”.
+    private func updateSelection() {
+        guard table.selectedRow >= 0, table.selectedRow < batches.count else {
+            details.string = ""
+            undoButton.isEnabled = false
+            return
+        }
         let b = batches[table.selectedRow]
+        undoButton.isEnabled = b.isUndoable
+        let undoneMark = "  " + L10n.tr("(cofnięto)")
         details.string = b.entries.map { entry in
-            switch entry.action {
+            let line = switch entry.action {
             case let .created(p, dir): "+ \(dir ? "📁" : "📄") \(p.path)"
             case let .copied(f, t): "⧉ \(f.path) → \(t.path)"
             case let .moved(f, t): "→ \(f.path) → \(t.path)"
@@ -109,6 +131,7 @@ final class JournalWindowController: NSWindowController, NSTableViewDataSource, 
             case let .tagsChanged(p, b, a): "🏷 \(p.path): \(b) → \(a)"
             case let .deletedPermanently(p): "✕ \(p.path)"
             }
+            return entry.undone ? line + undoneMark : line
         }.joined(separator: "\n")
     }
 

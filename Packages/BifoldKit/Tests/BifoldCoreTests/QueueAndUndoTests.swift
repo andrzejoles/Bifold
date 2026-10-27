@@ -15,6 +15,27 @@ import Testing
         #expect(job.progress.filesDone == 1)
     }
 
+    /// Pasek zadań usuwa pojedynczy wiersz: tylko zadanie zakończone, nigdy trwające ani oczekujące.
+    @Test func removeDropsOnlyFinishedJob() async throws {
+        let tmp = try TempDir()
+        try tmp.file("src/a.txt", "a")
+        let big = tmp.url.appending(path: "src/big.bin")
+        FileManager.default.createFile(atPath: big.path, contents: Data(count: 32 * 1024 * 1024))
+        let queue = JobQueue(journal: OperationJournal())
+        let done = queue.enqueue(.transfer(TransferRequest(kind: .copy, sources: [tmp.path.appending("src/a.txt")], destinationDirectory: try tmp.dir("d1"))), title: "Mały")
+        _ = await queue.wait(for: done)
+        let running = queue.enqueue(.transfer(TransferRequest(kind: .copy, sources: [tmp.path.appending("src/big.bin")], destinationDirectory: try tmp.dir("d2"))),
+                                    title: "Duży", speedLimit: 4 * 1024 * 1024)
+        queue.remove(running.id)
+        #expect(queue.job(running.id) != nil)
+        queue.remove(done.id)
+        #expect(queue.job(done.id) == nil)
+        queue.cancel(running)
+        _ = await queue.wait(for: running)
+        queue.remove(running.id)
+        #expect(queue.job(running.id) == nil)
+    }
+
     @Test func cancelledLargeCopyLeavesNoPartialFile() async throws {
         let tmp = try TempDir()
         // 64 MB z limitem 8 MB/s → ok. 8 s; anulujemy po chwili.
@@ -196,25 +217,35 @@ import Testing
 }
 
 /// Delegat, który wstrzymuje zadanie na pierwszym konflikcie, dopóki test go nie zwolni.
+/// Decyzja podana wcześniej (zadanie jeszcze nie doszło do konfliktu, np. test przestał czekać
+/// na `isWaiting`) jest zapamiętywana — inaczej `resolveConflict` czekałby w nieskończoność.
 final class BlockingDelegate: TransferDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<ConflictDecision, Never>?
+    private var pending: ConflictDecision?
     private var waiting = false
 
     var isWaiting: Bool { lock.withLock { waiting } }
 
     func resolveConflict(_ conflict: FileConflict) async -> ConflictDecision {
         await withCheckedContinuation { c in
-            lock.withLock {
+            let early = lock.withLock { () -> ConflictDecision? in
+                if let decision = pending {
+                    pending = nil
+                    return decision
+                }
                 continuation = c
                 waiting = true
+                return nil
             }
+            if let early { c.resume(returning: early) }
         }
     }
 
     func release(_ decision: ConflictDecision) {
         let c = lock.withLock { () -> CheckedContinuation<ConflictDecision, Never>? in
             defer { continuation = nil; waiting = false }
+            if continuation == nil { pending = decision }
             return continuation
         }
         c?.resume(returning: decision)
@@ -266,7 +297,8 @@ final class BlockingDelegate: TransferDelegate, @unchecked Sendable {
         let plan = try #require(FileOperations(journal: journal).undoPlanForLast())
         let elapsed = ContinuousClock.now - start
         #expect(plan.steps.count == count && plan.conflicts.isEmpty)
-        #expect(elapsed < .seconds(1), "plan trwał \(elapsed)")
+        // Próg luźny: test ma wykrywać złożoność O(n²) (minuty), a nie mierzyć dokładnie (równoległe budowanie).
+        #expect(elapsed < .seconds(5), "plan trwał \(elapsed)")
     }
 
     /// Częściowe cofnięcie: partia nie jest oznaczana jako cofnięta; wykonane wpisy tak, a reszta zostaje.

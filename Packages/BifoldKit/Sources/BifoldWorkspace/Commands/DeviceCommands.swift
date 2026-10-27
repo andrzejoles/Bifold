@@ -24,8 +24,12 @@ extension Workspace {
             guard let afc = settings.toolPath("afcclient") else { throw CommandError.notAvailable(L10n.tr("iPhone wymaga libimobiledevice (brew install libimobiledevice)")) }
             return AFCDeviceFS(device: device, afcclient: afc, appContainer: appContainer)
         case .android:
-            // Telefon obsługuje jedną sesję MTP naraz — otwarta sesja jest używana ponownie.
-            if let open = try? providers.provider(for: ProviderID("device:mtp-\(device.id)")) as? MTPDeviceFS { return open }
+            // Telefon obsługuje jedną sesję MTP naraz — otwarta sesja jest używana ponownie, ale tylko
+            // dla tego samego telefonu (identyfikator USB; numer z listy zmienia się z kolejnością).
+            if let open = try? providers.provider(for: MTPDeviceFS.providerID(for: device)) as? MTPDeviceFS,
+               open.device.usb == device.usb, device.usb != nil || open.device.id == device.id {
+                return open
+            }
             guard let helper = DeviceDetector.mtpHelperPath else {
                 throw CommandError.notAvailable(L10n.tr("Android wymaga libmtp (brew install libmtp)"))
             }

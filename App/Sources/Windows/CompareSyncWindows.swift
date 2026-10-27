@@ -140,18 +140,27 @@ final class SyncModel {
         }
     }
 
-    /// Synchronizacja przez komendę `sync.run` (dziennik, odświeżenie paneli po zakończeniu) z tymi samymi
-    /// parametrami; operacje odznaczone w podglądzie są pomijane (`exclude`).
+    /// Wykonuje dokładnie plan pokazany w podglądzie (operacje odznaczone są pominięte), jak `sync.run`:
+    /// zadanie w kolejce (dziennik, Kosz dla plików lokalnych), po zakończeniu odświeżenie paneli.
+    /// Komenda liczy plan od nowa — gdyby w międzyczasie zmieniły się pliki, wykonałaby (także trwałe
+    /// usunięcia na serwerze) operacje, których podgląd nie pokazywał.
     func run(close: @escaping () -> Void) {
-        guard let plan else { return }
-        let excluded = plan.actions.filter { !$0.enabled }.map { JSONValue.string($0.path) }
-        var args: [String: JSONValue] = [
-            "source": .string(source), "destination": .string(destination),
-            "mode": .string(mode.rawValue), "byContent": .bool(byContent),
-        ]
-        if !excluded.isEmpty { args["exclude"] = .array(excluded) }
-        workspace.perform("sync.run", CommandArguments(args))
+        guard let plan, !busy else { return }
+        let rclone: Rclone
+        do {
+            rclone = try workspace.remotes.runningRclone()
+        } catch {
+            status = "✕ " + error.localizedDescription
+            return
+        }
+        let workspace = workspace
+        let job = workspace.jobs.enqueue(.sync(plan, rclone), title: L10n.tr("Synchronizacja (\(plan.actions.filter(\.enabled).count))"))
         close()
+        Task {
+            _ = await workspace.jobs.wait(for: job)
+            await workspace.left.activeTab.reload()
+            await workspace.right.activeTab.reload()
+        }
     }
 
     func save() {

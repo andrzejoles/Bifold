@@ -190,7 +190,9 @@ public final class SSHSession: Sendable {
 
     public let config: Config
     let runDirectory: URL
-    let controlPath: String
+    /// Gniazdo połączenia głównego — wspólne dla wszystkich sesji (i aliasów) tego samego
+    /// `użytkownik@host:port`; `ssh -O exit` zamyka je dla wszystkich.
+    public let controlPath: String
     let secret: @Sendable () -> String?
     static let ssh = "/usr/bin/ssh", scp = "/usr/bin/scp"
     /// Blokada uruchamiania połączenia głównego wspólna dla wszystkich sesji z tym samym gniazdem
@@ -217,9 +219,14 @@ public final class SSHSession: Sendable {
         self.config = config
         self.runDirectory = runDirectory
         self.secret = secret
+        controlPath = Self.controlPath(for: config, in: runDirectory)
+    }
+
+    /// Ścieżka gniazda połączenia głównego dla konfiguracji (bez tworzenia sesji).
+    public static func controlPath(for config: Config, in runDirectory: URL) -> String {
         let key = "\(config.user)@\(config.host):\(config.port ?? 22)"
         let hash = SHA256.hash(data: Data(key.utf8)).prefix(5).map { String(format: "%02x", $0) }.joined()
-        controlPath = runDirectory.appending(path: "ssh-\(hash)").path
+        return runDirectory.appending(path: "ssh-\(hash)").path
     }
 
     var destination: String { config.user.isEmpty ? config.host : "\(config.user)@\(config.host)" }
@@ -469,7 +476,11 @@ public final class SSHSession: Sendable {
             try connect()
             r = try Spawn.run(Self.scp, args, environment: environment, timeout: 24 * 3600, isCancelled: isCancelled, isPaused: isPaused)
         }
-        guard r.status == 0 else { throw RemoteError.ssh(Self.explain(r.errorText)) }
+        guard r.status == 0 else {
+            // Błąd pliku na serwerze („scp: /ścieżka: Permission denied”) to nie błąd logowania.
+            if r.errorText.hasPrefix("scp: ") { throw RemoteError.ssh(r.errorText) }
+            throw RemoteError.ssh(Self.explain(r.errorText))
+        }
     }
 
     /// Cudzysłów powłoki POSIX (ksh na AIX, sh, bash).

@@ -507,6 +507,35 @@
         }
       }
     },
+    "(cofnięto)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(undone)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(rückgängig gemacht)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(deshecho)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(скасовано)"
+          }
+        }
+      }
+    },
     "(limit)": {
       "extractionState": "manual",
       "localizations": {
@@ -5913,6 +5942,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Копіювання з архіву на сервер: спершу розпакуйте на диск"
+          }
+        }
+      }
+    },
+    "Kopiowanie z urządzenia %@ → %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copying from device %@ → %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopieren vom Gerät %@ → %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiando desde el dispositivo %@ → %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копіювання з пристрою %@ → %@"
           }
         }
       }
@@ -21432,31 +21490,31 @@
         }
       }
     },
-    "Zamienia katalogi aktywnych kart obu paneli.": {
+    "Zamienia aktywne karty obu paneli.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Swaps the folders of the active tabs of both panels."
+            "value": "Swaps the active tabs of both panels."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vertauscht die Ordner der aktiven Tabs beider Bereiche."
+            "value": "Vertauscht die aktiven Tabs beider Bereiche."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Intercambia las carpetas de las pestañas activas de ambos paneles."
+            "value": "Intercambia las pestañas activas de ambos paneles."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Міняє місцями теки активних вкладок обох панелей."
+            "value": "Міняє місцями активні вкладки обох панелей."
           }
         }
       }
@@ -24862,6 +24920,35 @@
         }
       }
     },
+    "częściowo cofnięta": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "partially undone"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "teilweise rückgängig gemacht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "deshecha parcialmente"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "частково скасована"
+          }
+        }
+      }
+    },
     "do": {
       "extractionState": "manual",
       "localizations": {
@@ -25152,6 +25239,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "вісімкове число, напр. 644"
+          }
+        }
+      }
+    },
+    "licznik poza zakresem": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "counter out of range"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zähler außerhalb des Bereichs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "contador fuera de rango"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "лічильник поза діапазоном"
           }
         }
       }
@@ -26092,6 +26208,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "сума збігається"
+          }
+        }
+      }
+    },
+    "szerokość licznika poza zakresem 1–20": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "counter width outside the range 1–20"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zählerbreite außerhalb des Bereichs 1–20"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ancho del contador fuera del rango 1–20"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ширина лічильника поза діапазоном 1–20"
           }
         }
       }

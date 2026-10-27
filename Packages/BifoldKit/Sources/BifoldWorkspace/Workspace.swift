@@ -120,7 +120,7 @@ public final class Workspace {
 
         registry = CommandRegistry.standard()
         rebuildKeymap()
-        remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "bifold") + (persists ? ".remote" : ".tests"))
+        remotes = RemoteManager(workspace: self, keychainService: (Bundle.main.bundleIdentifier ?? "bifold") + (persists ? ".remote" : ".tests-\(UUID().uuidString.prefix(8))"))
         // Próby na żywo (zwykle razem z BIFOLD_DATA_DIR): własna konfiguracja SSH i known_hosts zamiast ~/.ssh.
         let env = ProcessInfo.processInfo.environment
         if let config = env["BIFOLD_SSH_CONFIG"] { remotes.sshConfigFile = config }
@@ -194,8 +194,8 @@ public final class Workspace {
         registerEphemeral(provider)
         defer { unpinEphemeral(provider.id) }
         let panel = self.panel(side ?? activeSide)
+        // Tytuł „🔍 …” wylicza karta z dostawcy wyników.
         let tab = panel.newTab(at: provider.root)
-        tab.customTitle = "🔍 " + title
         do {
             try await tab.navigate(to: provider.root)
         } catch {
@@ -209,7 +209,7 @@ public final class Workspace {
 
     /// Zarejestrowani dostawcy archiwów i wyników z licznikiem trwających otwarć (w trakcie wejścia
     /// do archiwum karta jeszcze go nie używa, a nie wolno go wtedy wyrejestrować).
-    @ObservationIgnored private var ephemeralProviders: [ProviderID: Int] = [:]
+    @ObservationIgnored private(set) var ephemeralProviders: [ProviderID: Int] = [:]
 
     /// Rejestruje dostawcę archiwum lub wyników; po otwarciu trzeba wywołać `unpinEphemeral`.
     func registerEphemeral(_ provider: any FileSystemProvider) {
@@ -256,7 +256,6 @@ public final class Workspace {
                 throw error
             }
         }
-        if let alias = RemoteFS.alias(of: target), tab.customTitle == nil { tab.customTitle = "🌐 " + alias }
         return tab
     }
 
@@ -266,8 +265,8 @@ public final class Workspace {
         for panel in [left, right] {
             for tab in panel.tabs where predicate(tab) {
                 if let i = panel.tabs.firstIndex(where: { $0 === tab }), panel.closeTab(at: i) { continue }
+                // Tytuł („⌨ …”, „📱 …”) wylicza na nowo `setPath` przy przejściu do katalogu domowego.
                 tab.terminal = nil
-                tab.customTitle = nil
                 try? await tab.navigate(to: homePath)
             }
         }

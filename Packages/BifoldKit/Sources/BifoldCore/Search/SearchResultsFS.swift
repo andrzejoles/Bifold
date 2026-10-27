@@ -58,21 +58,41 @@ public final class SpotlightSearch {
 
     private func run(_ text: String, scopes: [VFSPath], limit: Int, timeout: Double) async -> [VFSPath] {
         self.limit = limit
-        let escaped = text.replacingOccurrences(of: "\"", with: "\\\"")
-        query.predicate = NSPredicate(fromMetadataQueryString:
-            "(kMDItemFSName == \"*\(escaped)*\"cd) || (kMDItemTextContent == \"\(escaped)\"cd) || (kMDItemDisplayName == \"*\(escaped)*\"cd)")
+        guard let predicate = Self.predicate(for: text) else { return [] }
+        query.predicate = predicate
         query.searchScopes = scopes.isEmpty ? [NSMetadataQueryUserHomeScope] : scopes.compactMap(\.url)
         return await withCheckedContinuation { c in
             continuation = c
             observer = NotificationCenter.default.addObserver(forName: .NSMetadataQueryDidFinishGathering, object: query, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.finish() }
             }
-            query.start()
+            // Zapytania, którego Spotlight nie przyjmie, nie ma na co czekać.
+            guard query.start() else { finish(); return }
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(timeout))
                 self?.finish()
             }
         }
+    }
+
+    /// Predykat dla tekstu z pola wyszukiwania lub od agenta. `NSPredicate(fromMetadataQueryString:)`
+    /// rzuca NSException (przerwanie procesu) przy błędzie składni, a `NSMetadataQuery` nie umie
+    /// przetłumaczyć ukośnika wstecznego nawet z predykatu zbudowanego ręcznie (`start()` zwraca
+    /// `false`). Dlatego: `"` jest poprzedzany ukośnikiem, `\` zastępuje symbol wieloznaczny `?`
+    /// (dowolny znak — wynik obejmuje nazwy z ukośnikiem), znaki sterujące (w tym NUL) są pomijane.
+    nonisolated static func predicate(for text: String) -> NSPredicate? {
+        var escaped = ""
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "\\": escaped += "?"
+            case "\"": escaped += "\\\""
+            case _ where scalar.value < 0x20 || (0x7F...0x9F).contains(scalar.value): continue
+            default: escaped.unicodeScalars.append(scalar)
+            }
+        }
+        guard !escaped.isEmpty else { return nil }
+        return NSPredicate(fromMetadataQueryString:
+            "(kMDItemFSName == \"*\(escaped)*\"cd) || (kMDItemTextContent == \"\(escaped)\"cd) || (kMDItemDisplayName == \"*\(escaped)*\"cd)")
     }
 
     private func finish() {
