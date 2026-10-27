@@ -120,6 +120,11 @@ public enum UndoPlanner {
             guard let children = try? fs.listSync(p) else { return false }
             return children.contains { sim.exists($0.path) }
         }
+        /// Kopia katalogu: ktoś dopisał (lub usunął) elementy poddrzewa od czasu operacji.
+        func contentsChanged(_ p: VFSPath) -> Bool {
+            guard let expected = entry.itemCount, current(p)?.isDirectory == true else { return false }
+            return TransferEngine.subtreeItemCount(p) != expected
+        }
 
         var action: UndoStepAction = .none
         var conflict: UndoConflict?
@@ -131,7 +136,7 @@ public enum UndoPlanner {
             if conflict == nil { sim.free(path) }
         case let .copied(_, to):
             action = .trash(to)
-            if !sim.exists(to) { conflict = .missing(to) } else if changed(to) { conflict = .modified(to) }
+            if !sim.exists(to) { conflict = .missing(to) } else if changed(to) || contentsChanged(to) { conflict = .modified(to) }
             if conflict == nil { sim.free(to) }
         case let .moved(from, to):
             action = .move(from: to, to: from)
@@ -165,7 +170,9 @@ public enum UndoPlanner {
         let fs = LocalFS()
         var result = UndoResult(performed: 0, skipped: [], errors: [])
         // Partie z pominiętym lub nieudanym krokiem nie są oznaczane jako cofnięte w całości —
-        // tylko ich wykonane wpisy (reszta zostaje do ponownego cofnięcia).
+        // tylko ich wykonane wpisy (reszta zostaje do ponownego cofnięcia). Krok bez elementu
+        // (`.missing`, np. Kosz opróżniony) liczy się jak wykonany: nie ma czego przywracać, a bez
+        // oznaczenia każde Cmd+Z pokazywałoby ten sam konflikt i blokowało starsze partie.
         var incomplete: Set<UUID> = []
         var doneEntries: [UUID: Set<UUID>] = [:]
         func markDone(_ step: UndoStep) {
@@ -177,7 +184,10 @@ public enum UndoPlanner {
                 if !(force && forcible) {
                     result.skipped.append(conflict)
                     // Trwałego usunięcia nie da się cofnąć nigdy — nie blokuje oznaczenia partii.
-                    if case .irreversible = conflict { markDone(step) } else { incomplete.insert(step.batchID) }
+                    switch conflict {
+                    case .irreversible, .missing: markDone(step)
+                    case .modified, .occupied: incomplete.insert(step.batchID)
+                    }
                     continue
                 }
             }

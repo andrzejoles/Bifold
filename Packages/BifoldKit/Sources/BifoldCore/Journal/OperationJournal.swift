@@ -43,10 +43,14 @@ public struct JournalEntry: Codable, Sendable, Hashable, Identifiable {
     public var action: JournalAction
     /// Odcisk elementu wynikowego tuż po operacji (do wykrywania późniejszych zmian).
     public var fingerprint: Fingerprint?
+    /// Kopia katalogu: liczba elementów poddrzewa tuż po operacji (bez `.DS_Store`). Inna liczba przy
+    /// cofaniu = ktoś dopisał lub usunął pliki → konflikt zamiast zabrania cudzych plików do Kosza.
+    /// `nil` w starszych dziennikach i dla innych wpisów.
+    public var itemCount: Int?
     /// Wpis cofnięty osobno (częściowe cofnięcie partii). Zapisywany w dzienniku osobnym wierszem.
     public var undone = false
 
-    private enum CodingKeys: String, CodingKey { case id, date, action, fingerprint }
+    private enum CodingKeys: String, CodingKey { case id, date, action, fingerprint, itemCount }
 
     public init(id: UUID = UUID(), date: Date = Date(), action: JournalAction, fingerprint: Fingerprint? = nil) {
         self.id = id
@@ -88,7 +92,8 @@ public struct JournalBatch: Codable, Sendable, Hashable, Identifiable {
 
 /// Dziennik operacji zmieniających pliki. Trzyma partie w pamięci i dopisuje każdą zmianę
 /// do pliku JSONL od razu (odporność na awarię) przez stale otwarty uchwyt `O_APPEND`.
-/// Przy starcie plik jest przycinany (atomowo) do ostatnich `maxBatchesInMemory` partii.
+/// Przy starcie plik jest przycinany (atomowo) od najstarszych partii do `maxBatchesInMemory` partii,
+/// `maxEntries` wpisów i `maxBytes` bajtów (najnowsza partia zostaje zawsze).
 public final class OperationJournal: Sendable {
     private struct State {
         var batches: [JournalBatch] = []
@@ -100,6 +105,7 @@ public final class OperationJournal: Sendable {
         case entry(batch: UUID, entry: JournalEntry)
         case undone(batch: UUID)
         case entriesUndone(batch: UUID, entries: [UUID])
+        case itemCount(batch: UUID, entry: UUID, count: Int)
     }
 
     private let state = Mutex(State())
@@ -108,11 +114,17 @@ public final class OperationJournal: Sendable {
     /// Deskryptor pliku dziennika (tylko na `writeQueue`); -1 = jeszcze nie otwarty.
     private let descriptor = Mutex<Int32>(-1)
     public let maxBatchesInMemory: Int
+    /// Limit łącznej liczby wpisów (operacja na 100 000 plików to 100 000 wierszy dekodowanych przy starcie).
+    public let maxEntries: Int
+    /// Limit rozmiaru pliku dziennika (sprawdzany przy starcie).
+    public let maxBytes: Int
 
     /// - Parameter fileURL: plik JSONL; `nil` = tylko w pamięci (testy).
-    public init(fileURL: URL? = nil, maxBatchesInMemory: Int = 1000) {
+    public init(fileURL: URL? = nil, maxBatchesInMemory: Int = 1000, maxEntries: Int = 100_000, maxBytes: Int = 32 << 20) {
         self.fileURL = fileURL
         self.maxBatchesInMemory = maxBatchesInMemory
+        self.maxEntries = maxEntries
+        self.maxBytes = maxBytes
         if let fileURL {
             try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             load(from: fileURL)
@@ -136,9 +148,9 @@ public final class OperationJournal: Sendable {
         let batch = JournalBatch(id: id, title: title, date: Date(), invoker: invoker, entries: [], undone: false, finished: finished)
         state.withLock { s in
             s.batches.append(batch)
-            if s.batches.count > maxBatchesInMemory {
-                s.batches.removeFirst(s.batches.count - maxBatchesInMemory)
-            }
+            let drop = Self.batchesToDrop(entries: s.batches.map(\.entries.count), bytes: nil,
+                                          maxBatches: maxBatchesInMemory, maxEntries: maxEntries, maxBytes: maxBytes)
+            if drop > 0 { s.batches.removeFirst(drop) }
             s.index = Dictionary(uniqueKeysWithValues: s.batches.enumerated().map { ($1.id, $0) })
         }
         append([.batch(id: id, title: title, date: batch.date, invoker: invoker)])
@@ -153,13 +165,26 @@ public final class OperationJournal: Sendable {
         }
     }
 
-    public func record(_ action: JournalAction, fingerprint: Fingerprint? = nil, in batchID: UUID) {
+    /// - Returns: identyfikator wpisu (np. do `setItemCount`).
+    @discardableResult
+    public func record(_ action: JournalAction, fingerprint: Fingerprint? = nil, in batchID: UUID) -> UUID {
         let entry = JournalEntry(action: action, fingerprint: fingerprint)
         state.withLock { s in
             guard let i = s.index[batchID] else { return }
             s.batches[i].entries.append(entry)
         }
         append([.entry(batch: batchID, entry: entry)])
+        return entry.id
+    }
+
+    /// Uzupełnia wpis kopii katalogu o liczbę elementów poddrzewa (znaną dopiero po skopiowaniu;
+    /// sam wpis jest zapisywany wcześniej, żeby przetrwał awarię w trakcie kopiowania).
+    public func setItemCount(_ count: Int, forEntry entryID: UUID, in batchID: UUID) {
+        state.withLock { s in
+            guard let i = s.index[batchID], let j = s.batches[i].entries.lastIndex(where: { $0.id == entryID }) else { return }
+            s.batches[i].entries[j].itemCount = count
+        }
+        append([.itemCount(batch: batchID, entry: entryID, count: count)])
     }
 
     public func markUndone(_ batchID: UUID) {
@@ -215,29 +240,36 @@ public final class OperationJournal: Sendable {
     /// Dopisuje wiersze przez stale otwarty uchwyt `O_APPEND`. Istniejącego pliku nigdy nie zastępuje:
     /// jeśli nie da się go otworzyć do zapisu, wiersze przepadają, ale dotychczasowy dziennik zostaje.
     private func append(_ lines: [Line]) {
-        guard let fileURL else { return }
-        writeQueue.async { [self] in
-            let data = Self.encode(lines)
-            guard !data.isEmpty else { return }
-            descriptor.withLock { fd in
-                if fd < 0 {
-                    fd = open(fileURL.path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0o600)
-                    guard fd >= 0 else { return }
+        guard fileURL != nil else { return }
+        writeQueue.async { [self] in writeToFile(Self.encode(lines)) }
+    }
+
+    private func append(rawData data: Data) {
+        guard fileURL != nil else { return }
+        writeQueue.async { [self] in writeToFile(data) }
+    }
+
+    /// Tylko na `writeQueue`.
+    private func writeToFile(_ data: Data) {
+        guard let fileURL, !data.isEmpty else { return }
+        descriptor.withLock { fd in
+            if fd < 0 {
+                fd = open(fileURL.path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0o600)
+                guard fd >= 0 else { return }
+            }
+            let ok = data.withUnsafeBytes { buf -> Bool in
+                var offset = 0
+                while offset < buf.count {
+                    let n = write(fd, buf.baseAddress! + offset, buf.count - offset)
+                    if n < 0 { if errno == EINTR { continue }; return false }
+                    offset += n
                 }
-                let ok = data.withUnsafeBytes { buf -> Bool in
-                    var offset = 0
-                    while offset < buf.count {
-                        let n = write(fd, buf.baseAddress! + offset, buf.count - offset)
-                        if n < 0 { if errno == EINTR { continue }; return false }
-                        offset += n
-                    }
-                    return true
-                }
-                if !ok {
-                    // Następny wiersz spróbuje otworzyć plik od nowa.
-                    close(fd)
-                    fd = -1
-                }
+                return true
+            }
+            if !ok {
+                // Następny wiersz spróbuje otworzyć plik od nowa.
+                close(fd)
+                fd = -1
             }
         }
     }
@@ -247,30 +279,66 @@ public final class OperationJournal: Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         var s = State()
+        // Rozmiar wierszy każdej partii (do limitu bajtów).
+        var bytes: [Int] = []
         for line in data.split(separator: 0x0A) {
             guard let parsed = try? decoder.decode(Line.self, from: Data(line)) else { continue }
+            let size = line.count + 1
             switch parsed {
             case let .batch(id, title, date, invoker):
                 s.index[id] = s.batches.count
                 s.batches.append(JournalBatch(id: id, title: title, date: date, invoker: invoker, entries: [], undone: false))
+                bytes.append(size)
             case let .entry(batch, entry):
-                if let i = s.index[batch] { s.batches[i].entries.append(entry) }
+                guard let i = s.index[batch] else { continue }
+                s.batches[i].entries.append(entry)
+                bytes[i] += size
             case let .undone(batch):
-                if let i = s.index[batch] { s.batches[i].undone = true }
+                guard let i = s.index[batch] else { continue }
+                s.batches[i].undone = true
+                bytes[i] += size
             case let .entriesUndone(batch, ids):
                 guard let i = s.index[batch] else { continue }
+                bytes[i] += size
                 let set = Set(ids)
                 for j in s.batches[i].entries.indices where set.contains(s.batches[i].entries[j].id) {
                     s.batches[i].entries[j].undone = true
                 }
+            case let .itemCount(batch, entryID, count):
+                guard let i = s.index[batch], let j = s.batches[i].entries.lastIndex(where: { $0.id == entryID }) else { continue }
+                s.batches[i].entries[j].itemCount = count
+                bytes[i] += size
             }
         }
-        if s.batches.count > maxBatchesInMemory {
-            s.batches.removeFirst(s.batches.count - maxBatchesInMemory)
+        let drop = Self.batchesToDrop(entries: s.batches.map(\.entries.count), bytes: bytes,
+                                      maxBatches: maxBatchesInMemory, maxEntries: maxEntries, maxBytes: maxBytes)
+        if drop > 0 {
+            s.batches.removeFirst(drop)
             s.index = Dictionary(uniqueKeysWithValues: s.batches.enumerated().map { ($1.id, $0) })
             compact(url, batches: s.batches)
+        } else if let last = data.last, last != 0x0A {
+            // Ucięty ostatni wiersz (awaria w trakcie zapisu) bez znaku nowej linii skleiłby się z następnym
+            // dopisanym wierszem — przepadłyby oba. Kończymy go, zanim cokolwiek zostanie dopisane
+            // (po przycięciu plik ma tylko pełne wiersze; uchwyt nie może się otworzyć przed zmianą nazwy).
+            append(rawData: Data([0x0A]))
         }
         state.withLock { $0 = s }
+    }
+
+    /// Ile najstarszych partii odrzucić, żeby zmieścić się w limitach (najnowsza zostaje zawsze).
+    /// `bytes` — rozmiar wierszy każdej partii w pliku (`nil` = bez limitu bajtów, w pamięci).
+    private static func batchesToDrop(entries: [Int], bytes: [Int]?, maxBatches: Int, maxEntries: Int, maxBytes: Int) -> Int {
+        var count = entries.count
+        var totalEntries = entries.reduce(0, +)
+        var totalBytes = bytes?.reduce(0, +) ?? 0
+        var drop = 0
+        while count > 1 && (count > maxBatches || totalEntries > maxEntries || (bytes != nil && totalBytes > maxBytes)) {
+            totalEntries -= entries[drop]
+            totalBytes -= bytes?[drop] ?? 0
+            count -= 1
+            drop += 1
+        }
+        return drop
     }
 
     /// Przepisuje dziennik do zachowanych partii: nowy plik obok i atomowa zmiana nazwy.

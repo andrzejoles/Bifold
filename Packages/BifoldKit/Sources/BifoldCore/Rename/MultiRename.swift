@@ -141,7 +141,11 @@ public enum MultiRename {
         let isDir = item.isNavigable
         let stem = isDir ? item.name : item.name.fileStem
         let ext = isDir ? "" : item.name.fileExtension
-        let counter = rule.counterStart + index * rule.counterStep
+        // Start i krok bywają podane przez agenta — przepełnienie to problem w podglądzie, nie pułapka.
+        let (offset, o1) = index.multipliedReportingOverflow(by: rule.counterStep)
+        let (sum, o2) = rule.counterStart.addingReportingOverflow(offset)
+        let counter = o1 || o2 ? 0 : sum
+        if o1 || o2, mentionsCounter(rule) { problem = problem ?? L10n.tr("licznik poza zakresem") }
 
         var name = expand(rule.nameMask, item: item, stem: stem, ext: ext, counter: counter, digits: rule.counterDigits, problem: &problem)
         var newExt = isDir ? "" : expand(rule.extensionMask, item: item, stem: stem, ext: ext, counter: counter, digits: rule.counterDigits, problem: &problem)
@@ -197,10 +201,10 @@ public enum MultiRename {
         case "h": return two(cal.component(.hour, from: date))
         case "m": return two(cal.component(.minute, from: date))
         case "s": return two(cal.component(.second, from: date))
-        case "C": return String(format: "%0\(max(1, digits))d", counter)
+        case "C": return counterText(counter, width: digits, problem: &problem)
         default: break
         }
-        if token.hasPrefix("C:"), let d = Int(token.dropFirst(2)) { return String(format: "%0\(max(1, d))d", counter) }
+        if token.hasPrefix("C:"), let d = Int(token.dropFirst(2)) { return counterText(counter, width: d, problem: &problem) }
         if token.lowercased().hasPrefix("exif:") {
             let parts = token.split(separator: ":", maxSplits: 2).map(String.init)
             guard parts.count >= 2 else { return nil }
@@ -227,14 +231,29 @@ public enum MultiRename {
         return nil
     }
 
+    /// Najszersze pole licznika: Int64 ma 19 cyfr (+ znak). Szersze `[C:300000000]` alokowało setki MB na element.
+    static let maxCounterWidth = 20
+
+    static func counterText(_ counter: Int, width: Int, problem: inout String?) -> String {
+        if width > maxCounterWidth { problem = problem ?? L10n.tr("szerokość licznika poza zakresem 1–20") }
+        return String(format: "%0\(min(max(1, width), maxCounterWidth))ld", counter)
+    }
+
+    /// Czy maska używa licznika (przepełnienie licznika nieużywanego nie jest problemem).
+    static func mentionsCounter(_ rule: RenameRule) -> Bool {
+        (rule.nameMask + rule.extensionMask).contains("[C")
+    }
+
     /// Fragmenty jak w TC: `2-5`, `2,3` (od 2, 3 znaki), `3` (jeden znak), `3-` (od 3 do końca),
     /// `-3-` (trzy ostatnie), `-5,2` (od piątego od końca, 2 znaki).
     static func substring(_ s: String, spec: String) -> String? {
         let chars = Array(s)
         let n = chars.count
+        // Pozycje zaciśnięte do ±(n+1), długości do 0…2(n+1) — wynik ten sam, a liczby bliskie
+        // Int.min/Int.max (np. od agenta, liczone przed oknem zgody) nie przepełniają działań.
         func position(_ raw: Substring) -> Int? {
             guard let v = Int(raw) else { return nil }
-            return v < 0 ? n + v + 1 : v
+            return min(max(v < 0 ? n + v + 1 : v, -(n + 1)), n + 1)
         }
         func slice(_ from: Int, _ to: Int) -> String {
             let a = max(1, from), b = min(n, to)
@@ -242,11 +261,11 @@ public enum MultiRename {
         }
         if spec.hasPrefix("-"), spec.hasSuffix("-") {
             guard let k = Int(spec.dropFirst().dropLast()) else { return nil }
-            return slice(n - k + 1, n)
+            return slice(n - min(max(k, 0), n) + 1, n)
         }
         if let comma = spec.firstIndex(of: ",") {
             guard let a = position(spec[..<comma]), let len = Int(spec[spec.index(after: comma)...]) else { return nil }
-            return slice(a, a + len - 1)
+            return slice(a, a + min(max(len, 0), 2 * (n + 1)) - 1)
         }
         if spec.hasSuffix("-") {
             guard let a = position(spec.dropLast()) else { return nil }
@@ -304,7 +323,9 @@ public enum MultiRename {
         let fs = LocalFS()
         let work = plan.filter { $0.changes && $0.problem == nil }
         guard !work.isEmpty else { return 0 }
-        let batch = journal?.beginBatch(title: title, invoker: invoker)
+        // Partia zapisywana stopniowo: do końca nie da się jej cofnąć (Cmd+Z w trakcie cofnąłby część).
+        let batch = journal?.beginBatch(title: title, invoker: invoker, finished: false)
+        defer { if let journal, let batch { journal.endBatch(batch) } }
         func record(_ from: VFSPath, _ to: VFSPath) {
             if let journal, let batch { journal.record(.moved(from: from, to: to), fingerprint: try? fs.itemSync(at: to).fingerprint, in: batch) }
         }

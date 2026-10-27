@@ -49,8 +49,6 @@ public struct SearchCriteria: Codable, Sendable, Hashable {
         self.maxResults = maxResults
     }
 
-    public var searchesArchives: Bool { archiveTool != nil }
-
     var hasContentSearch: Bool { !contentText.isEmpty }
 
     /// Warunki niezależne od treści (pojedyncze sprawdzenie; przy przeglądaniu — `MetadataMatcher`).

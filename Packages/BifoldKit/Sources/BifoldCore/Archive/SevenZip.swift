@@ -191,6 +191,18 @@ public struct SevenZip: Sendable {
         let errBox = DataBox()
         let errDone = DispatchSemaphore(value: 0)
         Thread.detachNewThread { errBox.data = err.fileHandleForReading.readDataToEndOfFile(); errDone.signal() }
+        // Odczyt niżej blokuje się, dopóki 7zz czegoś nie wypisze (dojście do pliku w archiwum ciągłym,
+        // wolny dysk) — anulowanie sprawdza osobny wątek co 100 ms i kończy proces jak w `run()`.
+        let finished = DispatchSemaphore(value: 0)
+        Thread.detachNewThread {
+            while finished.wait(timeout: .now() + 0.1) == .timedOut {
+                if isCancelled() {
+                    if p.isRunning { p.terminate() }
+                    return
+                }
+            }
+        }
+        defer { finished.signal() }
 
         let handle = out.fileHandleForReading
         var result = Data()
@@ -199,7 +211,10 @@ public struct SevenZip: Sendable {
         var cancelled = false
         while position < range.upperBound {
             if isCancelled() { cancelled = true; break }
-            guard let chunk = try? handle.read(upToCount: 1 << 20), !chunk.isEmpty else { break }
+            guard let chunk = try? handle.read(upToCount: 1 << 20), !chunk.isEmpty else {
+                cancelled = isCancelled()
+                break
+            }
             let start = position, end = position + Int64(chunk.count)
             let lo = max(start, range.lowerBound), hi = min(end, range.upperBound)
             if lo < hi {
