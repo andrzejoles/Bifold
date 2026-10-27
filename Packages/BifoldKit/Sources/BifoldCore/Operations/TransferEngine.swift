@@ -196,7 +196,10 @@ public final class TransferEngine: @unchecked Sendable {
         // rozróżniania): to nie konflikt — „Nadpisz” zabrałoby do Kosza samo źródło.
         if TransferEngine.isSameEntry(source, destination) {
             if request.kind == .move {
-                guard destination != source else {
+                // Ta sama nazwa bajt w bajt (także przez dowiązanie katalogu: /tmp i /private/tmp) — nic do
+                // zrobienia; wpis .moved zablokowałby cofanie („miejsce zajęte”). Inna wielkość liter lub
+                // normalizacja Unicode to prawdziwa zmiana nazwy.
+                guard destination != source, !source.name.utf8.elementsEqual(destination.name.utf8) else {
                     skip(item)
                     return
                 }
@@ -236,7 +239,9 @@ public final class TransferEngine: @unchecked Sendable {
         if request.kind == .move, TransferEngine.sameDevice(source, destination.parent!) {
             guard try attempt(source, { try fs.moveSync(source, to: destination) }) != nil else { return }
             let moved = try? fs.itemSync(at: destination)
-            journal(.moved(from: source, to: destination), fingerprint: moved?.fingerprint)
+            let entry = journal(.moved(from: source, to: destination), fingerprint: moved?.fingerprint)
+            // Rozpakowany katalog zapisany jako kopia — cofnięcie jak dla kopii katalogu.
+            if recordMovesAsCopies, item.kind == .directory, let entry { recordItemCount(of: destination, entry: entry) }
             complete(item)
             return
         }
@@ -263,10 +268,20 @@ public final class TransferEngine: @unchecked Sendable {
         // Kopia: jeden wpis dla całego nowego poddrzewa. Przeniesienie między woluminami:
         // katalog utworzony + każdy przeniesiony plik osobno (bo źródło znika stopniowo).
         if request.kind == .copy {
-            if record { journal(.copied(from: item.path, to: destination), fingerprint: nil) }
+            // Wpis od razu (przetrwa awarię), liczba elementów po skopiowaniu (także po anulowaniu
+            // lub błędzie) — cofnięcie wykryje pliki dopisane później zamiast zabrać je do Kosza.
+            if record, let entry = journal(.copied(from: item.path, to: destination), fingerprint: (try? fs.itemSync(at: destination))?.fingerprint) {
+                defer { recordItemCount(of: destination, entry: entry) }
+                try copyDirectoryContents(item, to: destination)
+                return
+            }
         } else {
             journal(.created(path: destination, isDirectory: true), fingerprint: nil)
         }
+        try copyDirectoryContents(item, to: destination)
+    }
+
+    private func copyDirectoryContents(_ item: FileItem, to destination: VFSPath) throws {
         let children = try attempt(item.path, { try fs.listSync(item.path) }) ?? []
         for child in children {
             try checkCancelled()
@@ -424,16 +439,33 @@ public final class TransferEngine: @unchecked Sendable {
 
     // MARK: Postęp i dziennik
 
-    private func journal(_ action: JournalAction, fingerprint: Fingerprint?) {
-        guard let journal, let batchID else { return }
+    @discardableResult
+    private func journal(_ action: JournalAction, fingerprint: Fingerprint?) -> UUID? {
+        guard let journal, let batchID else { return nil }
         if recordMovesAsCopies {
             switch action {
-            case let .moved(from, to): journal.record(.copied(from: from, to: to), fingerprint: fingerprint, in: batchID); return
-            case .removedEmptyDirectory, .created(_, true): return
+            case let .moved(from, to): return journal.record(.copied(from: from, to: to), fingerprint: fingerprint, in: batchID)
+            case .removedEmptyDirectory, .created(_, true): return nil
             default: break
             }
         }
-        journal.record(action, fingerprint: fingerprint, in: batchID)
+        return journal.record(action, fingerprint: fingerprint, in: batchID)
+    }
+
+    private func recordItemCount(of directory: VFSPath, entry: UUID) {
+        guard let journal, let batchID, let count = TransferEngine.subtreeItemCount(directory) else { return }
+        journal.setItemCount(count, forEntry: entry, in: batchID)
+    }
+
+    /// Liczba elementów poddrzewa katalogu (bez niego samego i bez `.DS_Store`, który Finder dopisuje
+    /// po otwarciu katalogu). Dowiązania nie są rozwijane.
+    static func subtreeItemCount(_ path: VFSPath) -> Int? {
+        guard let enumerator = FileManager.default.enumerator(atPath: path.path) else { return nil }
+        var count = 0
+        for case let relative as String in enumerator where (relative as NSString).lastPathComponent != ".DS_Store" {
+            count += 1
+        }
+        return count
     }
 
     private func skip(_ item: FileItem) {

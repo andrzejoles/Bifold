@@ -25243,6 +25243,35 @@
         }
       }
     },
+    "licznik poza zakresem": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "counter out of range"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zähler außerhalb des Bereichs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "contador fuera de rango"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "лічильник поза діапазоном"
+          }
+        }
+      }
+    },
     "limit %@/s": {
       "extractionState": "manual",
       "localizations": {
@@ -26179,6 +26208,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "сума збігається"
+          }
+        }
+      }
+    },
+    "szerokość licznika poza zakresem 1–20": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "counter width outside the range 1–20"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zählerbreite außerhalb des Bereichs 1–20"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ancho del contador fuera del rango 1–20"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ширина лічильника поза діапазоном 1–20"
           }
         }
       }

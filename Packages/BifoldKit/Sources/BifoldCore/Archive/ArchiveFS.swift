@@ -128,10 +128,6 @@ public final class ArchiveFS: FileSystemProvider {
     /// Rozpakowuje wskazane elementy (pliki lub katalogi) do katalogu docelowego bez ścieżki
     /// nadrzędnej w archiwum: `a/b/c.txt` trafia jako `c.txt`. Najpierw do katalogu tymczasowego
     /// na woluminie docelowym, potem przeniesienie silnikiem kopiowania (konflikty, dziennik).
-    public func extractionPlan(_ paths: [VFSPath]) -> [String] {
-        paths.map(entryPath)
-    }
-
     public func extract(_ paths: [VFSPath], toTemporaryIn directory: VFSPath, isCancelled: @escaping @Sendable () -> Bool) throws -> (temp: VFSPath, items: [VFSPath]) {
         let temp = directory.appending(".bifold-extract-\(UUID().uuidString.prefix(8))")
         try FileManager.default.createDirectory(atPath: temp.path, withIntermediateDirectories: false)

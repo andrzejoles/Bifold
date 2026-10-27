@@ -196,25 +196,35 @@ import Testing
 }
 
 /// Delegat, który wstrzymuje zadanie na pierwszym konflikcie, dopóki test go nie zwolni.
+/// Decyzja podana wcześniej (zadanie jeszcze nie doszło do konfliktu, np. test przestał czekać
+/// na `isWaiting`) jest zapamiętywana — inaczej `resolveConflict` czekałby w nieskończoność.
 final class BlockingDelegate: TransferDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<ConflictDecision, Never>?
+    private var pending: ConflictDecision?
     private var waiting = false
 
     var isWaiting: Bool { lock.withLock { waiting } }
 
     func resolveConflict(_ conflict: FileConflict) async -> ConflictDecision {
         await withCheckedContinuation { c in
-            lock.withLock {
+            let early = lock.withLock { () -> ConflictDecision? in
+                if let decision = pending {
+                    pending = nil
+                    return decision
+                }
                 continuation = c
                 waiting = true
+                return nil
             }
+            if let early { c.resume(returning: early) }
         }
     }
 
     func release(_ decision: ConflictDecision) {
         let c = lock.withLock { () -> CheckedContinuation<ConflictDecision, Never>? in
             defer { continuation = nil; waiting = false }
+            if continuation == nil { pending = decision }
             return continuation
         }
         c?.resume(returning: decision)
@@ -266,7 +276,8 @@ final class BlockingDelegate: TransferDelegate, @unchecked Sendable {
         let plan = try #require(FileOperations(journal: journal).undoPlanForLast())
         let elapsed = ContinuousClock.now - start
         #expect(plan.steps.count == count && plan.conflicts.isEmpty)
-        #expect(elapsed < .seconds(1), "plan trwał \(elapsed)")
+        // Próg luźny: test ma wykrywać złożoność O(n²) (minuty), a nie mierzyć dokładnie (równoległe budowanie).
+        #expect(elapsed < .seconds(5), "plan trwał \(elapsed)")
     }
 
     /// Częściowe cofnięcie: partia nie jest oznaczana jako cofnięta; wykonane wpisy tak, a reszta zostaje.

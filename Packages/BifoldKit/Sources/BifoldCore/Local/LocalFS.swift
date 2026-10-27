@@ -88,13 +88,10 @@ public struct LocalFS: FileSystemProvider {
 
     public func readSync(_ path: VFSPath, range: Range<Int64>? = nil) throws -> Data {
         try requireLocal(path)
-
-        let fd = open(path.path, O_RDONLY | O_CLOEXEC)
-        guard fd >= 0 else { throw VFSError.from(errno: errno, path: path) }
+        let fd = try Self.openRegularFile(path)
         defer { close(fd) }
         var st = stat()
         guard fstat(fd, &st) == 0 else { throw VFSError.from(errno: errno, path: path) }
-        guard st.st_mode & S_IFMT != S_IFDIR else { throw VFSError.unsupported("read directory") }
         let fileSize = Int64(st.st_size)
         let lower = max(0, range?.lowerBound ?? 0)
         let upper = min(fileSize, range?.upperBound ?? fileSize)
@@ -113,6 +110,32 @@ public struct LocalFS: FileSystemProvider {
         guard read >= 0 else { throw VFSError.from(errno: errno, path: path) }
         data.count = read
         return data
+    }
+
+    /// Otwiera zwykły plik do odczytu. `O_NONBLOCK`: FIFO bez piszącego nie blokuje `open` (zwykły
+    /// `open` czekałby w nieskończoność); wszystko poza zwykłym plikiem (FIFO, gniazdo, urządzenie,
+    /// katalog) jest odrzucane przed pierwszym odczytem. Zwraca deskryptor do zamknięcia przez wołającego.
+    static func openRegularFile(_ path: VFSPath) throws -> Int32 {
+        let fd = open(path.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        guard fd >= 0 else { throw VFSError.from(errno: errno, path: path) }
+        var st = stat()
+        guard fstat(fd, &st) == 0 else {
+            let e = errno
+            close(fd)
+            throw VFSError.from(errno: e, path: path)
+        }
+        switch st.st_mode & S_IFMT {
+        case S_IFREG:
+            // Dla zwykłego pliku O_NONBLOCK nic nie zmienia, ale wyłączamy go dla porządku.
+            _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK)
+            return fd
+        case S_IFDIR:
+            close(fd)
+            throw VFSError.unsupported("read directory")
+        default:
+            close(fd)
+            throw VFSError.io(path: path, code: EFTYPE)
+        }
     }
 
     public func watch(_ directory: VFSPath) -> AsyncStream<DirectoryChange> {

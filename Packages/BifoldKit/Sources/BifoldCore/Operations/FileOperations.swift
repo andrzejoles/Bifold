@@ -40,7 +40,9 @@ public struct FileOperations: Sendable {
     public func setAttributes(_ paths: [VFSPath], _ change: AttributeChange, invoker: Invoker = .user) async throws {
         guard !change.isEmpty, !paths.isEmpty else { return }
         let fs = fs, journal = journal
-        let batch = journal.beginBatch(title: L10n.tr("Zmiana atrybutów (\(paths.count))"), invoker: invoker)
+        // Partie zapisywane stopniowo: do końca nie da się ich cofnąć (Cmd+Z w trakcie cofnąłby część).
+        let batch = journal.beginBatch(title: L10n.tr("Zmiana atrybutów (\(paths.count))"), invoker: invoker, finished: false)
+        defer { journal.endBatch(batch) }
         try await runBlocking { try Self.applyAttributes(paths, change, fs: fs, journal: journal, batch: batch) }
     }
 
@@ -63,7 +65,8 @@ public struct FileOperations: Sendable {
     public func setTags(_ paths: [VFSPath], tags: [String], invoker: Invoker = .user) async throws {
         guard !paths.isEmpty else { return }
         let fs = fs, journal = journal
-        let batch = journal.beginBatch(title: L10n.tr("Zmiana tagów (\(paths.count))"), invoker: invoker)
+        let batch = journal.beginBatch(title: L10n.tr("Zmiana tagów (\(paths.count))"), invoker: invoker, finished: false)
+        defer { journal.endBatch(batch) }
         try await runBlocking {
             for path in paths {
                 let before = try fs.tagsSync(of: path)
