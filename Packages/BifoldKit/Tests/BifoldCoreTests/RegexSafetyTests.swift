@@ -37,8 +37,8 @@ import Testing
         #expect(regex.isValid)
         let name = String(repeating: "a", count: 200)
         let start = Date()
-        let matched = try #require(Self.within(10) { regex.matches(name) })
-        #expect(!matched)
+        let matched = Self.within(10) { regex.matches(name) }
+        #expect(matched == false, "dopasowanie zawisło albo pasuje")
         #expect(Date().timeIntervalSince(start) < 2)
         #expect(regex.exceededTimeLimit)
         #expect(regex.problem == RegexSafety.message)
@@ -88,8 +88,8 @@ import Testing
         let mask = NameMask("*a*a*a*a*a*a*a*a*a*a*a*b")
         let name = String(repeating: "a", count: 200)
         let start = Date()
-        let matched = try #require(Self.within(10) { mask.matches(name) })
-        #expect(!matched)
+        let matched = Self.within(10) { mask.matches(name) }
+        #expect(matched == false, "dopasowanie zawisło albo pasuje")
         #expect(Date().timeIntervalSince(start) < 2)
         #expect(NameMask("*.jpg").matches("x.JPG"))
     }
