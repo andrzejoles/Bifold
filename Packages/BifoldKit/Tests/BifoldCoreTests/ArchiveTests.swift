@@ -169,6 +169,28 @@ let sevenZipPath: String? = ["/opt/homebrew/bin/7zz", "/usr/local/bin/7zz"].firs
         #expect(try tmp.names("dest/kat") == ["inny.txt"])
     }
 
+    /// „Rozpakuj do podkatalogów”: wpis kopii ma liczbę elementów, więc plik dopisany później do
+    /// podkatalogu jest konfliktem, a nie trafia do Kosza razem z rozpakowaną zawartością.
+    @Test func extractArchivesToSubfoldersRecordsItemCount() async throws {
+        let tmp = try TempDir()
+        try tmp.file("src/x.txt", "x")
+        try tmp.file("src/kat/y.txt", "Y")
+        let archive = tmp.path.appending("pak.zip")
+        try tool.create(archive, format: .zip, base: tmp.path.appending("src"), names: ["x.txt", "kat"])
+        try tmp.dir("dest")
+        let journal = OperationJournal()
+        let queue = await JobQueue(journal: journal)
+        let job = await queue.enqueue(.extractArchives([archive], destination: tmp.path.appending("dest"), tool: tool, overwrite: .overwrite, subfolders: true), title: "x")
+        #expect(await queue.wait(for: job) == .completed)
+        let target = tmp.path.appending("dest/pak")
+        let entry = try #require(journal.batches.first?.entries.first)
+        #expect(entry.action == .copied(from: archive, to: target))
+        #expect(entry.itemCount == 3)
+        #expect(UndoPlanner.plan(for: journal.batches).conflicts.isEmpty)
+        try tmp.file("dest/pak/pozniej.txt", "później")
+        #expect(UndoPlanner.plan(for: journal.batches).conflicts == [.modified(target)])
+    }
+
     /// Anulowane tworzenie archiwum (także wieloczęściowego) nie zostawia archiwum, części ani plików tymczasowych.
     @Test func cancelledCreateLeavesNothing() throws {
         let tmp = try TempDir()
