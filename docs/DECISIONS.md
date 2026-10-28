@@ -79,6 +79,9 @@ PROMPT mówi o `$SHELL -lc`. Polecenie trafia do wbudowanego terminalu (SwiftTer
 działa powłoka logowania (`$SHELL -l`) — wynik zostaje w historii terminalu, a `cd` w linii
 poleceń zmienia katalog panelu (jak w TC). Zmienna `BIFOLD_AGENT_TOKEN` jest usuwana ze
 środowiska terminalu.
+**Uzupełnione 2026-10-28:** pierwsze słowo będące plikiem wykonywalnym w bieżącym (lokalnym) katalogu
+dostaje `./` (`run.sh` → `./run.sh`), jak w TC — ale tylko gdy nie ma takiego polecenia w `PATH`, żeby
+plik podrzucony do katalogu (np. `ls`) nie przesłaniał polecenia systemowego.
 
 ### D16 · 2026-10-17 — Repozytorium prywatne
 Repozytorium GitHub `andrzejoles/Bifold` jest prywatne (narzędzie do użytku własnego).

@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Poprawione
+- Linia poleceń uruchamia skrypt z bieżącego katalogu wpisany bez `./` (np. `run.sh`), jak w TC — chyba że
+  polecenie o tej nazwie jest w `PATH` (plik w katalogu nie przesłania `ls` czy `make`).
+
 ## [2.6.0] – 2026-10-27
 
 ### Poprawione — przegląd kodu, część 5

@@ -62,7 +62,31 @@ final class CommandLineBar: NSView, NSTextFieldDelegate {
             workspace.perform("panel.navigate", CommandArguments(["path": .string(path)]))
             return
         }
-        workspace.perform("tools.runCommand", CommandArguments(["command": .string(command)]))
+        workspace.perform("tools.runCommand", CommandArguments(["command": .string(Self.localProgram(command, in: directory))]))
+    }
+
+    /// „run.sh” → „./run.sh”, gdy pierwsze słowo to plik wykonywalny w bieżącym katalogu (jak w TC),
+    /// a nie polecenie z `PATH` — plik w katalogu nie przesłania `ls` czy `make`.
+    static func localProgram(_ command: String, in directory: VFSPath,
+                             searchPath: String = ProcessInfo.processInfo.environment["PATH"] ?? "") -> String {
+        guard directory.isLocal else { return command }
+        let name = String(command.prefix { !$0.isWhitespace })
+        // Ścieżki, przypisania (`A=1 cmd`), operatory i cudzysłowy zostają dla powłoki.
+        let shellCharacters = Set("/=;&|<>()$`\"'\\*?[]{}!#~")
+        guard !name.isEmpty, name != ".", name != "..", !name.contains(where: { shellCharacters.contains($0) }) else {
+            return command
+        }
+        let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        let local = (directory.path as NSString).appendingPathComponent(name)
+        guard fm.fileExists(atPath: local, isDirectory: &isDirectory), !isDirectory.boolValue,
+              fm.isExecutableFile(atPath: local) else { return command }
+        // Aplikacja uruchomiona z Findera ma krótki PATH — także typowe katalogi Homebrew.
+        let dirs = searchPath.split(separator: ":").map(String.init) + ["/opt/homebrew/bin", "/usr/local/bin"]
+        if dirs.contains(where: { fm.isExecutableFile(atPath: ($0 as NSString).appendingPathComponent(name)) }) {
+            return command
+        }
+        return "./" + command
     }
 
     /// Ścieżka z polecenia `cd` bez operatorów i rozwinięć powłoki; `nil` dla innych poleceń.
