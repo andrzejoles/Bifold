@@ -156,6 +156,8 @@ final class DetailsListView: NSView, FileListView {
     func focus() { window?.makeFirstResponder(table) }
     var isFocused: Bool { window?.firstResponder === table }
 
+    var pageSize: Int { table.rows(in: table.visibleRect).length }
+
     @objc private func doubleClick() {
         let row = table.clickedRow
         guard row >= 0 else { return }

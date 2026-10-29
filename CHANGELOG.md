@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 ### Poprawione
 - Linia poleceń uruchamia skrypt z bieżącego katalogu wpisany bez `./` (np. `run.sh`), jak w TC — chyba że
   polecenie o tej nazwie jest w `PATH` (plik w katalogu nie przesłania `ls` czy `make`).
+- Home, End, PgUp i PgDn przesuwają kursor w panelu (pierwszy i ostatni element, strona w górę i w dół),
+  a nie tylko przewijają listę — we wszystkich widokach.
 
 ## [2.6.0] – 2026-10-27
 

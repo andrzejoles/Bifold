@@ -126,6 +126,14 @@ final class GridListView: NSView, FileListView {
     func focus() { window?.makeFirstResponder(collection) }
     var isFocused: Bool { window?.firstResponder === collection }
 
+    var pageSize: Int {
+        let visible = collection.visibleRect
+        // Tylko elementy widoczne w całości — po PgDn kursor nie ląduje na uciętej miniaturze.
+        return collection.indexPathsForVisibleItems().filter { path in
+            collection.layoutAttributesForItem(at: path).map { visible.contains($0.frame) } ?? false
+        }.count
+    }
+
     fileprivate func configure(_ cell: GridItem, _ item: FileItem) {
         configureAppearance(cell, item)
         cell.icon.image = IconCache.shared.icon(for: item)
