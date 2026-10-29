@@ -173,6 +173,8 @@ final class ColumnListView: NSView, FileListView {
         return responder === browser || responder.isDescendant(of: browser)
     }
 
+    var pageSize: Int { Int(browser.bounds.height / max(1, browser.rowHeight)) }
+
     @objc private func selectionChanged() {
         guard !programmatic, let tab, let node = browser.selectedCell().flatMap({ _ in selectedNode() }) else { return }
         controller?.activate()

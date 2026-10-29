@@ -14,6 +14,8 @@ protocol FileListView: NSView {
     func refreshMarks(_ tab: Tab)
     func focus()
     var isFocused: Bool { get }
+    /// Liczba elementów mieszczących się w widoku — krok kursora dla PgUp/PgDn.
+    var pageSize: Int { get }
 }
 
 /// Jeden panel: karty, ścieżka, (drzewo +) lista plików, filtr, pasek stanu.
@@ -413,6 +415,18 @@ final class PanelViewController: NSViewController {
 
         if let id = workspace.keymap.command(for: chord) {
             workspace.perform(id)
+            return true
+        }
+        // Home/End/PgUp/PgDn przesuwają kursor (jak w TC), a nie tylko przewijają widok.
+        if chord.modifiers.isEmpty, let current = tab.cursorIndex ?? (tab.visibleItems.isEmpty ? nil : 0) {
+            let page = max(1, (currentView?.pageSize ?? 1) - 1)
+            switch chord.key {
+            case "home": tab.moveCursor(to: 0)
+            case "end": tab.moveCursor(to: tab.visibleItems.count - 1)
+            case "pageup": tab.moveCursor(to: current - page)
+            case "pagedown": tab.moveCursor(to: current + page)
+            default: return false
+            }
             return true
         }
         return false
