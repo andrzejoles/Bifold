@@ -338,5 +338,7 @@ i woluminy sieciowe — odczyt, FTP — za zgodą, archiwa/urządzenia — odczy
   własnej kolejce — `SyntaxHighlighter`, do 1 mln znaków), hex (HexFiend `HFTextView`) albo podgląd
   (`PreviewViews`): obraz (`NSImageView` + `ImageInfo` z ImageIO), film i dźwięk (AVKit `AVPlayerView`,
   informacje z `AVURLAsset`), PDF (PDFKit) i dokumenty Office/iWork/RTF/czcionki/3D (`QLPreviewView`).
+  Markdown: podgląd wyrenderowany (`BifoldMarkdown`: cmark-gfm → HTML, `WKWebView` bez JavaScriptu, CSP bez
+  sieci), tekst — surowy plik. „Formatuj” dla JSON/XML: `CodeFormatter` (BifoldCore).
   Pasek pod podglądem — podstawowe informacje o pliku. Quick Look: `QLPreviewPanel` (`QuickLookController`).
 - Ustawienia i okna dialogowe: SwiftUI w oknach AppKit (`NSHostingController`).

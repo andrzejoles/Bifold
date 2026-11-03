@@ -11,6 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   dokumenty Office/iWork/RTF, czcionki i modele 3D przez Quick Look, a kod i pliki tekstowe z kolorowaniem
   składni (~190 języków, Highlightr/highlight.js, jasny i ciemny motyw). Tryby: 1 — tekst, 2 — hex,
   3 — podgląd (wcześniej „Obraz”).
+- Markdown w przeglądarce F3 otwiera się wyrenderowany (nagłówki, tabele, listy zadań, kod, cytaty, obrazy
+  z katalogu pliku; jasny i ciemny motyw); „Tekst” (1) pokazuje surowy plik, „Podgląd” (3) — znowu wyrenderowany.
+  Linki otwierają się w przeglądarce; skrypty i obrazy z internetu nie są wczytywane.
+- Przełącznik „Formatuj” dla JSON i XML: wcięcia i podział na wiersze (kolejność kluczy i zapis liczb jak
+  w pliku); niepoprawny dokument zostaje bez zmian z podanym powodem. Plik na dysku się nie zmienia.
 
 ### Poprawione
 - Linia poleceń uruchamia skrypt z bieżącego katalogu wpisany bez `./` (np. `run.sh`), jak w TC — chyba że

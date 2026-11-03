@@ -2,8 +2,10 @@ import AppKit
 import AVFoundation
 import AVKit
 import BifoldCore
+import BifoldMarkdown
 import PDFKit
 import Quartz
+import WebKit
 
 /// Widoki trybu „Podgląd” przeglądarki F3: obraz, film/dźwięk (AVKit), PDF (PDFKit) i dokumenty
 /// (Quick Look). Pod widokiem pasek z podstawowymi informacjami o pliku.
@@ -11,6 +13,8 @@ enum PreviewViews {
     /// Widok z paskiem informacji pod spodem; `info` można uzupełnić później (dane czytane w tle).
     final class Container: NSView {
         let info = NSTextField(labelWithString: "")
+        /// Obiekt żyjący tak długo, jak widok (np. delegat nawigacji podglądu Markdown).
+        var retained: AnyObject?
 
         init(content: NSView, info text: String = "") {
             super.init(frame: .zero)
@@ -216,6 +220,44 @@ enum PreviewViews {
         }
         if document.isEncrypted { parts.append(L10n.tr("zaszyfrowany")) }
         return Container(content: view, info: parts.joined(separator: " · "))
+    }
+
+    // MARK: Markdown
+
+    /// Wyrenderowany Markdown (cmark-gfm → HTML) w `WKWebView` bez JavaScriptu. Strona ma CSP bez skryptów
+    /// i bez zasobów z sieci; obrazy względne z katalogu pliku. Kliknięty link http(s)/mailto otwiera się
+    /// w domyślnej aplikacji, kotwice (#) przewijają stronę, inne nawigacje są blokowane.
+    static func markdown(_ text: String, title: String, directory: URL) -> NSView {
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        configuration.websiteDataStore = .nonPersistent()
+        let web = WKWebView(frame: .zero, configuration: configuration)
+        let policy = MarkdownNavigationPolicy()
+        web.navigationDelegate = policy
+        web.setValue(false, forKey: "drawsBackground")
+        web.loadHTMLString(MarkdownRenderer.page(text, title: title, directory: directory), baseURL: directory)
+        let container = Container(content: web, info: L10n.tr("Markdown — wyrenderowany (1 — surowy tekst)"))
+        container.retained = policy
+        return container
+    }
+
+    final class MarkdownNavigationPolicy: NSObject, WKNavigationDelegate {
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction) async -> WKNavigationActionPolicy {
+            guard action.navigationType == .linkActivated else {
+                // Wczytanie wygenerowanej strony (i przewinięcie do kotwicy) — nic innego.
+                return action.targetFrame?.isMainFrame == true && (action.request.url?.scheme == "file" || action.request.url?.scheme == "about") ? .allow : .cancel
+            }
+            guard let url = action.request.url else { return .cancel }
+            // Kotwica na tej samej stronie (spis treści, przypisy).
+            if let current = webView.url, url.fragment != nil,
+               url.absoluteString.components(separatedBy: "#").first == current.absoluteString.components(separatedBy: "#").first {
+                return .allow
+            }
+            if ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "") {
+                NSWorkspace.shared.open(url)
+            }
+            return .cancel
+        }
     }
 
     // MARK: Quick Look

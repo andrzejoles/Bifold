@@ -77,6 +77,8 @@ targets:
         product: BifoldAgent
       - package: BifoldKit
         product: BifoldBridgeKit
+      - package: BifoldKit
+        product: BifoldMarkdown
       - target: bifold-mcp
         embed: true
         copy:

@@ -4148,6 +4148,35 @@
         }
       }
     },
+    "Formatuj": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formatieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formatear"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Форматувати"
+          }
+        }
+      }
+    },
     "Formaty %@ kompresują jeden plik — użyj tar.%@": {
       "extractionState": "manual",
       "localizations": {
@@ -7512,6 +7541,35 @@
         }
       }
     },
+    "Markdown — wyrenderowany (1 — surowy tekst)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown — rendered (1 — raw text)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown — gerendert (1 — Rohtext)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown renderizado (1: texto sin formato)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown — відображений (1 — сирий текст)"
+          }
+        }
+      }
+    },
     "Maska": {
       "extractionState": "manual",
       "localizations": {
@@ -9132,6 +9190,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Не знайдено: %@"
+          }
+        }
+      }
+    },
+    "Niepoprawny dokument — bez formatowania": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid document — not formatted"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiges Dokument — nicht formatiert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento no válido: sin formato"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Некоректний документ — без форматування"
           }
         }
       }
@@ -11916,6 +12003,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вихідний файл (типово в іншій панелі, назва без .001)"
+          }
+        }
+      }
+    },
+    "Plik za duży do formatowania": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File too large to format"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei zu groß zum Formatieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivo demasiado grande para formatear"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл завеликий для форматування"
           }
         }
       }
@@ -20355,6 +20471,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Заходить у теку під курсором або відкриває файл у типовій програмі."
+          }
+        }
+      }
+    },
+    "Wcięcia i podział na wiersze (JSON, XML); plik się nie zmienia": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indentation and line breaks (JSON, XML); the file is not changed"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einrückung und Zeilenumbrüche (JSON, XML); die Datei wird nicht verändert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sangría y saltos de línea (JSON, XML); el archivo no se modifica"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відступи та розбиття на рядки (JSON, XML); файл не змінюється"
           }
         }
       }

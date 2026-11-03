@@ -39,6 +39,10 @@ import UniformTypeIdentifiers
         #expect(ViewerDetection.detect(name: "main.swift", sample: text) == .text(language: "swift"))
         #expect(ViewerDetection.detect(name: "Makefile", sample: text) == .text(language: "makefile"))
         #expect(ViewerDetection.detect(name: "notatki.txt", sample: text) == .text(language: nil))
+        // Markdown: tekst z podglądem (wyrenderowany), inne teksty bez.
+        let md = ViewerDetection.detect(name: "README.md", sample: Data("# Tytuł\n".utf8))
+        #expect(md == .text(language: "markdown") && md.hasPreview)
+        #expect(!ViewerContent.text(language: "swift").hasPreview)
         #expect(ViewerDetection.detect(name: "pakiet.PKB", sample: text) == .text(language: "sql"))
         // Tekst z rozszerzeniem obrazu (np. zapisany błędnie) — tekst, nie pusty obraz.
         #expect(ViewerDetection.detect(name: "nie-obraz.png", sample: text) == .text(language: nil))

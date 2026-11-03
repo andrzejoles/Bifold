@@ -18,6 +18,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private let encodingPopup = NSPopUpButton()
     private let wrapCheckbox = NSButton(checkboxWithTitle: L10n.tr("Zawijaj wiersze"), target: nil, action: nil)
     private let syntaxCheckbox = NSButton(checkboxWithTitle: L10n.tr("Kolorowanie składni"), target: nil, action: nil)
+    /// JSON i XML: wcięcia (`CodeFormatter`); oryginał po wyłączeniu.
+    private let formatCheckbox = NSButton(checkboxWithTitle: L10n.tr("Formatuj"), target: nil, action: nil)
+    /// Rozmiar i ścieżka — tekst paska narzędzi bez komunikatu o formatowaniu.
+    private var baseInfo = ""
     private let infoLabel = NSTextField(labelWithString: "")
     private let container = NSView()
     private var textScroll: NSScrollView?
@@ -72,9 +76,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         syntaxCheckbox.target = self
         syntaxCheckbox.action = #selector(syntaxChanged)
         syntaxCheckbox.state = .on
+        formatCheckbox.target = self
+        formatCheckbox.action = #selector(syntaxChanged)
+        formatCheckbox.state = .off
+        formatCheckbox.toolTip = L10n.tr("Wcięcia i podział na wiersze (JSON, XML); plik się nie zmienia")
         infoLabel.textColor = .secondaryLabelColor
         infoLabel.font = .systemFont(ofSize: 11)
-        let toolbar = NSStackView(views: [modeControl, encodingPopup, wrapCheckbox, syntaxCheckbox, NSView(), infoLabel])
+        let toolbar = NSStackView(views: [modeControl, encodingPopup, wrapCheckbox, syntaxCheckbox, formatCheckbox, NSView(), infoLabel])
         toolbar.spacing = 10
         toolbar.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
         toolbar.translatesAutoresizingMaskIntoConstraints = false
@@ -96,11 +104,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// zamrażałby aplikację); okno od razu pokazuje wskaźnik. Wynik po zamknięciu okna jest pomijany.
     private func load() {
         let size = max(0, item.size)
-        infoLabel.stringValue = "\(Format.bytes(size)) · \(item.path.path)"
+        baseInfo = "\(Format.bytes(size)) · \(item.path.path)"
+        infoLabel.stringValue = baseInfo
         modeControl.isEnabled = false
         encodingPopup.isHidden = true
         wrapCheckbox.isHidden = true
         syntaxCheckbox.isHidden = true
+        formatCheckbox.isHidden = true
         install(loadingView())
         let path = item.path, limit = min(size, textLimit)
         Task { [weak self] in
@@ -119,7 +129,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             self.modeControl.setEnabled(content.hasPreview, forSegment: Mode.preview.rawValue)
             self.encodingPopup.selectItem(at: TextEncoding.allCases.firstIndex(of: encoding) ?? 0)
             switch content {
-            case .text: self.show(.text)
+            case .text: self.show(content.hasPreview ? .preview : .text)
             case .binary: self.show(.hex)
             default: self.show(.preview)
             }
@@ -140,6 +150,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         encodingPopup.isHidden = newMode != .text
         wrapCheckbox.isHidden = newMode != .text
         syntaxCheckbox.isHidden = newMode != .text || language == nil
+        formatCheckbox.isHidden = newMode != .text || !CodeFormatter.supports(language: language)
+        infoLabel.stringValue = baseInfo
         let view: NSView
         switch newMode {
         case .text: view = makeTextView()
@@ -212,8 +224,40 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         textScroll = scroll
         applyWrap(textView, scroll)
         textGeneration += 1
-        if let language, syntaxCheckbox.state == .on { highlight(textView, text: text, language: language, generation: textGeneration) }
+        let generation = textGeneration
+        if !formatCheckbox.isHidden, formatCheckbox.state == .on, item.size <= textLimit {
+            format(textView, text: text, generation: generation)
+        } else if let language, syntaxCheckbox.state == .on {
+            highlight(textView, text: text, language: language, generation: generation)
+        }
         return scroll
+    }
+
+    /// „Formatuj” w tle (duży JSON/XML), potem kolorowanie sformatowanego tekstu. Niepoprawny dokument
+    /// zostaje bez zmian, a powód widać w pasku narzędzi.
+    private func format(_ textView: NSTextView, text: String, generation: Int) {
+        let language = language
+        Task { [weak self, weak textView] in
+            let result = (try? await runBlocking(qos: .userInitiated) { CodeFormatter.format(text, language: language) })
+                ?? .failure(.invalid(""))
+            guard let self, let textView, !self.closed, generation == self.textGeneration else { return }
+            var shown = text
+            switch result {
+            case .success(let formatted):
+                shown = formatted
+                textView.string = formatted
+                textView.scroll(.zero)
+            case .failure(.tooLarge):
+                self.infoLabel.stringValue = L10n.tr("Plik za duży do formatowania") + " · " + self.baseInfo
+            case .failure(.invalid(let reason)):
+                let detail = reason.isEmpty ? "" : " (\(reason))"
+                self.infoLabel.stringValue = L10n.tr("Niepoprawny dokument — bez formatowania") + detail + " · " + self.baseInfo
+            }
+            self.infoLabel.toolTip = self.infoLabel.stringValue
+            if let language, self.syntaxCheckbox.state == .on {
+                self.highlight(textView, text: shown, language: language, generation: generation)
+            }
+        }
     }
 
     /// Kolorowanie w tle — tekst jest od razu widoczny bez kolorów, kolory dochodzą po chwili.
@@ -274,7 +318,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             let (view, preview) = PreviewViews.quickLook(url)
             quickLook = preview
             return view
-        case .text, .binary:
+        case .text:
+            // Markdown wyrenderowany; surowy plik — tryb „Tekst” (1).
+            var text = TextDecoding.decode(sample, as: encoding)
+            if item.size > textLimit { text += "\n\n" + L10n.tr("[… pokazano pierwsze \(Format.bytes(textLimit)) — całość w trybie Hex]") }
+            return PreviewViews.markdown(text, title: item.name, directory: url.deletingLastPathComponent())
+        case .binary:
             return messageView(L10n.tr("Brak podglądu dla tego rodzaju pliku."))
         }
     }
