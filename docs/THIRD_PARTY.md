@@ -9,6 +9,8 @@
 | [swift-system](https://github.com/apple/swift-system) | 1.8.1 | Apache-2.0 | SPM (zależność MCP Swift SDK) — linkowana statycznie | 2 |
 | [eventsource](https://github.com/mattt/eventsource) | 1.5.1 | MIT | SPM (zależność MCP Swift SDK) — linkowana statycznie | 2 |
 | [Sparkle](https://sparkle-project.org) | 2.10.1 | MIT | SPM — automatyczne aktualizacje (podpis EdDSA) | wydania |
+| [Highlightr](https://github.com/raspu/Highlightr) | 2.3.0 | MIT | SPM — kolorowanie składni w przeglądarce F3 | przeglądarka |
+| [highlight.js](https://highlightjs.org) | 11.11.1 (w Highlightr) | BSD-3-Clause | JavaScriptCore, 192 języki — przez Highlightr | przeglądarka |
 | [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) | 15.2.0 (Homebrew) | MIT / Unlicense | proces, `--json` | 3 |
 | [7-Zip](https://www.7-zip.org) (`7zz`) | 26.05 (Homebrew `sevenzip`) | LGPL-2.1 + unRAR | proces | 4 |
 | [rclone](https://rclone.org) | 1.75.2 (Homebrew) | MIT | proces `rclone rcd` | 5–6 |
@@ -18,12 +20,12 @@
 | [XcodeGen](https://github.com/yonaskolb/XcodeGen) | 2.46.0 (Homebrew) | MIT | narzędzie deweloperskie (generuje projekt) | 1 |
 
 Frameworki systemowe: AppKit, SwiftUI, Foundation, CryptoKit, QuickLookUI, QuickLookThumbnailing,
-UniformTypeIdentifiers, CoreServices (FSEvents), DiskArbitration, Security, ImageIO, AVFoundation,
-NetFS, ServiceManagement.
+UniformTypeIdentifiers, CoreServices (FSEvents), DiskArbitration, Security, ImageIO, AVFoundation, AVKit,
+PDFKit, Quartz (QLPreviewView), JavaScriptCore (Highlightr), NetFS, ServiceManagement.
 
 Bifold jest na licencji MIT. Do aplikacji dołączane są tylko biblioteki na licencjach MIT, BSD
-i Apache 2.0 (SwiftTerm, HexFiend, Sparkle, MCP Swift SDK i jego zależności swift-log, swift-system,
-eventsource); ich teksty trafiają do `Bifold.app/Contents/Resources/Licencje zewnętrzne.txt` i do obrazu
+i Apache 2.0 (SwiftTerm, HexFiend, Sparkle, Highlightr z highlight.js, MCP Swift SDK i jego zależności
+swift-log, swift-system, eventsource); ich teksty trafiają do `Bifold.app/Contents/Resources/Licencje zewnętrzne.txt` i do obrazu
 DMG (`scripts/third-party-licenses.sh`). Pozostałe pakiety pobierane przez SPM (swift-nio,
 swift-collections, swift-atomics, swift-argument-parser, swift-png, h) służą tylko celom
 niebudowanym dla aplikacji na macOS (narzędzia i testy zależności) i nie trafiają do pakietu.

@@ -421,3 +421,15 @@ wątkiem). Własne procesy nadal przez `posix_spawn` z `POSIX_SPAWN_CLOEXEC_DEFA
 z klawiatury, a nie ma cytowania, które obroni Ctrl+U czy CR w edytorze wiersza powłoki.
 Test `processNowWaitsForNewerReprocess` (niestabilny pod obciążeniem przez `Task.yield()`) zmienia filtr przez
 wewnętrzny punkt zaczepienia `Tab.onProcessed` — dokładnie wtedy, gdy `processNow` czeka.
+
+### D60 · 2026-11-03 — Przeglądarka F3 rozpoznaje rodzaj pliku (decyzja właściciela)
+Rodzaj pliku z sygnatur (PNG, JPEG, GIF, WebP, TIFF, HEIC/AVIF, PDF, MP4/MOV, Matroska, WAV, MP3, FLAC…),
+potem z rozszerzenia (UTType), na końcu „wygląda na tekst” (`ViewerDetection` w BifoldCore, testowane).
+Do podglądu sprawdzone biblioteki: frameworki systemowe (ImageIO, AVKit, PDFKit, Quick Look —
+`QLPreviewView` dla Office/iWork/RTF/czcionek/3D) i **Highlightr 2.3.0** (MIT; highlight.js 11.11.1,
+BSD-3-Clause) do kolorowania składni — dojrzały pakiet SPM bez zależności, 192 języki. Odrzucone:
+tree-sitter (osobna gramatyka na język, kompilowane parsery C), HighlighterSwift (mniej używany fork tego
+samego). Język z rozszerzenia, znanej nazwy (`Makefile`, `Dockerfile`) albo `#!`; bez rozpoznanego języka
+tekst zostaje zwykły (bez kosztownego zgadywania). Kolorowanie w tle na jednej kolejce (kontekst
+JavaScriptCore), tekst powyżej 1 mln znaków bez kolorów. HTML i SVG jako źródło (tekst) — SVG domyślnie
+jako obraz; HTML nie jest renderowany (podgląd nie uruchamia skryptów z pliku).

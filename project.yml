@@ -42,6 +42,10 @@ packages:
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm
     exactVersion: 1.99.1
+  # Kolorowanie składni w przeglądarce F3 (highlight.js przez JavaScriptCore, MIT).
+  Highlightr:
+    url: https://github.com/raspu/Highlightr
+    exactVersion: 2.3.0
   # Automatyczne aktualizacje.
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
@@ -87,6 +91,8 @@ targets:
         product: SwiftTerm
       - package: Sparkle
         product: Sparkle
+      - package: Highlightr
+        product: Highlightr
       - framework: ThirdParty/build/HexFiend.framework
         embed: true
         codeSign: true

@@ -333,6 +333,10 @@ i woluminy sieciowe — odczyt, FTP — za zgodą, archiwa/urządzenia — odczy
   wyszukiwanie po literach, Escape i pozostałe skróty z `Keymap` (`workspace.perform`), a strzałki
   itp. oddaje widokowi. Tylko `ColumnListView` używa lokalnego monitora `NSEvent` (`NSBrowser`
   sam przechwytuje klawisze).
-- `ViewerWindowController` (F3): tekst (`NSTextView`, wybór kodowania), hex (HexFiend `HFTextView`),
-  obrazy (`NSImageView`). Quick Look: `QLPreviewPanel` (`QuickLookController`).
+- `ViewerWindowController` (F3): rodzaj pliku z `ViewerDetection` (BifoldCore — sygnatury, rozszerzenie,
+  `#!`) wybiera tryb domyślny: tekst (`NSTextView`, wybór kodowania, kolorowanie składni Highlightr na
+  własnej kolejce — `SyntaxHighlighter`, do 1 mln znaków), hex (HexFiend `HFTextView`) albo podgląd
+  (`PreviewViews`): obraz (`NSImageView` + `ImageInfo` z ImageIO), film i dźwięk (AVKit `AVPlayerView`,
+  informacje z `AVURLAsset`), PDF (PDFKit) i dokumenty Office/iWork/RTF/czcionki/3D (`QLPreviewView`).
+  Pasek pod podglądem — podstawowe informacje o pliku. Quick Look: `QLPreviewPanel` (`QuickLookController`).
 - Ustawienia i okna dialogowe: SwiftUI w oknach AppKit (`NSHostingController`).
