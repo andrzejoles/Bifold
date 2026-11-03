@@ -1,19 +1,23 @@
 import AppKit
+import AVFoundation
 import BifoldCore
 import BifoldWorkspace
 import HexFiend
-import UniformTypeIdentifiers
+import Quartz
 
-/// Podgląd pliku (F3): tekst w wybranym kodowaniu, hex (HexFiend), obrazy.
-/// Esc lub F3 zamyka okno, 1/2/3 przełącza tryb.
+/// Przeglądarka pliku (F3). Rodzaj pliku rozpoznawany po zawartości i rozszerzeniu (`ViewerDetection`):
+/// obraz z informacjami, film i dźwięk z odtwarzaczem (AVKit), PDF (PDFKit), dokumenty (Quick Look),
+/// tekst z kolorowaniem składni (Highlightr), reszta w hex (HexFiend).
+/// Esc lub F3 zamyka okno, 1/2/3 przełącza tryb (tekst / hex / podgląd).
 final class ViewerWindowController: NSWindowController, NSWindowDelegate {
-    enum Mode: Int { case text, hex, image }
+    enum Mode: Int { case text, hex, preview }
 
     private let item: FileItem
     var onClose: (() -> Void)?
     private let modeControl = NSSegmentedControl()
     private let encodingPopup = NSPopUpButton()
     private let wrapCheckbox = NSButton(checkboxWithTitle: L10n.tr("Zawijaj wiersze"), target: nil, action: nil)
+    private let syntaxCheckbox = NSButton(checkboxWithTitle: L10n.tr("Kolorowanie składni"), target: nil, action: nil)
     private let infoLabel = NSTextField(labelWithString: "")
     private let container = NSView()
     private var textScroll: NSScrollView?
@@ -22,9 +26,16 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private var sample = Data()
     /// Próbka jeszcze się wczytuje (plik „tylko w chmurze” albo na SMB może czytać się długo).
     private var loading = true
+    private var content: ViewerContent = .binary
     private var image: NSImage?
+    private var imageInfo: ImageInfo?
     private var imageLoaded = false
     private var imageLoading = false
+    /// Odtwarzacz i podgląd Quick Look — zatrzymywane przy zmianie trybu i zamknięciu okna.
+    private var player: AVPlayer?
+    private var quickLook: QLPreviewView?
+    /// Numer bieżącego widoku tekstu — wynik kolorowania dla starszego widoku jest pomijany.
+    private var textGeneration = 0
     private var closed = false
     /// Tekst czytamy do tego limitu (większe pliki — tylko początek; całość w trybie hex).
     private let textLimit: Int64 = 32 * 1024 * 1024
@@ -44,16 +55,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    private var isImage: Bool {
-        UTType(filenameExtension: item.fileExtension.lowercased())?.conforms(to: .image) ?? false
-    }
-
     private func build() {
         guard let content = window?.contentView else { return }
         modeControl.segmentCount = 3
         modeControl.setLabel(L10n.tr("Tekst"), forSegment: 0)
         modeControl.setLabel("Hex", forSegment: 1)
-        modeControl.setLabel(L10n.tr("Obraz"), forSegment: 2)
+        modeControl.setLabel(L10n.tr("Podgląd"), forSegment: 2)
         modeControl.target = self
         modeControl.action = #selector(modeChanged)
         for e in TextEncoding.allCases { encodingPopup.addItem(withTitle: e.displayName) }
@@ -62,9 +69,12 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         wrapCheckbox.target = self
         wrapCheckbox.action = #selector(wrapChanged)
         wrapCheckbox.state = .on
+        syntaxCheckbox.target = self
+        syntaxCheckbox.action = #selector(syntaxChanged)
+        syntaxCheckbox.state = .on
         infoLabel.textColor = .secondaryLabelColor
         infoLabel.font = .systemFont(ofSize: 11)
-        let toolbar = NSStackView(views: [modeControl, encodingPopup, wrapCheckbox, NSView(), infoLabel])
+        let toolbar = NSStackView(views: [modeControl, encodingPopup, wrapCheckbox, syntaxCheckbox, NSView(), infoLabel])
         toolbar.spacing = 10
         toolbar.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
         toolbar.translatesAutoresizingMaskIntoConstraints = false
@@ -90,44 +100,70 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         modeControl.isEnabled = false
         encodingPopup.isHidden = true
         wrapCheckbox.isHidden = true
+        syntaxCheckbox.isHidden = true
         install(loadingView())
         let path = item.path, limit = min(size, textLimit)
         Task { [weak self] in
-            let result = try? await runBlocking(qos: .userInitiated) { () -> (Data, TextEncoding, Bool) in
+            let name = path.name
+            let result = try? await runBlocking(qos: .userInitiated) { () -> (Data, TextEncoding, ViewerContent) in
                 let sample = try LocalFS().readSync(path, range: 0..<limit)
-                return (sample, TextDecoding.detect(sample), TextDecoding.looksBinary(sample))
+                return (sample, TextDecoding.detect(sample), ViewerDetection.detect(name: name, sample: sample))
             }
             guard let self, !self.closed else { return }
-            let (sample, encoding, binary) = result ?? (Data(), .utf8, false)
+            let (sample, encoding, content) = result ?? (Data(), .utf8, .text(language: nil))
             self.sample = sample
             self.encoding = encoding
+            self.content = content
             self.loading = false
             self.modeControl.isEnabled = true
+            self.modeControl.setEnabled(content.hasPreview, forSegment: Mode.preview.rawValue)
             self.encodingPopup.selectItem(at: TextEncoding.allCases.firstIndex(of: encoding) ?? 0)
-            if self.isImage {
-                self.show(.image)
-            } else if binary {
-                self.show(.hex)
-            } else {
-                self.show(.text)
+            switch content {
+            case .text: self.show(.text)
+            case .binary: self.show(.hex)
+            default: self.show(.preview)
             }
         }
     }
 
+    private var language: String? {
+        if case .text(let language) = content { return language }
+        return nil
+    }
+
     private func show(_ newMode: Mode) {
         guard !loading, !closed else { return }
+        if newMode == .preview, !content.hasPreview { return }
+        stopMedia()
         mode = newMode
         modeControl.selectedSegment = newMode.rawValue
         encodingPopup.isHidden = newMode != .text
         wrapCheckbox.isHidden = newMode != .text
+        syntaxCheckbox.isHidden = newMode != .text || language == nil
         let view: NSView
         switch newMode {
         case .text: view = makeTextView()
         case .hex: view = makeHexView()
-        case .image: view = makeImageView()
+        case .preview: view = makePreview()
         }
         install(view)
-        window?.makeFirstResponder(view is NSScrollView ? (view as! NSScrollView).documentView : view)
+        window?.makeFirstResponder(Self.focusTarget(in: view))
+    }
+
+    /// Widok, który dostaje klawiaturę (tekst, hex, odtwarzacz — Spacja odtwarza).
+    private static func focusTarget(in view: NSView) -> NSView {
+        if let scroll = view as? NSScrollView, let doc = scroll.documentView { return doc }
+        if let container = view as? PreviewViews.Container, let content = container.subviews.first {
+            return focusTarget(in: content)
+        }
+        return view
+    }
+
+    private func stopMedia() {
+        player?.pause()
+        player = nil
+        quickLook?.close()
+        quickLook = nil
     }
 
     private func install(_ view: NSView) {
@@ -175,7 +211,24 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         textView.string = text
         textScroll = scroll
         applyWrap(textView, scroll)
+        textGeneration += 1
+        if let language, syntaxCheckbox.state == .on { highlight(textView, text: text, language: language, generation: textGeneration) }
         return scroll
+    }
+
+    /// Kolorowanie w tle — tekst jest od razu widoczny bez kolorów, kolory dochodzą po chwili.
+    private func highlight(_ textView: NSTextView, text: String, language: String, generation: Int) {
+        let dark = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let font = textView.font ?? .monospacedSystemFont(ofSize: 12.5, weight: .regular)
+        let fontName = font.fontName, fontSize = font.pointSize
+        Task { [weak self, weak textView] in
+            guard let result = await SyntaxHighlighter.shared.highlight(text, language: language, dark: dark, fontName: fontName, fontSize: fontSize),
+                  let self, let textView, !self.closed, generation == self.textGeneration else { return }
+            let selection = textView.selectedRanges
+            textView.textStorage?.setAttributedString(result.text)
+            textView.selectedRanges = selection
+            if let background = result.background { textView.backgroundColor = background }
+        }
     }
 
     private func applyWrap(_ textView: NSTextView, _ scroll: NSScrollView) {
@@ -201,44 +254,45 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         return hex
     }
 
-    private func makeImageView() -> NSView {
+    private func makePreview() -> NSView {
         // Podgląd czyta tylko pliki lokalne (z serwera, archiwum i telefonu komenda pobiera kopię).
-        guard let url = item.path.url else { return messageView(L10n.tr("Podgląd obrazu jest dostępny tylko dla plików na dysku.")) }
-        guard imageLoaded else {
-            loadImage(url)
-            return loadingView()
-        }
-        let scroll = NSScrollView()
-        let imageView = NSImageView()
-        imageView.image = image
-        imageView.imageScaling = .scaleProportionallyDown
-        imageView.animates = true
-        scroll.documentView = imageView
-        scroll.allowsMagnification = true
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = true
-        imageView.frame = NSRect(origin: .zero, size: imageView.image?.size ?? .zero)
-        DispatchQueue.main.async {
-            let size = imageView.image?.size ?? .zero
-            let visible = scroll.contentSize
-            if size.width > 0, size.height > 0 {
-                scroll.magnification = min(1, min(visible.width / size.width, visible.height / size.height))
+        guard let url = item.path.url else { return messageView(L10n.tr("Podgląd jest dostępny tylko dla plików na dysku.")) }
+        switch content {
+        case .image:
+            guard imageLoaded else {
+                loadImage(url)
+                return loadingView()
             }
+            return PreviewViews.image(image, info: imageInfo)
+        case .video, .audio:
+            let (view, player) = PreviewViews.media(url, isAudio: content == .audio)
+            self.player = player
+            return view
+        case .pdf:
+            return PreviewViews.pdf(url)
+        case .document:
+            let (view, preview) = PreviewViews.quickLook(url)
+            quickLook = preview
+            return view
+        case .text, .binary:
+            return messageView(L10n.tr("Brak podglądu dla tego rodzaju pliku."))
         }
-        return scroll
     }
 
-    /// Dane obrazu czytane w tle (NSImage(contentsOf:) czytałby cały plik na wątku głównym).
+    /// Obraz i jego właściwości czytane w tle (NSImage(contentsOf:) czytałby cały plik na wątku głównym).
     private func loadImage(_ url: URL) {
         guard !imageLoading else { return }
         imageLoading = true
         Task { [weak self] in
-            let data = try? await runBlocking(qos: .userInitiated) { try Data(contentsOf: url) }
+            let loaded = try? await runBlocking(qos: .userInitiated) { () -> (Data, ImageInfo?) in
+                (try Data(contentsOf: url), ImageInfo.read(url))
+            }
             guard let self, !self.closed else { return }
             self.imageLoading = false
             self.imageLoaded = true
-            self.image = data.flatMap { NSImage(data: $0) }
-            if self.mode == .image { self.show(.image) }
+            self.image = loaded.flatMap { NSImage(data: $0.0) }
+            self.imageInfo = loaded?.1
+            if self.mode == .preview { self.show(.preview) }
         }
     }
 
@@ -266,6 +320,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         if mode == .text { show(.text) }
     }
 
+    @objc private func syntaxChanged() {
+        if mode == .text { show(.text) }
+    }
+
     @objc private func wrapChanged() {
         if let scroll = textScroll, let tv = scroll.documentView as? NSTextView { applyWrap(tv, scroll) }
     }
@@ -290,13 +348,14 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             return true
         case ("1", []): show(.text); return true
         case ("2", []): show(.hex); return true
-        case ("3", []): show(.image); return true
+        case ("3", []): show(.preview); return true
         default: return false
         }
     }
 
     func windowWillClose(_ notification: Notification) {
         closed = true
+        stopMedia()
         onClose?()
     }
 }

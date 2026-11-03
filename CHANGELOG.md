@@ -4,6 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 ## [Unreleased]
 
+### Dodane
+- Przeglądarka F3 rozpoznaje rodzaj pliku (po zawartości i rozszerzeniu) i od razu pokazuje go właściwie:
+  obraz dopasowany do okna z informacjami (wymiary, format, model kolorów, głębia, dpi, profil, aparat, data),
+  film i dźwięk z odtwarzaczem (czas, rozdzielczość, kodek, klatki/s, przepływność, próbkowanie), PDF,
+  dokumenty Office/iWork/RTF, czcionki i modele 3D przez Quick Look, a kod i pliki tekstowe z kolorowaniem
+  składni (~190 języków, Highlightr/highlight.js, jasny i ciemny motyw). Tryby: 1 — tekst, 2 — hex,
+  3 — podgląd (wcześniej „Obraz”).
+
 ### Poprawione
 - Linia poleceń uruchamia skrypt z bieżącego katalogu wpisany bez `./` (np. `run.sh`), jak w TC — chyba że
   polecenie o tej nazwie jest w `PATH` (plik w katalogu nie przesłania `ls` czy `make`).

@@ -10,8 +10,8 @@ CHECKOUTS="$ROOT/build/DerivedData.noindex/SourcePackages/checkouts"
 
 # Pakiety SPM linkowane z aplikacją (statycznie do programu albo jako framework) — sprawdzone w
 # Bifold.LinkFileList i Contents/Frameworks: SwiftTerm, Sparkle, MCP (swift-sdk) i jego zależności
-# Logging (swift-log), SystemPackage (swift-system), EventSource (eventsource).
-LINKED=(SwiftTerm Sparkle swift-sdk swift-log swift-system eventsource)
+# Logging (swift-log), SystemPackage (swift-system), EventSource (eventsource), Highlightr (z highlight.js).
+LINKED=(SwiftTerm Sparkle swift-sdk swift-log swift-system eventsource Highlightr)
 # Pobierane przez SPM, ale używane tylko przez cele, których aplikacja nie buduje na macOS (narzędzia
 # i testy zależności, cechy pakietów wyłączone domyślnie) — nie trafiają do pakietu aplikacji.
 NOT_LINKED=(swift-nio swift-collections swift-atomics swift-argument-parser swift-png h)
@@ -51,4 +51,6 @@ COPYRIGHT="$(awk -F' = ' '/^BIFOLD_COPYRIGHT/{print $2}' "$ROOT/Config/Brand.xcc
         done
         [ "$found" = 1 ] || { echo "BŁĄD: brak pliku licencji pakietu $name w $CHECKOUTS" >&2; exit 1; }
     done
+    # Highlightr dołącza highlight.js (osobna licencja BSD-3-Clause w podkatalogu pakietu).
+    section highlight.js "$CHECKOUTS/Highlightr/src/assets/highlighter/LICENSE"
 } > "$OUT"

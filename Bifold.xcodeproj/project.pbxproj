@@ -42,10 +42,12 @@
 		8EFCA2002DDED0C061D7998E /* BifoldHelperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 104A5ACB8728548369333D62 /* BifoldHelperKit */; };
 		8FA866F68238F68D1F5DDA5D /* DriveMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3212432A405AE3EDAD095A /* DriveMenu.swift */; };
 		9306DDA37626CB57CC35A1A0 /* bifold-mcp in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 82470DF1E310E6F21EF3EFFE /* bifold-mcp */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1D94F0AFA091D3BF56D09A4 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = 2162AB6E0858A4942F13EC0C /* Highlightr */; };
 		A4FBDF513DDBE32FC3249FBF /* BifoldWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 579F3D1388B56082940BBC02 /* BifoldWorkspace */; };
 		A67F6B604B123F60570E0384 /* BifoldCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4CC90F7E29DD2F171CB9E812 /* BifoldCore */; };
 		A77C7E34F28113AD1CFE031F /* DirectoryTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D61D5F6D18E125A9D49110F /* DirectoryTreeView.swift */; };
 		B7474CA6058A9B7003E47003 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 020D8F26F33B7813D1FE3360 /* SwiftTerm */; };
+		B9E9AD20C8A70B2D1DFC33B8 /* PreviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA89E1732289921870C93E2 /* PreviewViews.swift */; };
 		C2B4CD356CEE4D299A1FC712 /* QuickViewPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5721F87D33E298BCB5021933 /* QuickViewPane.swift */; };
 		C64F9BCD6A600794099ED5A0 /* GridListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E73F4F7492DA6533F57EBF /* GridListView.swift */; };
 		CBFAC2C52D0F3302C2C3EBCC /* PanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D246500F6F01002047D49D3 /* PanelViewController.swift */; };
@@ -59,6 +61,7 @@
 		F57F3DB573560DE1641C152D /* AppUIServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020926F0EF46C78FC131B60C /* AppUIServices.swift */; };
 		F65FF48AF8F97E5D950F962B /* SearchWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA25122A33169D614B10B583 /* SearchWindow.swift */; };
 		FD838B4FFBD70ED4E5584384 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 606B26C74D764E268FD6D7D8 /* Assets.xcassets */; };
+		FDD8AEA49DD859805CCFFD79 /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B74D225669DB8A96DB83992 /* SyntaxHighlighter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -129,9 +132,11 @@
 		7D246500F6F01002047D49D3 /* PanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewController.swift; sourceTree = "<group>"; };
 		82470DF1E310E6F21EF3EFFE /* bifold-mcp */ = {isa = PBXFileReference; includeInIndex = 0; path = "bifold-mcp"; sourceTree = BUILT_PRODUCTS_DIR; };
 		88ABDCB99093D29357D17D10 /* DetailsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsListView.swift; sourceTree = "<group>"; };
+		8B74D225669DB8A96DB83992 /* SyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlighter.swift; sourceTree = "<group>"; };
 		96D34A2F1BA907345E6BBD20 /* JobsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobsBar.swift; sourceTree = "<group>"; };
 		A72C1AF97505CC6C756CB98C /* ConnectionsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsWindow.swift; sourceTree = "<group>"; };
 		A965284FB8898DEED1F6DBB1 /* CommandLineBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLineBar.swift; sourceTree = "<group>"; };
+		ABA89E1732289921870C93E2 /* PreviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewViews.swift; sourceTree = "<group>"; };
 		ABD05211A430CB6EA0D86E31 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		AC3212432A405AE3EDAD095A /* DriveMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveMenu.swift; sourceTree = "<group>"; };
 		B6703DF26152DBB41A25AAC0 /* LanguageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageService.swift; sourceTree = "<group>"; };
@@ -164,6 +169,7 @@
 				E5647A5E26AF166E666D0804 /* BifoldHelperKit in Frameworks */,
 				B7474CA6058A9B7003E47003 /* SwiftTerm in Frameworks */,
 				227DC71AA2A1F5501EDB39A7 /* Sparkle in Frameworks */,
+				A1D94F0AFA091D3BF56D09A4 /* Highlightr in Frameworks */,
 				0FD666503EB0E24987D66E2D /* HexFiend.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -384,7 +390,9 @@
 		D609FE64994FA1A4E125C29D /* Viewer */ = {
 			isa = PBXGroup;
 			children = (
+				ABA89E1732289921870C93E2 /* PreviewViews.swift */,
 				7577258957A8726095CAAE02 /* QuickLookController.swift */,
+				8B74D225669DB8A96DB83992 /* SyntaxHighlighter.swift */,
 				F27ECF99D333B2873C43BE4E /* ViewerWindowController.swift */,
 			);
 			path = Viewer;
@@ -441,6 +449,7 @@
 				8A8A1A26DE2536189EF28137 /* BifoldHelperKit */,
 				020D8F26F33B7813D1FE3360 /* SwiftTerm */,
 				48016DFAB64C4D228D1BB32D /* Sparkle */,
+				2162AB6E0858A4942F13EC0C /* Highlightr */,
 			);
 			productName = Bifold;
 			productReference = CE72F960ECE1D54DB93340F5 /* Bifold.app */;
@@ -502,6 +511,7 @@
 			mainGroup = 5EFCFA59D0DDE14461A2232B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				D2671D7925C6252208996F8E /* XCRemoteSwiftPackageReference "Highlightr" */,
 				991AE10819E749858FE911C8 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				81A75F4894C3DB04A4F36513 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				1657985BE217875AD9075FF0 /* XCLocalSwiftPackageReference "Packages/BifoldKit" */,
@@ -666,10 +676,12 @@
 				42D9ED7E4C2E3D22017229C4 /* PanelBars.swift in Sources */,
 				D2FDEEBD1583E96E7E956B1D /* PanelTerminalView.swift in Sources */,
 				CBFAC2C52D0F3302C2C3EBCC /* PanelViewController.swift in Sources */,
+				B9E9AD20C8A70B2D1DFC33B8 /* PreviewViews.swift in Sources */,
 				63EA5D8E2D2A15FB69EB3D6A /* QuickLookController.swift in Sources */,
 				C2B4CD356CEE4D299A1FC712 /* QuickViewPane.swift in Sources */,
 				F65FF48AF8F97E5D950F962B /* SearchWindow.swift in Sources */,
 				203113BB789AE150F78C70E8 /* SettingsView.swift in Sources */,
+				FDD8AEA49DD859805CCFFD79 /* SyntaxHighlighter.swift in Sources */,
 				446A5D5718B440193E71D5B4 /* TerminalPane.swift in Sources */,
 				1116E89CAA0F84AA450BD1BC /* Theme.swift in Sources */,
 				25191B4B16A4725E3F6D6C6C /* UpdateService.swift in Sources */,
@@ -998,6 +1010,14 @@
 				version = 2.10.1;
 			};
 		};
+		D2671D7925C6252208996F8E /* XCRemoteSwiftPackageReference "Highlightr" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/raspu/Highlightr";
+			requirement = {
+				kind = exactVersion;
+				version = 2.3.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1013,6 +1033,11 @@
 		14C4EAF34643E9662961215E /* BifoldAgent */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BifoldAgent;
+		};
+		2162AB6E0858A4942F13EC0C /* Highlightr */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D2671D7925C6252208996F8E /* XCRemoteSwiftPackageReference "Highlightr" */;
+			productName = Highlightr;
 		};
 		48016DFAB64C4D228D1BB32D /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;

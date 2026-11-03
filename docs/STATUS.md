@@ -1,6 +1,6 @@
 # Stan realizacji (2026-11-03)
 
-Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **389** w pakiecie
+Wszystkie siedem etapów z [PROMPT.md](PROMPT.md) jest zaimplementowanych. Testy: **394** w pakiecie
 `BifoldKit` (`make test`), w tym 2 pomijane warunkowo: `DocsGenerator.writeShortcuts` (generuje
 `docs/SKROTY.md`, `BIFOLD_WRITE_DOCS=1`) i `AgentE2ETests` (opcjonalny test E2E z prawdziwymi CLI
 agentów, `BIFOLD_E2E_AGENTS=1`) + test wydajności w Release (`make test-release`). Zgodnie z poleceniem
@@ -18,7 +18,7 @@ Legenda: ✅ zweryfikowane testem automatycznym · 👁 sprawdzone ręcznie w dz
 | Operacje w tle: pauza, wznowienie, limit, anulowanie bez częściowego pliku | ✅ (także wewnątrz `copyfile`) |
 | Cofanie przeniesienia, zmiany nazwy, Kosza (z wykrywaniem konfliktów) | ✅ |
 | Wszystkie czynności w rejestrze komend; menu z rejestru | ✅ (`docs/SKROTY.md` generowane z rejestru) |
-| Widoki: szczegóły, lista skrócona, miniatury, kolumny; drzewo; podgląd F3 (tekst/hex/obraz) | 👁 |
+| Widoki: szczegóły, lista skrócona, miniatury, kolumny; drzewo; podgląd F3 (tekst z kolorowaniem składni, hex, obraz z informacjami, film/dźwięk, PDF, dokumenty przez Quick Look; rodzaj pliku — test `ViewerDetectionTests`) | ✅ + 👁 |
 | Terminal SwiftTerm, linia poleceń | 👁 |
 
 ## Etap 2 — API agentów

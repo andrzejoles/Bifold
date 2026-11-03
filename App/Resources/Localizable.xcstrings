@@ -150,6 +150,35 @@
         }
       }
     },
+    "%@ kl./s": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ fps"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ fps"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ fps"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ кадр/с"
+          }
+        }
+      }
+    },
     "%@ potrzebuje pełnego dostępu do dysku": {
       "extractionState": "manual",
       "localizations": {
@@ -1882,6 +1911,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Немає відкритих з’єднань"
+          }
+        }
+      }
+    },
+    "Brak podglądu dla tego rodzaju pliku.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No preview for this kind of file."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Vorschau für diesen Dateityp."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay vista previa para este tipo de archivo."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Немає попереднього перегляду для цього типу файлу."
           }
         }
       }
@@ -5859,6 +5917,35 @@
         }
       }
     },
+    "Kolorowanie składni": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Syntax highlighting"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Syntaxhervorhebung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltado de sintaxis"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підсвічування синтаксису"
+          }
+        }
+      }
+    },
     "Kolory": {
       "extractionState": "manual",
       "localizations": {
@@ -8788,6 +8875,93 @@
         }
       }
     },
+    "Nie udało się odczytać obrazu.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the image."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Bild konnte nicht gelesen werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer la imagen."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося прочитати зображення."
+          }
+        }
+      }
+    },
+    "Nie udało się odczytać pliku multimedialnego (format nieobsługiwany przez macOS).": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the media file (format not supported by macOS)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Mediendatei konnte nicht gelesen werden (Format wird von macOS nicht unterstützt)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer el archivo multimedia (formato no compatible con macOS)."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося прочитати медіафайл (формат не підтримується macOS)."
+          }
+        }
+      }
+    },
+    "Nie udało się otworzyć dokumentu PDF.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not open the PDF document."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das PDF-Dokument konnte nicht geöffnet werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo abrir el documento PDF."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося відкрити документ PDF."
+          }
+        }
+      }
+    },
     "Nie udało się połączyć": {
       "extractionState": "manual",
       "localizations": {
@@ -9886,35 +10060,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Обчислити розміри тек"
-          }
-        }
-      }
-    },
-    "Obraz": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Image"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bild"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Imagen"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Зображення"
           }
         }
       }
@@ -12036,31 +12181,60 @@
         }
       }
     },
-    "Podgląd obrazu jest dostępny tylko dla plików na dysku.": {
+    "Podgląd jest dostępny tylko dla plików na dysku.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Image preview is available only for files on disk."
+            "value": "Preview is available only for files on disk."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Bildvorschau ist nur für Dateien auf der Festplatte verfügbar."
+            "value": "Die Vorschau ist nur für Dateien auf dem Datenträger verfügbar."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La vista previa de imagen solo está disponible para archivos en disco."
+            "value": "La vista previa solo está disponible para archivos en el disco."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перегляд зображення доступний лише для файлів на диску."
+            "value": "Попередній перегляд доступний лише для файлів на диску."
+          }
+        }
+      }
+    },
+    "Podgląd niedostępny.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview unavailable."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschau nicht verfügbar."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista previa no disponible."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Попередній перегляд недоступний."
           }
         }
       }
@@ -12090,6 +12264,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "Перегляд синхронізації"
+          }
+        }
+      }
+    },
+    "Podgląd systemowy (Quick Look)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System preview (Quick Look)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemvorschau (Quick Look)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista previa del sistema (Quick Look)"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Системний перегляд (Quick Look)"
           }
         }
       }
@@ -20214,6 +20417,35 @@
         }
       }
     },
+    "Wczytywanie informacji…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading information…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informationen werden geladen…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando información…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завантаження інформації…"
+          }
+        }
+      }
+    },
     "Wczytywanie pliku…": {
       "extractionState": "manual",
       "localizations": {
@@ -25446,6 +25678,35 @@
         }
       }
     },
+    "kanały: %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "channels: %lld"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kanäle: %lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "canales: %lld"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "канали: %lld"
+          }
+        }
+      }
+    },
     "katalog": {
       "extractionState": "manual",
       "localizations": {
@@ -25471,6 +25732,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "тека"
+          }
+        }
+      }
+    },
+    "klatek: %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "frames: %lld"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frames: %lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fotogramas: %lld"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "кадрів: %lld"
           }
         }
       }
@@ -25823,6 +26113,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "mirror (дзеркало з видаленням), update (без видалення), twoWay (новіший перемагає)"
+          }
+        }
+      }
+    },
+    "mono": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mono"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mono"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mono"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "моно"
           }
         }
       }
@@ -26498,6 +26817,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "smb://сервер/ресурс або nfs://сервер/експорт"
+          }
+        }
+      }
+    },
+    "stereo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "stereo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stereo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "estéreo"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "стерео"
+          }
+        }
+      }
+    },
+    "stron: %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pages: %lld"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seiten: %lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "páginas: %lld"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сторінок: %lld"
           }
         }
       }
@@ -27198,6 +27575,35 @@
         }
       }
     },
+    "z kanałem alfa": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "with alpha channel"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mit Alphakanal"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "con canal alfa"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "з альфа-каналом"
+          }
+        }
+      }
+    },
     "zablokowany": {
       "extractionState": "manual",
       "localizations": {
@@ -27368,6 +27774,35 @@
           "stringUnit": {
             "state": "translated",
             "value": "запис"
+          }
+        }
+      }
+    },
+    "zaszyfrowany": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "encrypted"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "verschlüsselt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cifrado"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "зашифрований"
           }
         }
       }
