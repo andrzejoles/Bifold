@@ -15,11 +15,12 @@ public enum ViewerContent: Equatable, Sendable {
     /// Dane binarne bez podglądu — widok hex.
     case binary
 
-    /// Czy jest widok „Podgląd” (poza tekstem i hex).
+    /// Czy jest widok „Podgląd” (poza tekstem i hex). Markdown — wyrenderowany (tekst = surowy plik).
     public var hasPreview: Bool {
         switch self {
         case .image, .video, .audio, .pdf, .document: true
-        case .text, .binary: false
+        case .text(let language): language == "markdown"
+        case .binary: false
         }
     }
 }

@@ -433,3 +433,18 @@ samego). Język z rozszerzenia, znanej nazwy (`Makefile`, `Dockerfile`) albo `#!
 tekst zostaje zwykły (bez kosztownego zgadywania). Kolorowanie w tle na jednej kolejce (kontekst
 JavaScriptCore), tekst powyżej 1 mln znaków bez kolorów. HTML i SVG jako źródło (tekst) — SVG domyślnie
 jako obraz; HTML nie jest renderowany (podgląd nie uruchamia skryptów z pliku).
+
+### D61 · 2026-11-03 — Markdown wyrenderowany i „Formatuj” JSON/XML (decyzja właściciela)
+- **Markdown:** domyślnie „Podgląd” (wyrenderowany), „Tekst” — surowy plik z kolorowaniem; przełączanie 1/3.
+  Parser **cmark-gfm** (swift-cmark 0.9.0 od swiftlang, BSD-2-Clause; ten sam parser co GitHub: tabele,
+  przekreślenie, autolinki, listy zadań, przypisy) w osobnym module `BifoldMarkdown` (rdzeń używany przez
+  agenta i pomocnika nie dostaje biblioteki C). Odrzucone: MarkdownUI (SwiftUI, wolny dla dużych plików,
+  sam wczytuje obrazy z sieci), Down (nierozwijany). Wynik w `WKWebView`: JavaScript wyłączony, surowy HTML
+  z pliku pomijany przez cmark-gfm (bez `CMARK_OPT_UNSAFE`), CSP `default-src 'none'; img-src data:` — żadnych
+  zasobów z sieci (obrazy-śledzące) ani z dysku; obrazy o ścieżkach względnych wstawiane jako `data:` (tylko pliki
+  graficzne do 20 MB). Kliknięty link http(s)/mailto — w domyślnej aplikacji; inne nawigacje blokowane.
+- **„Formatuj”** (JSON, XML; domyślnie wyłączone, plik się nie zmienia): JSON przez własne wcięcia po
+  sprawdzeniu poprawności `JSONSerialization` — kolejność kluczy, zapis liczb i znaki ucieczki jak w pliku
+  (przebudowa przez `JSONSerialization` sortowałaby klucze); przecinek końcowy (akceptowany przez Foundation)
+  pomijany. XML przez `XMLDocument` z `nodeLoadExternalEntitiesNever` (bez XXE), wcięcie 2 spacje, deklaracja
+  jak w pliku. Niepoprawny dokument zostaje bez zmian, powód w pasku narzędzi; limit 16 MB.

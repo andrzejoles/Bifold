@@ -10,8 +10,8 @@ CHECKOUTS="$ROOT/build/DerivedData.noindex/SourcePackages/checkouts"
 
 # Pakiety SPM linkowane z aplikacją (statycznie do programu albo jako framework) — sprawdzone w
 # Bifold.LinkFileList i Contents/Frameworks: SwiftTerm, Sparkle, MCP (swift-sdk) i jego zależności
-# Logging (swift-log), SystemPackage (swift-system), EventSource (eventsource), Highlightr (z highlight.js).
-LINKED=(SwiftTerm Sparkle swift-sdk swift-log swift-system eventsource Highlightr)
+# Logging (swift-log), SystemPackage (swift-system), EventSource (eventsource), Highlightr (z highlight.js), cmark-gfm (swift-cmark).
+LINKED=(SwiftTerm Sparkle swift-sdk swift-log swift-system eventsource Highlightr swift-cmark)
 # Pobierane przez SPM, ale używane tylko przez cele, których aplikacja nie buduje na macOS (narzędzia
 # i testy zależności, cechy pakietów wyłączone domyślnie) — nie trafiają do pakietu aplikacji.
 NOT_LINKED=(swift-nio swift-collections swift-atomics swift-argument-parser swift-png h)
@@ -44,7 +44,7 @@ COPYRIGHT="$(awk -F' = ' '/^BIFOLD_COPYRIGHT/{print $2}' "$ROOT/Config/Brand.xcc
     section HexFiend "$ROOT/ThirdParty/HexFiend/License.txt"
     for name in "${LINKED[@]}"; do
         found=0
-        for f in "$CHECKOUTS/$name"/{LICENSE,LICENSE.txt,LICENSE.md,NOTICE,NOTICE.txt}; do
+        for f in "$CHECKOUTS/$name"/{LICENSE,LICENSE.txt,LICENSE.md,COPYING,NOTICE,NOTICE.txt}; do
             [ -f "$f" ] || continue
             section "$name" "$f"
             found=1
