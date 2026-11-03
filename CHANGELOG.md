@@ -10,6 +10,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 - Home, End, PgUp i PgDn przesuwają kursor w panelu (pierwszy i ostatni element, strona w górę i w dół),
   a nie tylko przewijają listę — we wszystkich widokach.
 
+### Poprawione — przegląd kodu, część 6
+- Powłoka w terminalu, karta-terminal SSH i CLI agenta nie dziedziczą już otwartych deskryptorów Bifolda —
+  wcześniej CLI jednej sesji agenta dostawał gniazdo serwera agenta i połączenia innych sesji.
+- Linia poleceń odmawia wysłania polecenia do terminala, gdy ścieżka bieżącego katalogu zawiera znaki
+  sterujące (katalog z rozpakowanego archiwum mógł w ten sposób wykonać polecenie zapisane w swojej nazwie).
+- Wykrywanie CLI agentów nie zawiesza się na powłoce logowania, która dużo wypisuje.
+
 ## [2.6.0] – 2026-10-27
 
 ### Poprawione — przegląd kodu, część 5
