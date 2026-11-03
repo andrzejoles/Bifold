@@ -42,6 +42,7 @@ final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
         ])
         terminalView = tv
         let shell = Self.userShell
+        FileDescriptors.markAllCloseOnExec()
         tv.startProcess(
             executable: shell, args: ["-l"], environment: Self.environment(term: "xterm-256color"),
             execName: "-" + (shell as NSString).lastPathComponent, currentDirectory: directory.path)
@@ -50,7 +51,9 @@ final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
     /// Wysyła polecenie do powłoki w podanym katalogu (cd + polecenie).
     func run(command: String?, in directory: VFSPath) {
         startIfNeeded(directory: directory)
-        guard let tv = terminalView else { return }
+        // Tekst idzie do powłoki jak z klawiatury — znaki sterujące w ścieżce zmieniłyby polecenie
+        // (komenda `tools.runCommand` odrzuca taki katalog wcześniej, z komunikatem).
+        guard let tv = terminalView, !containsControlCharacters(directory.path) else { return }
         var line = "cd \(shellQuote(directory.path))"
         if let command, !command.isEmpty { line += " && \(command)" }
         tv.send(txt: line + "\r")

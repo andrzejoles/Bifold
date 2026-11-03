@@ -29,7 +29,15 @@ public enum Spawn {
     ) throws -> Result {
         var outPipe: [Int32] = [-1, -1], errPipe: [Int32] = [-1, -1]
         if case .capture = output {
-            guard pipe(&outPipe) == 0, pipe(&errPipe) == 0 else { throw VFSError.io(path: .local(executable), code: errno) }
+            guard pipe(&outPipe) == 0 else { throw VFSError.io(path: .local(executable), code: errno) }
+            guard pipe(&errPipe) == 0 else {
+                let e = errno
+                close(outPipe[0]); close(outPipe[1])
+                throw VFSError.io(path: .local(executable), code: e)
+            }
+            // Końce potoków nie mogą trafić do terminala uruchamianego w tej chwili (forkpty) — `ssh`
+            // z zapisującym końcem w innym procesie nigdy nie dałby EOF. `adddup2` zdejmuje flagę na 1 i 2.
+            for fd in outPipe + errPipe { FileDescriptors.closeOnExec(fd) }
         }
         var actions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&actions)
@@ -338,7 +346,7 @@ public final class SSHSession: Sendable {
             let bytes = Array((secret + "\n").utf8)
             Thread.detachNewThread {
                 while !writer.withLock({ $0 }) {
-                    let fd = open(fifo, O_WRONLY | O_NONBLOCK)
+                    let fd = open(fifo, O_WRONLY | O_NONBLOCK | O_CLOEXEC)
                     if fd >= 0 {
                         _ = fcntl(fd, F_SETFL, 0)
                         // `ssh`, który zamknął kolejkę, nie może zabić aplikacji sygnałem SIGPIPE.

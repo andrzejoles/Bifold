@@ -25,3 +25,11 @@ public func expandTilde(_ path: String, home: String = NSHomeDirectory()) -> Str
     if path.hasPrefix("~/") { return home + path.dropFirst(1) }
     return path
 }
+
+/// Znaki sterujące (C0, DEL, C1 — w tym U+0085) i separatory wierszy/akapitów (U+2028, U+2029).
+/// W ścieżce od agenta i w tekście wpisywanym do terminala (Ctrl+U, CR) zmieniają znaczenie polecenia.
+public func containsControlCharacters(_ text: String) -> Bool {
+    text.unicodeScalars.contains { s in
+        s.value < 0x20 || (0x7F...0x9F).contains(s.value) || s.value == 0x2028 || s.value == 0x2029
+    }
+}

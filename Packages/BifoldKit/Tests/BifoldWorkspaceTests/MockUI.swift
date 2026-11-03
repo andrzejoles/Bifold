@@ -30,7 +30,8 @@ final class MockUI: UIServices {
     func openWithDefaultApp(_ urls: [URL]) {}
     func showViewer(_ item: FileItem) {}
     func toggleQuickLook(_ items: [FileItem]) {}
-    func runInTerminal(command: String?, directory: VFSPath) {}
+    var terminalRuns: [(command: String?, directory: VFSPath)] = []
+    func runInTerminal(command: String?, directory: VFSPath) { terminalRuns.append((command, directory)) }
     func toggleTerminal(directory: VFSPath) {}
     func focusCommandLine() {}
     func focusQuickFilter() {}

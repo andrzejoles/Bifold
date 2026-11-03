@@ -198,7 +198,7 @@ public final class Rclone: Sendable {
 
     /// Minimalny klient HTTP/1.1 po gnieździe Unix (`Connection: close`, obsługa chunked).
     static func post(socket path: String, path urlPath: String, body: Data) throws -> (status: Int, body: Data) {
-        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        let fd = FileDescriptors.closeOnExec(Darwin.socket(AF_UNIX, SOCK_STREAM, 0))
         guard fd >= 0 else { throw RemoteError.notRunning }
         defer { close(fd) }
         var addr = sockaddr_un()

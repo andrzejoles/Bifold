@@ -233,6 +233,11 @@ var toolCommands: [Command] { [
         agent: .none, effect: .external, summary: L10n.tr("Uruchamia polecenie w powłoce użytkownika w bieżącym katalogu (wynik w terminalu)."), inMenu: false)
     ) { ctx in
         let command = try await ctx.text("command", title: L10n.tr("Polecenie"))
+        // Terminal dostaje `cd '<katalog>' && polecenie` jak z klawiatury: Ctrl+U czy CR w nazwie katalogu
+        // (np. z rozpakowanego archiwum) skasowałyby wiersz i wykonały resztę nazwy jako polecenie.
+        guard !containsControlCharacters(ctx.tab.path.path) else {
+            throw CommandError.notAvailable(L10n.tr("Ścieżka bieżącego katalogu zawiera znaki sterujące — polecenia nie można bezpiecznie wysłać do terminala"))
+        }
         try ctx.requireUI().runInTerminal(command: command, directory: ctx.tab.path)
         return .ok
     },

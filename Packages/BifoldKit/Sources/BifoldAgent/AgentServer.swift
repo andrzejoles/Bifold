@@ -68,7 +68,7 @@ public final class AgentServer: @unchecked Sendable {
         if Self.isListening(path) { throw StartError.alreadyRunning }
         unlink(path)
 
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        let fd = FileDescriptors.closeOnExec(socket(AF_UNIX, SOCK_STREAM, 0))
         guard fd >= 0 else { throw StartError.socket(errno) }
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
@@ -135,7 +135,8 @@ public final class AgentServer: @unchecked Sendable {
 
     private func acceptLoop(_ listenFD: Int32) {
         while state.withLock({ $0.running }) {
-            let client = accept(listenFD, nil, nil)
+            // Bez dziedziczenia: terminal i CLI agenta (forkpty) nie mogą dostać połączeń innych sesji.
+            let client = FileDescriptors.closeOnExec(accept(listenFD, nil, nil))
             if client < 0 {
                 let e = errno
                 guard state.withLock({ $0.running }) else { break }

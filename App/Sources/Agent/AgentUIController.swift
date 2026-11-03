@@ -131,6 +131,8 @@ final class AgentUIController: ApprovalPresenter {
             try? FileManager.default.removeItem(at: sessionDir)
         }
         showPane()
+        // CLI agenta nie może dostać gniazda serwera agenta ani połączeń innych sesji (forkpty dziedziczy deskryptory).
+        FileDescriptors.markAllCloseOnExec()
         terminal.startProcess(
             executable: spec.shell, args: spec.shellArguments, environment: env.map { "\($0.key)=\($0.value)" },
             execName: nil, currentDirectory: directory.path)
@@ -149,8 +151,11 @@ final class AgentUIController: ApprovalPresenter {
             p.standardOutput = out
             p.standardError = FileHandle.nullDevice
             try p.run()
+            // Najpierw odczyt, potem czekanie: pełny potok (profil powłoki logowania pisze na wyjście)
+            // zatrzymałby proces przed zakończeniem.
+            let data = out.fileHandleForReading.readDataToEndOfFile()
             p.waitUntilExit()
-            let path = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            let path = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             return p.terminationStatus == 0 && path.hasPrefix("/") ? path : nil
         }
     }
@@ -165,8 +170,9 @@ final class AgentUIController: ApprovalPresenter {
             p.standardOutput = out
             p.standardError = out
             try p.run()
+            let data = out.fileHandleForReading.readDataToEndOfFile()
             p.waitUntilExit()
-            return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            return String(decoding: data, as: UTF8.self)
         }
         if let list, list.contains(bridgePath) { return }
         guard let ui = workspace.ui, await ui.confirm(

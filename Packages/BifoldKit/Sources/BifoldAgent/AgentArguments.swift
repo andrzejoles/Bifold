@@ -74,11 +74,7 @@ struct ArgumentFreezer {
     /// Znaki sterujące (C0, DEL, C1 — w tym U+0085) i separatory wierszy/akapitów (U+2028, U+2029)
     /// w ścieżce od agenta. Komendy i okna różnie je obcinają (`.newlines` ≠ `.whitespaces`), więc
     /// ścieżka „~/.ssh\n” mogła przejść bramkę jako inny katalog niż ten, który otworzyła komenda.
-    static func hasControlCharacters(_ raw: String) -> Bool {
-        raw.unicodeScalars.contains { s in
-            s.value < 0x20 || (0x7F...0x9F).contains(s.value) || s.value == 0x2028 || s.value == 0x2029
-        }
-    }
+    static func hasControlCharacters(_ raw: String) -> Bool { containsControlCharacters(raw) }
 
     var tab: Tab { workspace.activeTab }
     var other: Tab { workspace.otherTab }

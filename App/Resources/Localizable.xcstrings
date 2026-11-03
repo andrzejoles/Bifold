@@ -27579,6 +27579,35 @@
         }
       }
     },
+    "Ścieżka bieżącego katalogu zawiera znaki sterujące — polecenia nie można bezpiecznie wysłać do terminala": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current directory path contains control characters — the command cannot be sent safely to the terminal"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Pfad des aktuellen Ordners enthält Steuerzeichen — der Befehl kann nicht sicher an das Terminal gesendet werden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La ruta de la carpeta actual contiene caracteres de control: el comando no se puede enviar al terminal de forma segura"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шлях поточної папки містить керівні символи — команду не можна безпечно надіслати в термінал"
+          }
+        }
+      }
+    },
     "Ścieżka katalogu (absolutna, z ~ albo względna wobec bieżącego)": {
       "extractionState": "manual",
       "localizations": {
