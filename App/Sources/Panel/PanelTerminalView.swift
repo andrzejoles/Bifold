@@ -35,6 +35,7 @@ final class PanelTerminalView: NSView, LocalProcessTerminalViewDelegate {
             terminal.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         // Aplikacja z Findera zwykle nie ma LANG — z ustawień systemu (ssh przekazuje go na serwer).
+        FileDescriptors.markAllCloseOnExec()
         terminal.startProcess(executable: spec.executable, args: spec.arguments, environment: TerminalPane.environment(term: spec.term),
                               execName: nil, currentDirectory: NSHomeDirectory())
     }

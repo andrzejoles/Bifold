@@ -354,7 +354,7 @@ final class RemoteEditSession {
 
     func start() {
         // Edytory często zapisują przez zamianę pliku — obserwujemy katalog.
-        let fd = open(local.deletingLastPathComponent().path, O_EVTONLY)
+        let fd = open(local.deletingLastPathComponent().path, O_EVTONLY | O_CLOEXEC)
         guard fd >= 0 else { return }
         let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .extend], queue: .main)
         src.setEventHandler { [weak self] in

@@ -324,10 +324,10 @@ private final class StuckDeviceFS: ExtractingProvider, Sendable {
         try tmp.file("b.txt")
         let (ws, _) = try await makeWorkspace(tmp)
         let tab = ws.activeTab
-        let waiting = Task { await tab.processNow() }
-        await Task.yield()
-        tab.quickFilter = "b"
-        await waiting.value
+        // Zmiana filtra dokładnie wtedy, gdy `processNow` czeka na swoje przeliczenie (punkt zaczepienia
+        // zamiast `Task.yield()` — pod obciążeniem `processNow` kończył się przed zmianą i test był niestabilny).
+        tab.onProcessed = { tab.quickFilter = "b" }
+        await tab.processNow()
         #expect(tab.visibleItems.map(\.name).filter { $0 != ".." } == ["b.txt"])
     }
 }

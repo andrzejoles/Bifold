@@ -6,7 +6,7 @@ import BifoldCore
 enum FullDiskAccess {
     static var isGranted: Bool {
         let protected = NSHomeDirectory() + "/Library/Application Support/com.apple.TCC/TCC.db"
-        let fd = open(protected, O_RDONLY)
+        let fd = open(protected, O_RDONLY | O_CLOEXEC)
         if fd >= 0 {
             close(fd)
             return true

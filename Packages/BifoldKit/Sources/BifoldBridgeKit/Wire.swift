@@ -119,6 +119,7 @@ public enum Wire {
     public static func connect(path: String) throws -> Int32 {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw Error.io(errno) }
+        _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
         let bytes = Array(path.utf8)

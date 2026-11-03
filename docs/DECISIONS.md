@@ -410,3 +410,14 @@ ControlMaster, nie po aliasie (rozszerza D50). Dostawca MTP identyfikowany po US
   i `ENABLE_USER_SCRIPT_SANDBOXING` świadomie NO. Testy pakietu mają przypięte zależności
   (`Packages/BifoldKit/Package.resolved`, te same wersje co aplikacja). Sparkle zostaje uniwersalny —
   przycięcie do arm64 zmieniałoby podpisane części mechanizmu aktualizacji dla ~0,5 MB.
+
+### D59 · 2026-11-03 — Przegląd, część 6: deskryptory i terminal
+(Numer D58 zajmuje decyzja kopii na GitLabie.) Terminale SwiftTerm uruchamiają procesy przez `forkpty` +
+`execve` bez zamykania deskryptorów, więc przed każdym uruchomieniem (terminal, karta-terminal, CLI agenta)
+wszystkie deskryptory > 2 dostają `FD_CLOEXEC` (`FileDescriptors.markAllCloseOnExec`, lista z
+`proc_pidinfo`), a gniazda, potoki i FIFO tworzone przez Bifold mają tę flagę od początku (wyścig z innym
+wątkiem). Własne procesy nadal przez `posix_spawn` z `POSIX_SPAWN_CLOEXEC_DEFAULT` / `Foundation.Process`.
+`tools.runCommand` odrzuca katalog ze znakami sterującymi w ścieżce: polecenie trafia do powłoki jako tekst
+z klawiatury, a nie ma cytowania, które obroni Ctrl+U czy CR w edytorze wiersza powłoki.
+Test `processNowWaitsForNewerReprocess` (niestabilny pod obciążeniem przez `Task.yield()`) zmienia filtr przez
+wewnętrzny punkt zaczepienia `Tab.onProcessed` — dokładnie wtedy, gdy `processNow` czeka.

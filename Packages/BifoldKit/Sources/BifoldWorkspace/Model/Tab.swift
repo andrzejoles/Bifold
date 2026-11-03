@@ -36,6 +36,9 @@ public final class Tab: Identifiable {
     @ObservationIgnored private var watchTask: Task<Void, Never>?
     @ObservationIgnored private var processTask: Task<Void, Never>?
     @ObservationIgnored private var processGeneration = 0
+    /// Testy: wywoływane raz, gdy przeliczenie skończyło pracę w tle, a przed podmianą listy (np. zmiana
+    /// filtra w chwili, gdy `processNow` czeka na to przeliczenie).
+    @ObservationIgnored var onProcessed: (@MainActor () -> Void)?
     /// Liczenie rozmiarów katalogów; `token` odróżnia zadanie od nowszego dla tej samej ścieżki
     /// (anulowane zadanie nie usuwa wpisu zadania uruchomionego po powrocie do katalogu).
     @ObservationIgnored private var sizeTasks: [VFSPath: (token: UUID, task: Task<Void, Never>)] = [:]
@@ -390,6 +393,10 @@ public final class Tab: Identifiable {
             let result = await Task.detached(priority: .userInitiated) {
                 ListingProcessor.process(items, in: dir, options: options)
             }.value
+            if let self, let hook = self.onProcessed {
+                self.onProcessed = nil
+                hook()
+            }
             guard let self, generationAtStart == self.processGeneration else { return }
             self.apply(result)
         }
