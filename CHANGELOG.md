@@ -18,6 +18,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
   w pliku); niepoprawny dokument zostaje bez zmian z podanym powodem. Plik na dysku się nie zmienia.
 
 ### Poprawione
+- SCP (AIX): wejście do katalogu ze starszą datą (np. `/proc`) kończyło się „Nie znaleziono: / proc” — AIX
+  dopełnia rok w `ls -l` spacją z tyłu, a nazwa dostawała ją z przodu. Nazwa liczona jest teraz od stałej
+  szerokości pola daty; nazwy zaczynające się od spacji zostają bez zmian.
 - Linia poleceń uruchamia skrypt z bieżącego katalogu wpisany bez `./` (np. `run.sh`), jak w TC — chyba że
   polecenie o tej nazwie jest w `PATH` (plik w katalogu nie przesłania `ls` czy `make`).
 - Home, End, PgUp i PgDn przesuwają kursor w panelu (pierwszy i ostatni element, strona w górę i w dół),
