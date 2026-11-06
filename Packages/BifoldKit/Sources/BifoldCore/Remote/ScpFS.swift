@@ -186,7 +186,7 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
             // Wiersz kończący się na polu daty (bez nazwy — np. podrzucony nową linią w nazwie pliku).
             let dateEnd = words[k + 2].1.upperBound
             guard dateEnd < line.endIndex else { continue }
-            var name = String(line[line.index(after: dateEnd)...])
+            var name = String(line[Self.nameStart(in: line, monthStart: words[k].1.lowerBound, dateEnd: dateEnd)...])
             let mode = words[0].0
             let kind: FileKind = switch mode.first {
             case "d": .directory
@@ -227,6 +227,18 @@ public final class ScpFS: RemoteFileProvider, ExtractingProvider {
             out.append(ListingEntry(item: item, linkTarget: linkTarget))
         }
         return out
+    }
+
+    /// Początek nazwy: pole daty ma w `ls -l` stałą szerokość 12 znaków („Oct 12 09:15”, „Oct 12  2019”,
+    /// a na AIX i starszych systemach „Oct 12 2019 ” — rok dopełniony spacją z tyłu), po nim jedna spacja.
+    /// Liczone od początku miesiąca, a nie od końca roku — inaczej nazwa z AIX dostawała spację z przodu
+    /// („/ proc” — nie znaleziono). Nazwa zaczynająca się od spacji zostaje. Inny układ — znak po dacie.
+    static func nameStart(in line: String, monthStart: String.Index, dateEnd: String.Index) -> String.Index {
+        let afterDate = line.index(after: dateEnd)
+        guard let fixed = line.index(monthStart, offsetBy: 13, limitedBy: line.endIndex),
+              fixed > afterDate, fixed < line.endIndex,
+              line[afterDate..<fixed].allSatisfy({ $0 == " " }) else { return afterDate }
+        return fixed
     }
 
     static func parseMode(_ mode: String) -> UInt16 {

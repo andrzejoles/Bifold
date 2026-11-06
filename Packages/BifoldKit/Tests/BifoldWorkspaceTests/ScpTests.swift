@@ -151,6 +151,37 @@ let sshdAvailable = FileManager.default.isExecutableFile(atPath: "/usr/sbin/sshd
         #expect(items[2].path.path == "/u01/trace (stare)")
     }
 
+    /// AIX dopełnia rok spacją z tyłu („Oct 12 2019  proc”) — pole daty ma 12 znaków jak „Oct 12 09:15”.
+    /// Wcześniej nazwa dostawała spację z przodu i wejście do katalogu kończyło się „Nie znaleziono: / proc”.
+    @Test func yearPaddedAfterGivesExactName() {
+        let text = """
+        drwxr-xr-x   22 root     system         4096 Nov 05 10:00 .
+        dr-xr-xr-x    1 root     system            0 Oct 12 2019  proc
+        drwxrwxr-x    4 sapbatch sapsys          256 Mar  3 2025  batch dir
+        -rw-r--r--    1 sapbatch sapsys           10 Nov  5 09:15 nowy.log
+        lrwxrwxrwx    1 root     system           11 Jan  9 2023  u -> /usr/local
+        """
+        let now = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 6, hour: 12))!
+        let entries = ScpFS.parseEntries(text, in: VFSPath(provider: ProviderID("remote:aix"), path: "/"), now: now)
+        #expect(entries.map(\.item.name) == ["proc", "batch dir", "nowy.log", "u"])
+        #expect(entries[0].item.path.path == "/proc" && entries[0].item.isDirectory)
+        #expect(entries[3].linkTarget == "/usr/local")
+        let cal = Calendar(identifier: .gregorian)
+        #expect(cal.component(.year, from: entries[0].item.modified!) == 2019)
+    }
+
+    /// Nazwa zaczynająca się od spacji (rok dopełniony z przodu jak w GNU/BSD) zostaje bez zmian.
+    @Test func leadingSpaceNameKept() {
+        let text = """
+        -rw-r--r--    1 u   g    5 Jan 12  2024  spacja.txt
+        -rw-r--r--    1 u   g    5 Oct 17 09:15  też.txt
+        -rw-r--r--    1 u   g    5 Oct 17 9:15 krótka-godzina.txt
+        """
+        let now = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 10, day: 17, hour: 12))!
+        let items = ScpFS.parseListing(text, in: VFSPath(provider: ProviderID("remote:x"), path: "/"), now: now)
+        #expect(items.map(\.name) == [" spacja.txt", " też.txt", "krótka-godzina.txt"])
+    }
+
     /// Wyjście `ls` jest niezaufane: nazwy z `/` (także `../…` w wierszu podrzuconym nową linią w nazwie)
     /// trafiłyby do ścieżek lokalnych przy pobieraniu katalogu.
     @Test func unsafeNamesAreSkipped() {
